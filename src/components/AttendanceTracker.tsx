@@ -20,7 +20,7 @@ interface AttendanceRecord {
   student_id: string;
   date: string;
   status: 'present' | 'absent' | 'late';
-  student?: Student;
+  students?: Student;
 }
 
 interface AttendanceTrackerProps {
@@ -79,7 +79,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         .eq('date', selectedDate);
 
       if (error) throw error;
-      setAttendanceRecords(data || []);
+      
+      // Type assertion to ensure status is the correct type
+      const typedData = (data || []).map(record => ({
+        ...record,
+        status: record.status as 'present' | 'absent' | 'late'
+      }));
+      
+      setAttendanceRecords(typedData);
     } catch (error) {
       console.error('Error fetching attendance records:', error);
     }
