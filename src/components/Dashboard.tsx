@@ -1,17 +1,20 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut } from 'lucide-react';
+import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut, BarChart3 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import AttendanceTracker from './AttendanceTracker';
 import StudentManager from './StudentManager';
+import Statistics from './Statistics';
 
 interface Teacher {
+  id: string;
   name: string;
   email: string;
   phone: string;
   school: string;
-  registeredAt: string;
+  created_at: string;
 }
 
 interface DashboardProps {
@@ -19,37 +22,77 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type ActiveView = 'overview' | 'attendance' | 'students' | 'profile';
+type ActiveView = 'overview' | 'attendance' | 'students' | 'statistics' | 'profile';
 
 const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
   const [activeView, setActiveView] = useState<ActiveView>('overview');
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    presentToday: 0,
+    totalGroups: 0
+  });
 
-  const stats = [
+  useEffect(() => {
+    fetchStats();
+  }, [teacher.id]);
+
+  const fetchStats = async () => {
+    try {
+      // Get total students
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select('id, group_name')
+        .eq('teacher_id', teacher.id);
+
+      if (studentsError) throw studentsError;
+
+      // Get today's attendance
+      const today = new Date().toISOString().split('T')[0];
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance_records')
+        .select('id')
+        .eq('teacher_id', teacher.id)
+        .eq('date', today)
+        .eq('status', 'present');
+
+      if (attendanceError) throw attendanceError;
+
+      const totalStudents = students?.length || 0;
+      const presentToday = attendance?.length || 0;
+      const totalGroups = new Set(students?.map(s => s.group_name)).size;
+
+      setStats({
+        totalStudents,
+        presentToday,
+        totalGroups
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const statsData = [
     {
       title: 'Total Students',
-      value: JSON.parse(localStorage.getItem('students') || '[]').length,
+      value: stats.totalStudents,
       icon: Users,
       color: 'bg-blue-500'
     },
     {
       title: 'Present Today',
-      value: JSON.parse(localStorage.getItem('attendanceRecords') || '[]')
-        .filter((record: any) => {
-          const today = new Date().toDateString();
-          return new Date(record.date).toDateString() === today && record.status === 'present';
-        }).length,
+      value: stats.presentToday,
       icon: UserCheck,
       color: 'bg-green-500'
     },
     {
       title: 'Classes This Week',
-      value: 12,
+      value: 5,
       icon: Calendar,
       color: 'bg-purple-500'
     },
     {
       title: 'Active Groups',
-      value: new Set(JSON.parse(localStorage.getItem('students') || '[]').map((s: any) => s.group)).size,
+      value: stats.totalGroups,
       icon: BookOpen,
       color: 'bg-orange-500'
     }
@@ -59,15 +102,18 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
     { id: 'overview', label: 'Overview', icon: BookOpen },
     { id: 'attendance', label: 'Attendance', icon: UserCheck },
     { id: 'students', label: 'Students', icon: Users },
+    { id: 'statistics', label: 'Statistics', icon: BarChart3 },
     { id: 'profile', label: 'Profile', icon: Settings },
   ];
 
   const renderContent = () => {
     switch (activeView) {
       case 'attendance':
-        return <AttendanceTracker />;
+        return <AttendanceTracker teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'students':
-        return <StudentManager />;
+        return <StudentManager teacherId={teacher.id} onStatsUpdate={fetchStats} />;
+      case 'statistics':
+        return <Statistics teacherId={teacher.id} />;
       case 'profile':
         return (
           <Card className="apple-card p-6">
@@ -93,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
               )}
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Member Since</label>
-                <p className="text-lg">{new Date(teacher.registeredAt).toLocaleDateString()}</p>
+                <p className="text-lg">{new Date(teacher.created_at).toLocaleDateString()}</p>
               </div>
             </div>
           </Card>
@@ -102,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {stats.map((stat, index) => (
+              {statsData.map((stat, index) => (
                 <Card key={index} className="apple-card p-6">
                   <div className="flex items-center">
                     <div className={`p-3 rounded-xl ${stat.color} mr-4`}>
@@ -135,6 +181,13 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
                     <Users className="w-4 h-4 mr-2" />
                     Manage Students
                   </Button>
+                  <Button 
+                    onClick={() => setActiveView('statistics')}
+                    className="w-full apple-button-secondary justify-start"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    View Statistics
+                  </Button>
                 </div>
               </Card>
 
@@ -142,16 +195,16 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
                 <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-center">
-                    <span>Attendance taken for Group A</span>
-                    <span className="text-muted-foreground">2 hours ago</span>
+                    <span>Platform connected to database</span>
+                    <span className="text-muted-foreground">Just now</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>5 new students added</span>
-                    <span className="text-muted-foreground">1 day ago</span>
+                    <span>Profile created</span>
+                    <span className="text-muted-foreground">Today</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Profile updated</span>
-                    <span className="text-muted-foreground">3 days ago</span>
+                    <span>Welcome to TeachPro!</span>
+                    <span className="text-muted-foreground">Today</span>
                   </div>
                 </div>
               </Card>
