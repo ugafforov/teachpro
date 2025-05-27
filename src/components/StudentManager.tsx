@@ -8,18 +8,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Plus, Upload, Edit2, Trash2, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Student {
   id: string;
   name: string;
-  studentId?: string;
-  group: string;
+  student_id?: string;
+  group_name: string;
   email?: string;
   phone?: string;
-  createdAt: string;
+  created_at: string;
 }
 
-const StudentManager: React.FC = () => {
+interface StudentManagerProps {
+  teacherId: string;
+  onStatsUpdate: () => Promise<void>;
+}
+
+const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
@@ -28,38 +34,53 @@ const StudentManager: React.FC = () => {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [bulkImportText, setBulkImportText] = useState('');
+  const [loading, setLoading] = useState(true);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({
     name: '',
-    studentId: '',
-    group: '',
+    student_id: '',
+    group_name: '',
     email: '',
     phone: ''
   });
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedStudents = localStorage.getItem('students');
-    if (savedStudents) {
-      setStudents(JSON.parse(savedStudents));
-    }
-  }, []);
+    fetchStudents();
+  }, [teacherId]);
 
-  const saveStudents = (updatedStudents: Student[]) => {
-    setStudents(updatedStudents);
-    localStorage.setItem('students', JSON.stringify(updatedStudents));
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .order('name');
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load students",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const groups = [...new Set(students.map(student => student.group))];
+  const groups = [...new Set(students.map(student => student.group_name))];
   
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGroup = selectedGroup === 'all' || student.group === selectedGroup;
+                         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGroup = selectedGroup === 'all' || student.group_name === selectedGroup;
     return matchesSearch && matchesGroup;
   });
 
-  const addStudent = () => {
-    if (!newStudent.name || !newStudent.group) {
+  const addStudent = async () => {
+    if (!newStudent.name || !newStudent.group_name) {
       toast({
         title: "Missing Information",
         description: "Please provide at least name and group.",
@@ -68,30 +89,42 @@ const StudentManager: React.FC = () => {
       return;
     }
 
-    const student: Student = {
-      id: Date.now().toString(),
-      name: newStudent.name,
-      studentId: newStudent.studentId || '',
-      group: newStudent.group,
-      email: newStudent.email || '',
-      phone: newStudent.phone || '',
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const { error } = await supabase
+        .from('students')
+        .insert({
+          teacher_id: teacherId,
+          name: newStudent.name,
+          student_id: newStudent.student_id || null,
+          group_name: newStudent.group_name,
+          email: newStudent.email || null,
+          phone: newStudent.phone || null
+        });
 
-    const updatedStudents = [...students, student];
-    saveStudents(updatedStudents);
-    
-    setNewStudent({ name: '', studentId: '', group: '', email: '', phone: '' });
-    setIsAddDialogOpen(false);
-    
-    toast({
-      title: "Student Added",
-      description: `${student.name} has been added to ${student.group}.`,
-    });
+      if (error) throw error;
+
+      await fetchStudents();
+      await onStatsUpdate();
+      
+      setNewStudent({ name: '', student_id: '', group_name: '', email: '', phone: '' });
+      setIsAddDialogOpen(false);
+      
+      toast({
+        title: "Student Added",
+        description: `${newStudent.name} has been added to ${newStudent.group_name}.`,
+      });
+    } catch (error) {
+      console.error('Error adding student:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add student",
+        variant: "destructive",
+      });
+    }
   };
 
-  const editStudent = () => {
-    if (!editingStudent || !editingStudent.name || !editingStudent.group) {
+  const editStudent = async () => {
+    if (!editingStudent || !editingStudent.name || !editingStudent.group_name) {
       toast({
         title: "Missing Information",
         description: "Please provide at least name and group.",
@@ -100,31 +133,67 @@ const StudentManager: React.FC = () => {
       return;
     }
 
-    const updatedStudents = students.map(student => 
-      student.id === editingStudent.id ? editingStudent : student
-    );
-    saveStudents(updatedStudents);
-    
-    setEditingStudent(null);
-    setIsEditDialogOpen(false);
-    
-    toast({
-      title: "Student Updated",
-      description: "Student information has been updated successfully.",
-    });
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({
+          name: editingStudent.name,
+          student_id: editingStudent.student_id || null,
+          group_name: editingStudent.group_name,
+          email: editingStudent.email || null,
+          phone: editingStudent.phone || null
+        })
+        .eq('id', editingStudent.id);
+
+      if (error) throw error;
+
+      await fetchStudents();
+      await onStatsUpdate();
+      
+      setEditingStudent(null);
+      setIsEditDialogOpen(false);
+      
+      toast({
+        title: "Student Updated",
+        description: "Student information has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating student:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update student",
+        variant: "destructive",
+      });
+    }
   };
 
-  const deleteStudent = (studentId: string) => {
-    const updatedStudents = students.filter(student => student.id !== studentId);
-    saveStudents(updatedStudents);
-    
-    toast({
-      title: "Student Removed",
-      description: "Student has been removed from the system.",
-    });
+  const deleteStudent = async (studentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', studentId);
+
+      if (error) throw error;
+
+      await fetchStudents();
+      await onStatsUpdate();
+      
+      toast({
+        title: "Student Removed",
+        description: "Student has been removed from the system.",
+      });
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove student",
+        variant: "destructive",
+      });
+    }
   };
 
-  const processBulkImport = () => {
+  const processBulkImport = async () => {
     if (!bulkImportText.trim()) {
       toast({
         title: "No Data",
@@ -135,38 +204,51 @@ const StudentManager: React.FC = () => {
     }
 
     const lines = bulkImportText.trim().split('\n');
-    const newStudents: Student[] = [];
+    const studentsToInsert = [];
     let errors = 0;
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
       const parts = line.split(/[,\t]/).map(part => part.trim());
       if (parts.length >= 2) {
-        const student: Student = {
-          id: Date.now().toString() + index,
+        studentsToInsert.push({
+          teacher_id: teacherId,
           name: parts[0],
-          group: parts[1],
-          studentId: parts[2] || '',
-          email: parts[3] || '',
-          phone: parts[4] || '',
-          createdAt: new Date().toISOString()
-        };
-        newStudents.push(student);
+          group_name: parts[1],
+          student_id: parts[2] || null,
+          email: parts[3] || null,
+          phone: parts[4] || null
+        });
       } else {
         errors++;
       }
     });
 
-    if (newStudents.length > 0) {
-      const updatedStudents = [...students, ...newStudents];
-      saveStudents(updatedStudents);
-      
-      setBulkImportText('');
-      setIsBulkImportOpen(false);
-      
-      toast({
-        title: "Import Complete",
-        description: `${newStudents.length} students imported successfully. ${errors > 0 ? `${errors} lines skipped due to errors.` : ''}`,
-      });
+    if (studentsToInsert.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('students')
+          .insert(studentsToInsert);
+
+        if (error) throw error;
+
+        await fetchStudents();
+        await onStatsUpdate();
+        
+        setBulkImportText('');
+        setIsBulkImportOpen(false);
+        
+        toast({
+          title: "Import Complete",
+          description: `${studentsToInsert.length} students imported successfully. ${errors > 0 ? `${errors} lines skipped due to errors.` : ''}`,
+        });
+      } catch (error) {
+        console.error('Error importing students:', error);
+        toast({
+          title: "Import Failed",
+          description: "Failed to import students. Please try again.",
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Import Failed",
@@ -175,6 +257,14 @@ const StudentManager: React.FC = () => {
       });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -245,8 +335,8 @@ const StudentManager: React.FC = () => {
                   <Label htmlFor="group">Group *</Label>
                   <Input
                     id="group"
-                    value={newStudent.group || ''}
-                    onChange={(e) => setNewStudent({ ...newStudent, group: e.target.value })}
+                    value={newStudent.group_name || ''}
+                    onChange={(e) => setNewStudent({ ...newStudent, group_name: e.target.value })}
                     placeholder="Class or group name"
                   />
                 </div>
@@ -254,8 +344,8 @@ const StudentManager: React.FC = () => {
                   <Label htmlFor="studentId">Student ID</Label>
                   <Input
                     id="studentId"
-                    value={newStudent.studentId || ''}
-                    onChange={(e) => setNewStudent({ ...newStudent, studentId: e.target.value })}
+                    value={newStudent.student_id || ''}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
                     placeholder="Optional student ID"
                   />
                 </div>
@@ -362,8 +452,8 @@ const StudentManager: React.FC = () => {
                   <div>
                     <p className="font-medium">{student.name}</p>
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                      <span>{student.group}</span>
-                      {student.studentId && <span>ID: {student.studentId}</span>}
+                      <span>{student.group_name}</span>
+                      {student.student_id && <span>ID: {student.student_id}</span>}
                       {student.email && <span>{student.email}</span>}
                     </div>
                   </div>
@@ -414,16 +504,16 @@ const StudentManager: React.FC = () => {
                 <Label htmlFor="edit-group">Group *</Label>
                 <Input
                   id="edit-group"
-                  value={editingStudent.group}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, group: e.target.value })}
+                  value={editingStudent.group_name}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, group_name: e.target.value })}
                 />
               </div>
               <div>
                 <Label htmlFor="edit-studentId">Student ID</Label>
                 <Input
                   id="edit-studentId"
-                  value={editingStudent.studentId || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, studentId: e.target.value })}
+                  value={editingStudent.student_id || ''}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, student_id: e.target.value })}
                 />
               </div>
               <div>

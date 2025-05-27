@@ -6,140 +6,200 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, Users, Check, X, Clock, Download } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Student {
   id: string;
   name: string;
-  group: string;
+  group_name: string;
+  student_id?: string;
 }
 
 interface AttendanceRecord {
   id: string;
-  studentId: string;
-  studentName: string;
-  group: string;
+  student_id: string;
   date: string;
   status: 'present' | 'absent' | 'late';
+  student?: Student;
 }
 
-const AttendanceTracker: React.FC = () => {
+interface AttendanceTrackerProps {
+  teacherId: string;
+  onStatsUpdate: () => Promise<void>;
+}
+
+const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStatsUpdate }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedStudents = localStorage.getItem('students');
-    const savedRecords = localStorage.getItem('attendanceRecords');
-    
-    if (savedStudents) {
-      setStudents(JSON.parse(savedStudents));
-    }
-    
-    if (savedRecords) {
-      setAttendanceRecords(JSON.parse(savedRecords));
-    }
-  }, []);
+    fetchStudents();
+    fetchAttendanceRecords();
+  }, [teacherId, selectedDate]);
 
-  const groups = [...new Set(students.map(student => student.group))];
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', teacherId);
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load students",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAttendanceRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select(`
+          *,
+          students (
+            id,
+            name,
+            group_name,
+            student_id
+          )
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('date', selectedDate);
+
+      if (error) throw error;
+      setAttendanceRecords(data || []);
+    } catch (error) {
+      console.error('Error fetching attendance records:', error);
+    }
+  };
+
+  const groups = [...new Set(students.map(student => student.group_name))];
   
   const filteredStudents = selectedGroup === 'all' 
     ? students 
-    : students.filter(student => student.group === selectedGroup);
+    : students.filter(student => student.group_name === selectedGroup);
 
-  const getAttendanceStatus = (studentId: string, date: string) => {
-    const record = attendanceRecords.find(
-      record => record.studentId === studentId && record.date === date
-    );
+  const getAttendanceStatus = (studentId: string) => {
+    const record = attendanceRecords.find(record => record.student_id === studentId);
     return record?.status || null;
   };
 
-  const markAttendance = (studentId: string, status: 'present' | 'absent' | 'late') => {
-    const student = students.find(s => s.id === studentId);
-    if (!student) return;
+  const markAttendance = async (studentId: string, status: 'present' | 'absent' | 'late') => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .upsert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          date: selectedDate,
+          status: status
+        }, {
+          onConflict: 'student_id,date'
+        });
 
-    const existingRecordIndex = attendanceRecords.findIndex(
-      record => record.studentId === studentId && record.date === selectedDate
-    );
+      if (error) throw error;
 
-    const newRecord: AttendanceRecord = {
-      id: `${studentId}-${selectedDate}`,
-      studentId,
-      studentName: student.name,
-      group: student.group,
-      date: selectedDate,
-      status
-    };
-
-    let updatedRecords;
-    if (existingRecordIndex >= 0) {
-      updatedRecords = [...attendanceRecords];
-      updatedRecords[existingRecordIndex] = newRecord;
-    } else {
-      updatedRecords = [...attendanceRecords, newRecord];
-    }
-
-    setAttendanceRecords(updatedRecords);
-    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
-  };
-
-  const markAllPresent = () => {
-    const updatedRecords = [...attendanceRecords];
-    
-    filteredStudents.forEach(student => {
-      const existingIndex = updatedRecords.findIndex(
-        record => record.studentId === student.id && record.date === selectedDate
-      );
+      await fetchAttendanceRecords();
+      await onStatsUpdate();
       
-      const newRecord: AttendanceRecord = {
-        id: `${student.id}-${selectedDate}`,
-        studentId: student.id,
-        studentName: student.name,
-        group: student.group,
-        date: selectedDate,
-        status: 'present'
-      };
-
-      if (existingIndex >= 0) {
-        updatedRecords[existingIndex] = newRecord;
-      } else {
-        updatedRecords.push(newRecord);
-      }
-    });
-
-    setAttendanceRecords(updatedRecords);
-    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
-    
-    toast({
-      title: "Attendance Updated",
-      description: `Marked all ${filteredStudents.length} students as present for ${new Date(selectedDate).toLocaleDateString()}`,
-    });
+      toast({
+        title: "Attendance Updated",
+        description: `Student marked as ${status}`,
+      });
+    } catch (error) {
+      console.error('Error marking attendance:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update attendance",
+        variant: "destructive",
+      });
+    }
   };
 
-  const exportToCSV = () => {
-    const headers = ['Student Name', 'Group', 'Date', 'Status'];
-    const filteredRecords = attendanceRecords.filter(record => 
-      selectedGroup === 'all' || record.group === selectedGroup
-    );
-    
-    const csvContent = [
-      headers.join(','),
-      ...filteredRecords.map(record => [
-        record.studentName,
-        record.group,
-        record.date,
-        record.status
-      ].join(','))
-    ].join('\n');
+  const markAllPresent = async () => {
+    try {
+      const attendancePromises = filteredStudents.map(student =>
+        supabase
+          .from('attendance_records')
+          .upsert({
+            student_id: student.id,
+            teacher_id: teacherId,
+            date: selectedDate,
+            status: 'present'
+          }, {
+            onConflict: 'student_id,date'
+          })
+      );
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance-${selectedGroup}-${selectedDate}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      await Promise.all(attendancePromises);
+      await fetchAttendanceRecords();
+      await onStatsUpdate();
+
+      toast({
+        title: "Attendance Updated",
+        description: `Marked all ${filteredStudents.length} students as present`,
+      });
+    } catch (error) {
+      console.error('Error marking all present:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update attendance",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select(`
+          *,
+          students (name, group_name, student_id)
+        `)
+        .eq('teacher_id', teacherId);
+
+      if (error) throw error;
+
+      const headers = ['Student Name', 'Group', 'Student ID', 'Date', 'Status'];
+      const csvContent = [
+        headers.join(','),
+        ...(data || []).map(record => [
+          record.students?.name || '',
+          record.students?.group_name || '',
+          record.students?.student_id || '',
+          record.date,
+          record.status
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance-${selectedGroup}-${selectedDate}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export data",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string | null) => {
@@ -159,6 +219,14 @@ const AttendanceTracker: React.FC = () => {
       default: return null;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -241,7 +309,7 @@ const AttendanceTracker: React.FC = () => {
         ) : (
           <div className="divide-y divide-border/50">
             {filteredStudents.map(student => {
-              const status = getAttendanceStatus(student.id, selectedDate);
+              const status = getAttendanceStatus(student.id);
               return (
                 <div key={student.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -252,7 +320,7 @@ const AttendanceTracker: React.FC = () => {
                     </div>
                     <div>
                       <p className="font-medium">{student.name}</p>
-                      <p className="text-sm text-muted-foreground">{student.group}</p>
+                      <p className="text-sm text-muted-foreground">{student.group_name}</p>
                     </div>
                   </div>
                   
