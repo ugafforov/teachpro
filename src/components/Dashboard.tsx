@@ -2,11 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut, BarChart3 } from 'lucide-react';
+import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut, BarChart3, Trophy, Archive, Layers } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AttendanceTracker from './AttendanceTracker';
 import StudentManager from './StudentManager';
 import Statistics from './Statistics';
+import GroupManager from './GroupManager';
+import StudentRankings from './StudentRankings';
+import ArchiveManager from './ArchiveManager';
 
 interface Teacher {
   id: string;
@@ -22,14 +25,15 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type ActiveView = 'overview' | 'attendance' | 'students' | 'statistics' | 'profile';
+type ActiveView = 'overview' | 'groups' | 'attendance' | 'students' | 'rankings' | 'statistics' | 'archive' | 'profile';
 
 const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
   const [activeView, setActiveView] = useState<ActiveView>('overview');
   const [stats, setStats] = useState({
     totalStudents: 0,
     presentToday: 0,
-    totalGroups: 0
+    totalGroups: 0,
+    averageAttendance: 0
   });
 
   useEffect(() => {
@@ -38,33 +42,59 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
 
   const fetchStats = async () => {
     try {
-      // Get total students
+      // Jami o'quvchilar
       const { data: students, error: studentsError } = await supabase
         .from('students')
         .select('id, group_name')
-        .eq('teacher_id', teacher.id);
+        .eq('teacher_id', teacher.id)
+        .eq('is_active', true);
 
       if (studentsError) throw studentsError;
 
-      // Get today's attendance
+      // Bugungi davomat
       const today = new Date().toISOString().split('T')[0];
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('id')
+        .select('id, status')
         .eq('teacher_id', teacher.id)
-        .eq('date', today)
-        .eq('status', 'present');
+        .eq('date', today);
 
       if (attendanceError) throw attendanceError;
 
+      // Faol guruhlar
+      const { data: groups, error: groupsError } = await supabase
+        .from('groups')
+        .select('id')
+        .eq('teacher_id', teacher.id)
+        .eq('is_active', true);
+
+      if (groupsError) throw groupsError;
+
+      // O'rtacha davomat (oxirgi 30 kun)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data: allAttendance, error: allAttendanceError } = await supabase
+        .from('attendance_records')
+        .select('status')
+        .eq('teacher_id', teacher.id)
+        .gte('date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+      if (allAttendanceError) throw allAttendanceError;
+
       const totalStudents = students?.length || 0;
-      const presentToday = attendance?.length || 0;
-      const totalGroups = new Set(students?.map(s => s.group_name)).size;
+      const presentToday = attendance?.filter(a => a.status === 'present').length || 0;
+      const totalGroups = groups?.length || 0;
+      
+      const totalRecords = allAttendance?.length || 0;
+      const presentRecords = allAttendance?.filter(a => a.status === 'present').length || 0;
+      const averageAttendance = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
 
       setStats({
         totalStudents,
         presentToday,
-        totalGroups
+        totalGroups,
+        averageAttendance
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -73,54 +103,63 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
 
   const statsData = [
     {
-      title: 'Total Students',
+      title: 'Jami o\'quvchilar',
       value: stats.totalStudents,
       icon: Users,
       color: 'bg-blue-500'
     },
     {
-      title: 'Present Today',
+      title: 'Bugun kelgan',
       value: stats.presentToday,
       icon: UserCheck,
       color: 'bg-green-500'
     },
     {
-      title: 'Classes This Week',
-      value: 5,
-      icon: Calendar,
+      title: 'Faol guruhlar',
+      value: stats.totalGroups,
+      icon: BookOpen,
       color: 'bg-purple-500'
     },
     {
-      title: 'Active Groups',
-      value: stats.totalGroups,
-      icon: BookOpen,
+      title: 'O\'rtacha davomat',
+      value: `${stats.averageAttendance}%`,
+      icon: BarChart3,
       color: 'bg-orange-500'
     }
   ];
 
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: BookOpen },
-    { id: 'attendance', label: 'Attendance', icon: UserCheck },
-    { id: 'students', label: 'Students', icon: Users },
-    { id: 'statistics', label: 'Statistics', icon: BarChart3 },
-    { id: 'profile', label: 'Profile', icon: Settings },
+    { id: 'overview', label: 'Umumiy ko\'rinish', icon: BookOpen },
+    { id: 'groups', label: 'Guruhlar', icon: Layers },
+    { id: 'students', label: 'O\'quvchilar', icon: Users },
+    { id: 'attendance', label: 'Davomat', icon: UserCheck },
+    { id: 'rankings', label: 'Reyting', icon: Trophy },
+    { id: 'statistics', label: 'Statistika', icon: BarChart3 },
+    { id: 'archive', label: 'Arxiv', icon: Archive },
+    { id: 'profile', label: 'Profil', icon: Settings },
   ];
 
   const renderContent = () => {
     switch (activeView) {
+      case 'groups':
+        return <GroupManager teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'attendance':
         return <AttendanceTracker teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'students':
         return <StudentManager teacherId={teacher.id} onStatsUpdate={fetchStats} />;
+      case 'rankings':
+        return <StudentRankings teacherId={teacher.id} />;
       case 'statistics':
         return <Statistics teacherId={teacher.id} />;
+      case 'archive':
+        return <ArchiveManager teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'profile':
         return (
           <Card className="apple-card p-6">
-            <h2 className="text-xl font-semibold mb-6">Teacher Profile</h2>
+            <h2 className="text-xl font-semibold mb-6">O'qituvchi profili</h2>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Name</label>
+                <label className="text-sm font-medium text-muted-foreground">Ism</label>
                 <p className="text-lg">{teacher.name}</p>
               </div>
               <div>
@@ -128,18 +167,18 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
                 <p className="text-lg">{teacher.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">School</label>
+                <label className="text-sm font-medium text-muted-foreground">Maktab</label>
                 <p className="text-lg">{teacher.school}</p>
               </div>
               {teacher.phone && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Phone</label>
+                  <label className="text-sm font-medium text-muted-foreground">Telefon</label>
                   <p className="text-lg">{teacher.phone}</p>
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Member Since</label>
-                <p className="text-lg">{new Date(teacher.created_at).toLocaleDateString()}</p>
+                <label className="text-sm font-medium text-muted-foreground">Ro'yxatdan o'tgan sana</label>
+                <p className="text-lg">{new Date(teacher.created_at).toLocaleDateString('uz-UZ')}</p>
               </div>
             </div>
           </Card>
@@ -165,50 +204,80 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card className="apple-card p-6">
-                <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+                <h3 className="text-lg font-semibold mb-4">Tezkor amallar</h3>
                 <div className="space-y-3">
                   <Button 
-                    onClick={() => setActiveView('attendance')}
+                    onClick={() => setActiveView('groups')}
                     className="w-full apple-button-secondary justify-start"
                   >
-                    <UserCheck className="w-4 h-4 mr-2" />
-                    Take Attendance
+                    <Layers className="w-4 h-4 mr-2" />
+                    Guruh yaratish
                   </Button>
                   <Button 
                     onClick={() => setActiveView('students')}
                     className="w-full apple-button-secondary justify-start"
                   >
                     <Users className="w-4 h-4 mr-2" />
-                    Manage Students
+                    O'quvchi qo'shish
+                  </Button>
+                  <Button 
+                    onClick={() => setActiveView('attendance')}
+                    className="w-full apple-button-secondary justify-start"
+                  >
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    Davomat olish
                   </Button>
                   <Button 
                     onClick={() => setActiveView('statistics')}
                     className="w-full apple-button-secondary justify-start"
                   >
                     <BarChart3 className="w-4 h-4 mr-2" />
-                    View Statistics
+                    Statistika ko'rish
                   </Button>
                 </div>
               </Card>
 
               <Card className="apple-card p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+                <h3 className="text-lg font-semibold mb-4">Oxirgi faoliyat</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between items-center">
-                    <span>Platform connected to database</span>
-                    <span className="text-muted-foreground">Just now</span>
+                    <span>Platforma ma'lumotlar bazasiga ulandi</span>
+                    <span className="text-muted-foreground">Hozir</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Profile created</span>
-                    <span className="text-muted-foreground">Today</span>
+                    <span>Yangi funksiyalar qo'shildi</span>
+                    <span className="text-muted-foreground">Bugun</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span>Welcome to TeachPro!</span>
-                    <span className="text-muted-foreground">Today</span>
+                    <span>TeachPro tizimiga xush kelibsiz!</span>
+                    <span className="text-muted-foreground">Bugun</span>
                   </div>
                 </div>
               </Card>
             </div>
+
+            {/* Qo'llanma */}
+            <Card className="apple-card p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <h3 className="text-lg font-semibold mb-4 text-blue-900">Qo'llanma</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">1. Guruhlar yarating</h4>
+                  <p className="text-blue-700">Birinchi bo'lib sinflaringizni yarating va ularni boshqaring.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">2. O'quvchilarni qo'shing</h4>
+                  <p className="text-blue-700">Har bir guruhga o'quvchilarni qo'shing yoki import qiling.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">3. Davomat oling</h4>
+                  <p className="text-blue-700">Har kuni o'quvchilaringizning davomatini belgilang.</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-2">4. Statistikani kuzating</h4>
+                  <p className="text-blue-700">Davomat statistikasini tahlil qiling va hisobotlar ko'ring.</p>
+                </div>
+              </div>
+            </Card>
           </div>
         );
     }
@@ -225,12 +294,12 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
             </div>
             <div>
               <h1 className="text-xl font-semibold">TeachPro</h1>
-              <p className="text-sm text-muted-foreground">Welcome back, {teacher.name}</p>
+              <p className="text-sm text-muted-foreground">Xush kelibsiz, {teacher.name}</p>
             </div>
           </div>
           <Button onClick={onLogout} variant="ghost" size="sm">
             <LogOut className="w-4 h-4 mr-2" />
-            Logout
+            Chiqish
           </Button>
         </div>
       </header>

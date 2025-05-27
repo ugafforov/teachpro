@@ -13,6 +13,7 @@ interface Student {
   name: string;
   group_name: string;
   student_id?: string;
+  is_active: boolean;
 }
 
 interface AttendanceRecord {
@@ -46,15 +47,16 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       const { data, error } = await supabase
         .from('students')
         .select('*')
-        .eq('teacher_id', teacherId);
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
 
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
       toast({
-        title: "Error",
-        description: "Failed to load students",
+        title: "Xatolik",
+        description: "O'quvchilarni yuklashda xatolik yuz berdi",
         variant: "destructive",
       });
     } finally {
@@ -72,7 +74,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
             id,
             name,
             group_name,
-            student_id
+            student_id,
+            is_active
           )
         `)
         .eq('teacher_id', teacherId)
@@ -80,11 +83,13 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       if (error) throw error;
       
-      // Type assertion to ensure status is the correct type
-      const typedData = (data || []).map(record => ({
-        ...record,
-        status: record.status as 'present' | 'absent' | 'late'
-      }));
+      // Type assertion to ensure status is the correct type and filter active students
+      const typedData = (data || [])
+        .filter(record => record.students?.is_active)
+        .map(record => ({
+          ...record,
+          status: record.status as 'present' | 'absent' | 'late'
+        }));
       
       setAttendanceRecords(typedData);
     } catch (error) {
@@ -122,14 +127,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       await onStatsUpdate();
       
       toast({
-        title: "Attendance Updated",
-        description: `Student marked as ${status}`,
+        title: "Davomat yangilandi",
+        description: `O'quvchi ${status === 'present' ? 'kelgan' : status === 'late' ? 'kechikkan' : 'kelmagan'} deb belgilandi`,
       });
     } catch (error) {
       console.error('Error marking attendance:', error);
       toast({
-        title: "Error",
-        description: "Failed to update attendance",
+        title: "Xatolik",
+        description: "Davomatni yangilashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -155,14 +160,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       await onStatsUpdate();
 
       toast({
-        title: "Attendance Updated",
-        description: `Marked all ${filteredStudents.length} students as present`,
+        title: "Davomat yangilandi",
+        description: `Barcha ${filteredStudents.length} o'quvchi kelgan deb belgilandi`,
       });
     } catch (error) {
       console.error('Error marking all present:', error);
       toast({
-        title: "Error",
-        description: "Failed to update attendance",
+        title: "Xatolik",
+        description: "Davomatni yangilashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -180,7 +185,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       if (error) throw error;
 
-      const headers = ['Student Name', 'Group', 'Student ID', 'Date', 'Status'];
+      const headers = ['O\'quvchi nomi', 'Guruh', 'O\'quvchi ID', 'Sana', 'Holat'];
       const csvContent = [
         headers.join(','),
         ...(data || []).map(record => [
@@ -188,22 +193,27 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
           record.students?.group_name || '',
           record.students?.student_id || '',
           record.date,
-          record.status
+          record.status === 'present' ? 'Kelgan' : record.status === 'late' ? 'Kechikkan' : 'Kelmagan'
         ].join(','))
       ].join('\n');
 
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `attendance-${selectedGroup}-${selectedDate}.csv`;
+      a.download = `davomat-${selectedGroup}-${selectedDate}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export muvaffaqiyatli",
+        description: "Davomat ma'lumotlari yuklab olindi",
+      });
     } catch (error) {
       console.error('Error exporting CSV:', error);
       toast({
-        title: "Error",
-        description: "Failed to export data",
+        title: "Xatolik",
+        description: "Ma'lumotlarni eksport qilishda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -227,6 +237,15 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
   };
 
+  const getStatusText = (status: string | null) => {
+    switch (status) {
+      case 'present': return 'Kelgan';
+      case 'absent': return 'Kelmagan';
+      case 'late': return 'Kechikkan';
+      default: return null;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -239,26 +258,26 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Attendance Tracker</h2>
-          <p className="text-muted-foreground">Manage student attendance efficiently</p>
+          <h2 className="text-2xl font-bold">Davomat olish</h2>
+          <p className="text-muted-foreground">O'quvchilar davomatini samarali boshqaring</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <Button onClick={exportToCSV} variant="outline" className="apple-button-secondary">
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            CSV export
           </Button>
           <Button onClick={markAllPresent} className="apple-button">
             <Users className="w-4 h-4 mr-2" />
-            Mark All Present
+            Barchani kelgan deb belgilash
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filtrlar */}
       <Card className="apple-card p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Date</label>
+            <label className="text-sm font-medium">Sana</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -270,13 +289,13 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Group</label>
+            <label className="text-sm font-medium">Guruh</label>
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a group" />
+                <SelectValue placeholder="Guruhni tanlang" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Groups</SelectItem>
+                <SelectItem value="all">Barcha guruhlar</SelectItem>
                 {groups.map(group => (
                   <SelectItem key={group} value={group}>{group}</SelectItem>
                 ))}
@@ -286,14 +305,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         </div>
       </Card>
 
-      {/* Attendance List */}
+      {/* Davomat ro'yxati */}
       <Card className="apple-card">
         <div className="p-6 border-b border-border/50">
           <h3 className="text-lg font-semibold">
-            {selectedGroup === 'all' ? 'All Students' : `Group: ${selectedGroup}`}
+            {selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `Guruh: ${selectedGroup}`}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {new Date(selectedDate).toLocaleDateString('en-US', { 
+            {new Date(selectedDate).toLocaleDateString('uz-UZ', { 
               weekday: 'long', 
               year: 'numeric', 
               month: 'long', 
@@ -305,11 +324,11 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         {filteredStudents.length === 0 ? (
           <div className="p-12 text-center">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Students Found</h3>
+            <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
             <p className="text-muted-foreground">
               {selectedGroup === 'all' 
-                ? 'Add students to start taking attendance'
-                : `No students found in ${selectedGroup} group`
+                ? 'Davomat olish uchun avval o\'quvchilar qo\'shing'
+                : `${selectedGroup} guruhida o'quvchilar topilmadi`
               }
             </p>
           </div>
@@ -335,7 +354,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                     {status && (
                       <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(status)}`}>
                         {getStatusIcon(status)}
-                        <span className="capitalize">{status}</span>
+                        <span>{getStatusText(status)}</span>
                       </span>
                     )}
                     <div className="flex space-x-1">
@@ -344,6 +363,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                         variant={status === 'present' ? 'default' : 'outline'}
                         onClick={() => markAttendance(student.id, 'present')}
                         className="w-8 h-8 p-0"
+                        title="Kelgan"
                       >
                         <Check className="w-4 h-4" />
                       </Button>
@@ -352,6 +372,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                         variant={status === 'late' ? 'default' : 'outline'}
                         onClick={() => markAttendance(student.id, 'late')}
                         className="w-8 h-8 p-0"
+                        title="Kechikkan"
                       >
                         <Clock className="w-4 h-4" />
                       </Button>
@@ -360,6 +381,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                         variant={status === 'absent' ? 'default' : 'outline'}
                         onClick={() => markAttendance(student.id, 'absent')}
                         className="w-8 h-8 p-0"
+                        title="Kelmagan"
                       >
                         <X className="w-4 h-4" />
                       </Button>

@@ -9,6 +9,111 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      archived_groups: {
+        Row: {
+          archived_at: string
+          archived_by: string | null
+          can_restore: boolean | null
+          description: string | null
+          id: string
+          name: string
+          original_group_id: string
+          teacher_id: string
+        }
+        Insert: {
+          archived_at?: string
+          archived_by?: string | null
+          can_restore?: boolean | null
+          description?: string | null
+          id?: string
+          name: string
+          original_group_id: string
+          teacher_id: string
+        }
+        Update: {
+          archived_at?: string
+          archived_by?: string | null
+          can_restore?: boolean | null
+          description?: string | null
+          id?: string
+          name?: string
+          original_group_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archived_groups_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archived_groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      archived_students: {
+        Row: {
+          archived_at: string
+          archived_by: string | null
+          can_restore: boolean | null
+          email: string | null
+          group_name: string
+          id: string
+          name: string
+          original_student_id: string
+          phone: string | null
+          student_id: string | null
+          teacher_id: string
+        }
+        Insert: {
+          archived_at?: string
+          archived_by?: string | null
+          can_restore?: boolean | null
+          email?: string | null
+          group_name: string
+          id?: string
+          name: string
+          original_student_id: string
+          phone?: string | null
+          student_id?: string | null
+          teacher_id: string
+        }
+        Update: {
+          archived_at?: string
+          archived_by?: string | null
+          can_restore?: boolean | null
+          email?: string | null
+          group_name?: string
+          id?: string
+          name?: string
+          original_student_id?: string
+          phone?: string | null
+          student_id?: string | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archived_students_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archived_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           created_at: string
@@ -54,12 +159,106 @@ export type Database = {
           },
         ]
       }
+      groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_rankings: {
+        Row: {
+          absent_count: number | null
+          attendance_percentage: number | null
+          id: string
+          last_updated: string
+          late_count: number | null
+          present_count: number | null
+          rank_position: number | null
+          student_id: string
+          teacher_id: string
+          total_classes: number | null
+        }
+        Insert: {
+          absent_count?: number | null
+          attendance_percentage?: number | null
+          id?: string
+          last_updated?: string
+          late_count?: number | null
+          present_count?: number | null
+          rank_position?: number | null
+          student_id: string
+          teacher_id: string
+          total_classes?: number | null
+        }
+        Update: {
+          absent_count?: number | null
+          attendance_percentage?: number | null
+          id?: string
+          last_updated?: string
+          late_count?: number | null
+          present_count?: number | null
+          rank_position?: number | null
+          student_id?: string
+          teacher_id?: string
+          total_classes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_rankings_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_rankings_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           created_at: string
           email: string | null
+          group_id: string | null
           group_name: string
           id: string
+          is_active: boolean | null
           name: string
           phone: string | null
           student_id: string | null
@@ -69,8 +268,10 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          group_id?: string | null
           group_name: string
           id?: string
+          is_active?: boolean | null
           name: string
           phone?: string | null
           student_id?: string | null
@@ -80,8 +281,10 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          group_id?: string | null
           group_name?: string
           id?: string
+          is_active?: boolean | null
           name?: string
           phone?: string | null
           student_id?: string | null
@@ -89,6 +292,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "students_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "students_teacher_id_fkey"
             columns: ["teacher_id"]
