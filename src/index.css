@@ -7,57 +7,57 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 0 0% 0%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 210 100% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 210 100% 50%;
-    --chart-1: 210 100% 50%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 220 70% 50%;
-    --chart-4: 45 93% 47%;
-    --chart-5: 0 84% 60%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 0% 0%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 0 0% 0%;
+    --chart-1: 0 0% 0%;
+    --chart-2: 0 0% 30%;
+    --chart-3: 0 0% 50%;
+    --chart-4: 0 0% 70%;
+    --chart-5: 0 0% 90%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 210 100% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --chart-1: 210 100% 50%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 220 70% 50%;
-    --chart-4: 45 93% 47%;
-    --chart-5: 0 84% 60%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 0%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 0%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 5%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 5%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 0 0% 5%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 0% 100%;
+    --destructive-foreground: 0 0% 0%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 0 0% 100%;
+    --chart-1: 0 0% 100%;
+    --chart-2: 0 0% 70%;
+    --chart-3: 0 0% 50%;
+    --chart-4: 0 0% 30%;
+    --chart-5: 0 0% 10%;
   }
 }
 
@@ -66,35 +66,35 @@
     @apply border-border;
   }
   body {
-    @apply bg-white text-foreground;
+    @apply bg-white text-black;
     font-family: "SF Pro Display", -apple-system, "Inter", BlinkMacSystemFont, sans-serif;
   }
 }
 
 @layer components {
-  /* Clean, minimal Apple-inspired design components */
+  /* Clean, minimal black and white design components */
   .clean-card {
-    @apply bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
+    @apply bg-white border border-gray-300 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
   }
   
   .clean-button {
-    @apply bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
+    @apply bg-black hover:bg-gray-800 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
   }
   
   .clean-button-secondary {
-    @apply bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-white border border-gray-300 hover:bg-gray-50 text-black font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   .clean-button-success {
-    @apply bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-black hover:bg-gray-800 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   .clean-button-warning {
-    @apply bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-black hover:bg-gray-800 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   .clean-button-danger {
-    @apply bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-black hover:bg-gray-800 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   /* Attendance buttons styling */
@@ -103,27 +103,27 @@
   }
   
   .attendance-present {
-    @apply bg-white border border-gray-200 text-gray-600 hover:bg-green-50 hover:border-green-200 hover:text-green-600;
+    @apply bg-white border border-gray-300 text-black hover:bg-gray-50;
   }
   
   .attendance-present-active {
-    @apply bg-green-500 border-green-500 text-white hover:bg-green-600;
+    @apply bg-black border-black text-white hover:bg-gray-800;
   }
   
   .attendance-late {
-    @apply bg-white border border-gray-200 text-gray-600 hover:bg-yellow-50 hover:border-yellow-200 hover:text-yellow-600;
+    @apply bg-white border border-gray-300 text-black hover:bg-gray-50;
   }
   
   .attendance-late-active {
-    @apply bg-yellow-500 border-yellow-500 text-white hover:bg-yellow-600;
+    @apply bg-black border-black text-white hover:bg-gray-800;
   }
   
   .attendance-absent {
-    @apply bg-white border border-gray-200 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600;
+    @apply bg-white border border-gray-300 text-black hover:bg-gray-50;
   }
   
   .attendance-absent-active {
-    @apply bg-red-500 border-red-500 text-white hover:bg-red-600;
+    @apply bg-black border-black text-white hover:bg-gray-800;
   }
 
   /* Responsive sidebar */
@@ -172,11 +172,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full;
+  @apply bg-gray-400 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
+  @apply bg-gray-600;
 }
 
 /* Animations */
