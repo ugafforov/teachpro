@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Upload, Edit2, Trash2, Search, Archive } from 'lucide-react';
+import { Users, Plus, Upload, Edit2, Search, Archive, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -46,10 +45,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   const [loading, setLoading] = useState(true);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({
     name: '',
-    student_id: '',
-    group_name: '',
-    email: '',
-    phone: ''
+    group_name: ''
   });
   const { toast } = useToast();
 
@@ -103,8 +99,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   ])];
   
   const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGroup = selectedGroup === 'all' || student.group_name === selectedGroup;
     return matchesSearch && matchesGroup;
   });
@@ -120,41 +115,20 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
 
     try {
-      // Agar yangi guruh kiritilgan bo'lsa, uni guruhlar jadvaliga qo'shish
-      const existingGroup = groups.find(g => g.name === newStudent.group_name);
-      if (!existingGroup) {
-        const { error: groupError } = await supabase
-          .from('groups')
-          .insert({
-            teacher_id: teacherId,
-            name: newStudent.group_name,
-            description: `${newStudent.group_name} guruhi`
-          });
-
-        if (groupError) {
-          console.warn('Group creation failed:', groupError);
-          // Guruh yaratilmasa ham o'quvchini qo'shishda davom etamiz
-        }
-      }
-
       const { error } = await supabase
         .from('students')
         .insert({
           teacher_id: teacherId,
           name: newStudent.name,
-          student_id: newStudent.student_id || null,
-          group_name: newStudent.group_name,
-          email: newStudent.email || null,
-          phone: newStudent.phone || null
+          group_name: newStudent.group_name
         });
 
       if (error) throw error;
 
       await fetchStudents();
-      await fetchGroups();
       await onStatsUpdate();
       
-      setNewStudent({ name: '', student_id: '', group_name: '', email: '', phone: '' });
+      setNewStudent({ name: '', group_name: '' });
       setIsAddDialogOpen(false);
       
       toast({
@@ -168,6 +142,62 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
         description: "O'quvchi qo'shishda xatolik yuz berdi",
         variant: "destructive",
       });
+    }
+  };
+
+  const processBulkImport = async () => {
+    if (!bulkImportText.trim() || !selectedGroup || selectedGroup === 'all') {
+      toast({
+        title: "Ma'lumot yo'q",
+        description: "Guruh tanlang va o'quvchi ismlarini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const lines = bulkImportText.trim().split('\n');
+    const studentsToInsert = [];
+    let errors = 0;
+
+    lines.forEach((line) => {
+      const name = line.trim();
+      if (name.length >= 2) {
+        studentsToInsert.push({
+          teacher_id: teacherId,
+          name: name,
+          group_name: selectedGroup
+        });
+      } else {
+        errors++;
+      }
+    });
+
+    if (studentsToInsert.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('students')
+          .insert(studentsToInsert);
+
+        if (error) throw error;
+
+        await fetchStudents();
+        await onStatsUpdate();
+        
+        setBulkImportText('');
+        setIsBulkImportOpen(false);
+        
+        toast({
+          title: "Import tugallandi",
+          description: `${studentsToInsert.length} o'quvchi ${selectedGroup} guruhiga import qilindi`,
+        });
+      } catch (error) {
+        console.error('Error importing students:', error);
+        toast({
+          title: "Import muvaffaqiyatsiz",
+          description: "O'quvchilarni import qilishda xatolik yuz berdi",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -186,10 +216,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
         .from('students')
         .update({
           name: editingStudent.name,
-          student_id: editingStudent.student_id || null,
           group_name: editingStudent.group_name,
-          email: editingStudent.email || null,
-          phone: editingStudent.phone || null
         })
         .eq('id', editingStudent.id);
 
@@ -257,71 +284,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const processBulkImport = async () => {
-    if (!bulkImportText.trim()) {
-      toast({
-        title: "Ma'lumot yo'q",
-        description: "Import qilish uchun o'quvchi ma'lumotlarini kiriting",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const lines = bulkImportText.trim().split('\n');
-    const studentsToInsert = [];
-    let errors = 0;
-
-    lines.forEach((line) => {
-      const parts = line.split(/[,\t]/).map(part => part.trim());
-      if (parts.length >= 2) {
-        studentsToInsert.push({
-          teacher_id: teacherId,
-          name: parts[0],
-          group_name: parts[1],
-          student_id: parts[2] || null,
-          email: parts[3] || null,
-          phone: parts[4] || null
-        });
-      } else {
-        errors++;
-      }
-    });
-
-    if (studentsToInsert.length > 0) {
-      try {
-        const { error } = await supabase
-          .from('students')
-          .insert(studentsToInsert);
-
-        if (error) throw error;
-
-        await fetchStudents();
-        await onStatsUpdate();
-        
-        setBulkImportText('');
-        setIsBulkImportOpen(false);
-        
-        toast({
-          title: "Import tugallandi",
-          description: `${studentsToInsert.length} o'quvchi muvaffaqiyatli import qilindi. ${errors > 0 ? `${errors} ta qator xatolik sababli o'tkazib yuborildi.` : ''}`,
-        });
-      } catch (error) {
-        console.error('Error importing students:', error);
-        toast({
-          title: "Import muvaffaqiyatsiz",
-          description: "O'quvchilarni import qilishda xatolik yuz berdi",
-          variant: "destructive",
-        });
-      }
-    } else {
-      toast({
-        title: "Import muvaffaqiyatsiz",
-        description: "To'g'ri formatda o'quvchi ma'lumotlari topilmadi",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -351,14 +313,27 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label>O'quvchi ma'lumotlarini kiriting (har bir qatorda bittadan)</Label>
+                  <Label>Guruhni tanlang</Label>
+                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Import qilinadigan guruhni tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableGroups.map(group => (
+                        <SelectItem key={group} value={group}>{group}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>O'quvchi ismlarini kiriting</Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Format: Ism, Guruh, O'quvchi ID, Email, Telefon
+                    Har bir qatorda bitta ism kiriting
                   </p>
                   <Textarea
                     value={bulkImportText}
                     onChange={(e) => setBulkImportText(e.target.value)}
-                    placeholder="Ahmadjon Karimov, 10-A, ST001, ahmad@email.com, 998901234567"
+                    placeholder="Ahmadjon Karimov&#10;Farrux Yo'ldoshev&#10;Malika Abdullayeva"
                     rows={8}
                   />
                 </div>
@@ -397,56 +372,19 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                 </div>
                 <div>
                   <Label htmlFor="group">Guruh *</Label>
-                  {availableGroups.length > 0 ? (
-                    <Select 
-                      value={newStudent.group_name || ''} 
-                      onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Guruhni tanlang yoki yangi kiriting" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableGroups.map(groupName => (
-                          <SelectItem key={groupName} value={groupName}>{groupName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="group"
-                      value={newStudent.group_name || ''}
-                      onChange={(e) => setNewStudent({ ...newStudent, group_name: e.target.value })}
-                      placeholder="Guruh nomi"
-                    />
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="studentId">O'quvchi ID</Label>
-                  <Input
-                    id="studentId"
-                    value={newStudent.student_id || ''}
-                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
-                    placeholder="Ixtiyoriy o'quvchi ID"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newStudent.email || ''}
-                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                    placeholder="student@email.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Telefon</Label>
-                  <Input
-                    id="phone"
-                    value={newStudent.phone || ''}
-                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                    placeholder="Telefon raqami"
-                  />
+                  <Select 
+                    value={newStudent.group_name || ''} 
+                    onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Guruhni tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableGroups.map(groupName => (
+                        <SelectItem key={groupName} value={groupName}>{groupName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex space-x-2">
                   <Button onClick={addStudent} className="apple-button flex-1">
@@ -472,7 +410,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               <Input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Ism yoki ID bo'yicha qidirish..."
+                placeholder="Ism bo'yicha qidirish..."
                 className="pl-10"
               />
             </div>
@@ -510,10 +448,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
             <p className="text-muted-foreground mb-4">
-              {searchTerm || selectedGroup !== 'all' 
-                ? 'Qidiruv yoki filtrlarni o\'zgartiring'
-                : 'Birinchi o\'quvchingizni qo\'shishni boshlang'
-              }
+              Birinchi o'quvchingizni qo'shishni boshlang
             </p>
             <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
               <Plus className="w-4 h-4 mr-2" />
@@ -523,20 +458,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
         ) : (
           <div className="divide-y divide-border/50">
             {filteredStudents.map(student => (
-              <div key={student.id} className="p-4 flex items-center justify-between">
+              <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors">
                 <div className="flex items-center space-x-4">
                   <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium">
-                      {student.name.split(' ').map(n => n[0]).join('')}
-                    </span>
+                    <User className="w-5 h-5" />
                   </div>
                   <div>
                     <p className="font-medium">{student.name}</p>
-                    <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                      <span>{student.group_name}</span>
-                      {student.student_id && <span>ID: {student.student_id}</span>}
-                      {student.email && <span>{student.email}</span>}
-                    </div>
+                    <p className="text-sm text-muted-foreground">{student.group_name}</p>
                   </div>
                 </div>
                 
@@ -597,30 +526,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-studentId">O'quvchi ID</Label>
-                <Input
-                  id="edit-studentId"
-                  value={editingStudent.student_id || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, student_id: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-email">Email</Label>
-                <Input
-                  id="edit-email"
-                  value={editingStudent.email || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-phone">Telefon</Label>
-                <Input
-                  id="edit-phone"
-                  value={editingStudent.phone || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })}
-                />
               </div>
               <div className="flex space-x-2">
                 <Button onClick={editStudent} className="apple-button flex-1">

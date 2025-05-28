@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Trash2, Archive, RotateCcw } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Archive, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import GroupDetails from './GroupDetails';
 
 interface Group {
   id: string;
@@ -18,6 +18,7 @@ interface Group {
   is_active: boolean;
   created_at: string;
   student_count?: number;
+  average_attendance?: number;
 }
 
 interface GroupManagerProps {
@@ -27,6 +28,7 @@ interface GroupManagerProps {
 
 const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
@@ -52,9 +54,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (error) throw error;
 
-      // Har bir guruh uchun o'quvchilar sonini hisoblash
-      const groupsWithCount = await Promise.all(
+      // Har bir guruh uchun o'quvchilar sonini va o'rtacha davomatni hisoblash
+      const groupsWithStats = await Promise.all(
         (groupsData || []).map(async (group) => {
+          // O'quvchilar soni
           const { count } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
@@ -62,14 +65,26 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
             .eq('group_name', group.name)
             .eq('is_active', true);
 
+          // O'rtacha davomat
+          const { data: attendanceData } = await supabase
+            .from('attendance_records')
+            .select('status, students!inner(group_name)')
+            .eq('teacher_id', teacherId)
+            .eq('students.group_name', group.name);
+
+          const totalRecords = attendanceData?.length || 0;
+          const presentRecords = attendanceData?.filter(a => a.status === 'present').length || 0;
+          const averageAttendance = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+
           return {
             ...group,
-            student_count: count || 0
+            student_count: count || 0,
+            average_attendance: averageAttendance
           };
         })
       );
 
-      setGroups(groupsWithCount);
+      setGroups(groupsWithStats);
     } catch (error) {
       console.error('Error fetching groups:', error);
       toast({
@@ -242,6 +257,17 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
+  if (selectedGroup) {
+    return (
+      <GroupDetails
+        groupName={selectedGroup}
+        teacherId={teacherId}
+        onBack={() => setSelectedGroup(null)}
+        onStatsUpdate={onStatsUpdate}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -316,46 +342,68 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => (
-            <Card key={group.id} className="apple-card p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
+            <Card 
+              key={group.id} 
+              className="apple-card p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setSelectedGroup(group.name)}
+            >
+              <div className="space-y-4">
+                <div>
                   <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
                   {group.description && (
                     <p className="text-sm text-muted-foreground mb-2">{group.description}</p>
                   )}
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Users className="w-4 h-4 mr-1" />
-                    <span>{group.student_count || 0} o'quvchi</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-blue-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">O'quvchilar</p>
+                      <p className="font-semibold">{group.student_count || 0}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="w-4 h-4 text-green-500" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Davomat</p>
+                      <p className="font-semibold">{group.average_attendance || 0}%</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditingGroup(group);
-                    setIsEditDialogOpen(true);
-                  }}
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => archiveGroup(group.id, group.name)}
-                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                >
-                  <Archive className="w-4 h-4" />
-                </Button>
+                
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                  </span>
+                  <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingGroup(group);
+                        setIsEditDialogOpen(true);
+                      }}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => archiveGroup(group.id, group.name)}
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Edit Dialog */}
+      {/* Tahrirlash dialogi */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>

@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut, BarChart3, Trophy, Archive, Layers } from 'lucide-react';
+import { Users, UserCheck, Calendar, BookOpen, Settings, LogOut, BarChart3, Trophy, Archive, Layers, Menu, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AttendanceTracker from './AttendanceTracker';
 import StudentManager from './StudentManager';
@@ -29,6 +28,8 @@ type ActiveView = 'overview' | 'groups' | 'attendance' | 'students' | 'rankings'
 
 const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
   const [activeView, setActiveView] = useState<ActiveView>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [stats, setStats] = useState({
     totalStudents: 0,
     presentToday: 0,
@@ -285,10 +286,42 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-white border-b border-border/50 px-4 py-4">
+      {/* Mobile Header */}
+      <header className="bg-white border-b border-border/50 px-4 py-4 lg:hidden">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button 
+              onClick={() => setSidebarOpen(!sidebarOpen)} 
+              variant="ghost" 
+              size="sm"
+              className="lg:hidden"
+            >
+              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">TeachPro</h1>
+            </div>
+          </div>
+          <Button onClick={onLogout} variant="ghost" size="sm">
+            <LogOut className="w-4 h-4" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Desktop Header */}
+      <header className="bg-white border-b border-border/50 px-4 py-4 hidden lg:block">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
+            <Button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)} 
+              variant="ghost" 
+              size="sm"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <BookOpen className="w-6 h-6 text-white" />
             </div>
@@ -304,30 +337,50 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto flex">
+      <div className="flex">
+        {/* Mobile Sidebar Overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-border/50 min-h-screen p-4">
-          <nav className="space-y-2">
+        <aside className={`
+          fixed lg:relative bg-white border-r border-border/50 min-h-screen p-4 z-50 transition-all duration-300
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+          ${sidebarCollapsed ? 'w-20' : 'w-64'}
+        `}>
+          <nav className="space-y-2 mt-4 lg:mt-0">
             {menuItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveView(item.id as ActiveView)}
+                onClick={() => {
+                  setActiveView(item.id as ActiveView);
+                  setSidebarOpen(false);
+                }}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-colors ${
                   activeView === item.id
                     ? 'bg-primary text-white'
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                }`}
+                } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                title={sidebarCollapsed ? item.label : undefined}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {!sidebarCollapsed && <span className="font-medium">{item.label}</span>}
               </button>
             ))}
           </nav>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6">
-          {renderContent()}
+        <main className={`flex-1 p-4 lg:p-6 transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-0'
+        }`}>
+          <div className="max-w-7xl mx-auto">
+            {renderContent()}
+          </div>
         </main>
       </div>
     </div>
