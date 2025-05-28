@@ -12,7 +12,7 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 240 9% 17%;
+    --primary: 210 100% 50%;
     --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -22,14 +22,14 @@
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 210 100% 50%;
+    --chart-1: 210 100% 50%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 220 70% 50%;
+    --chart-4: 45 93% 47%;
+    --chart-5: 0 84% 60%;
     --radius: 0.75rem;
   }
 
@@ -40,8 +40,8 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 210 100% 50%;
+    --primary-foreground: 0 0% 98%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 240 3.7% 15.9%;
@@ -53,11 +53,11 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-1: 210 100% 50%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 220 70% 50%;
+    --chart-4: 45 93% 47%;
+    --chart-5: 0 84% 60%;
   }
 }
 
@@ -66,19 +66,19 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: "Inter", sans-serif;
+    @apply bg-white text-foreground;
+    font-family: "SF Pro Display", -apple-system, "Inter", BlinkMacSystemFont, sans-serif;
   }
 }
 
 @layer components {
-  /* Clean, minimal design components */
+  /* Clean, minimal Apple-inspired design components */
   .clean-card {
     @apply bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
   }
   
   .clean-button {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
+    @apply bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
   }
   
   .clean-button-secondary {
@@ -86,7 +86,7 @@
   }
 
   .clean-button-success {
-    @apply bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   .clean-button-warning {
@@ -94,7 +94,36 @@
   }
 
   .clean-button-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+    @apply bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+  }
+
+  /* Attendance buttons styling */
+  .attendance-button {
+    @apply w-8 h-8 p-0 rounded-md text-sm font-medium transition-colors;
+  }
+  
+  .attendance-present {
+    @apply bg-white border border-gray-200 text-gray-600 hover:bg-green-50 hover:border-green-200 hover:text-green-600;
+  }
+  
+  .attendance-present-active {
+    @apply bg-green-500 border-green-500 text-white hover:bg-green-600;
+  }
+  
+  .attendance-late {
+    @apply bg-white border border-gray-200 text-gray-600 hover:bg-yellow-50 hover:border-yellow-200 hover:text-yellow-600;
+  }
+  
+  .attendance-late-active {
+    @apply bg-yellow-500 border-yellow-500 text-white hover:bg-yellow-600;
+  }
+  
+  .attendance-absent {
+    @apply bg-white border border-gray-200 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600;
+  }
+  
+  .attendance-absent-active {
+    @apply bg-red-500 border-red-500 text-white hover:bg-red-600;
   }
 
   /* Responsive sidebar */
@@ -159,10 +188,3 @@
 .fade-in {
   animation: fadeIn 0.3s ease-out;
 }
-
-/* Developer access password (faqat development uchun) */
-/* 
-Access Password: TeachPro2024!
-Bu parol faqat developerlarga ko'rinadi va faqat maxsus ruxsat bilan beriladi.
-Production da bu comment olib tashlanadi.
-*/

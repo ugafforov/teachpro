@@ -61,6 +61,7 @@ export default {
 			},
 			fontFamily: {
 				'sf': ['SF Pro Display', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+				'sans': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
 			},
 			animation: {
 				'fade-in': 'fadeIn 0.5s ease-out',

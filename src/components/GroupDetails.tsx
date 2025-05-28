@@ -266,22 +266,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
     }
   };
 
-  const getButtonVariant = (currentStatus: string | null, buttonStatus: string) => {
+  const getButtonClass = (currentStatus: string | null, buttonStatus: string) => {
     if (currentStatus === buttonStatus) {
       switch (buttonStatus) {
-        case 'present': return 'bg-green-600 hover:bg-green-700 text-white';
-        case 'late': return 'bg-yellow-500 hover:bg-yellow-600 text-white';
-        case 'absent': return 'bg-red-600 hover:bg-red-700 text-white';
-        default: return 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700';
+        case 'present': return 'attendance-button attendance-present-active';
+        case 'late': return 'attendance-button attendance-late-active';
+        case 'absent': return 'attendance-button attendance-absent-active';
+        default: return 'attendance-button';
       }
     }
-    return 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700';
+    
+    switch (buttonStatus) {
+      case 'present': return 'attendance-button attendance-present';
+      case 'late': return 'attendance-button attendance-late';
+      case 'absent': return 'attendance-button attendance-absent';
+      default: return 'attendance-button';
+    }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -322,7 +328,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
                   />
                 </div>
                 <div className="flex space-x-2">
-                  <Button onClick={processBulkImport} className="bg-blue-600 hover:bg-blue-700 text-white flex-1">
+                  <Button onClick={processBulkImport} className="bg-blue-500 hover:bg-blue-600 text-white flex-1">
                     Import qilish
                   </Button>
                   <Button onClick={() => setIsBulkImportOpen(false)} variant="outline" className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50">
@@ -335,7 +341,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button className="bg-blue-500 hover:bg-blue-600 text-white">
                 <Plus className="w-4 h-4 mr-2" />
                 O'quvchi qo'shish
               </Button>
@@ -356,7 +362,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
                   />
                 </div>
                 <div className="flex space-x-2">
-                  <Button onClick={addStudent} className="bg-blue-600 hover:bg-blue-700 text-white flex-1">
+                  <Button onClick={addStudent} className="bg-blue-500 hover:bg-blue-600 text-white flex-1">
                     Qo'shish
                   </Button>
                   <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50">
@@ -373,7 +379,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-white border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="p-3 rounded-xl bg-blue-600 mr-4">
+            <div className="p-3 rounded-xl bg-blue-500 mr-4">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -384,7 +390,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
         </Card>
         <Card className="bg-white border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="p-3 rounded-xl bg-green-600 mr-4">
+            <div className="p-3 rounded-xl bg-green-500 mr-4">
               <Check className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -395,7 +401,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
         </Card>
         <Card className="bg-white border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="p-3 rounded-xl bg-blue-600 mr-4">
+            <div className="p-3 rounded-xl bg-blue-500 mr-4">
               <BarChart3 className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -428,7 +434,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
             <p className="text-gray-600 mb-4">
               Birinchi o'quvchini qo'shing
             </p>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={() => setIsAddDialogOpen(true)} className="bg-blue-500 hover:bg-blue-600 text-white">
               <Plus className="w-4 h-4 mr-2" />
               O'quvchi qo'shish
             </Button>
@@ -455,19 +461,22 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
                   <div className="flex space-x-2">
                     <button
                       onClick={() => markAttendance(student.id, 'present')}
-                      className={`w-8 h-8 p-0 rounded-md text-sm font-medium transition-colors ${getButtonVariant(status, 'present')}`}
+                      className={getButtonClass(status, 'present')}
+                      aria-label="Keldi"
                     >
                       <Check className="w-4 h-4 mx-auto" />
                     </button>
                     <button
                       onClick={() => markAttendance(student.id, 'late')}
-                      className={`w-8 h-8 p-0 rounded-md text-sm font-medium transition-colors ${getButtonVariant(status, 'late')}`}
+                      className={getButtonClass(status, 'late')}
+                      aria-label="Kech qoldi"
                     >
                       <Clock className="w-4 h-4 mx-auto" />
                     </button>
                     <button
                       onClick={() => markAttendance(student.id, 'absent')}
-                      className={`w-8 h-8 p-0 rounded-md text-sm font-medium transition-colors ${getButtonVariant(status, 'absent')}`}
+                      className={getButtonClass(status, 'absent')}
+                      aria-label="Kelmadi"
                     >
                       <X className="w-4 h-4 mx-auto" />
                     </button>
