@@ -72,16 +72,29 @@
 }
 
 @layer components {
-  .apple-card {
-    @apply bg-white/80 backdrop-blur-sm border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl;
+  /* Clean, minimal design components */
+  .clean-card {
+    @apply bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
   }
   
-  .apple-button {
-    @apply bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
+  .clean-button {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200 shadow-sm hover:shadow-md;
   }
   
-  .apple-button-secondary {
-    @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl px-4 py-2 transition-colors duration-200;
+  .clean-button-secondary {
+    @apply bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+  }
+
+  .clean-button-success {
+    @apply bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+  }
+
+  .clean-button-warning {
+    @apply bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
+  }
+
+  .clean-button-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 transition-colors duration-200;
   }
 
   /* Responsive sidebar */
@@ -147,8 +160,9 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Access Password - hidden */
+/* Developer access password (faqat development uchun) */
 /* 
-Developer Access Password: TeachPro2024!Admin
-Bu password faqat developerlarga ko'rinadi va production da o'chirib tashlanadi.
+Access Password: TeachPro2024!
+Bu parol faqat developerlarga ko'rinadi va faqat maxsus ruxsat bilan beriladi.
+Production da bu comment olib tashlanadi.
 */

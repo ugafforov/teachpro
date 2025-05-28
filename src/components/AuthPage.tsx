@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Shield, User, School, Mail, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-// The master access password (you can change this)
+// Developer access password (faqat developer uchun ko'rinadi)
 const MASTER_PASSWORD = "TeachPro2024!";
 
 const AuthPage: React.FC = () => {
@@ -31,13 +31,13 @@ const AuthPage: React.FC = () => {
     if (masterPassword === MASTER_PASSWORD) {
       setStep('auth');
       toast({
-        title: "Access Granted",
-        description: "Welcome to TeachPro! Please sign in or create an account.",
+        title: "Kirish ruxsat berildi",
+        description: "TeachPro ga xush kelibsiz! Iltimos, tizimga kiring yoki hisob yarating.",
       });
     } else {
       toast({
-        title: "Access Denied",
-        description: "Invalid access password. Please contact your administrator.",
+        title: "Kirish rad etildi",
+        description: "Noto'g'ri parol. Administrator bilan bog'laning.",
         variant: "destructive",
       });
     }
@@ -57,14 +57,14 @@ const AuthPage: React.FC = () => {
 
       if (data.user) {
         toast({
-          title: "Welcome back!",
-          description: "You have been successfully signed in.",
+          title: "Xush kelibsiz!",
+          description: "Tizimga muvaffaqiyatli kirdingiz.",
         });
       }
     } catch (error: any) {
       toast({
-        title: "Sign In Failed",
-        description: error.message || "Invalid email or password",
+        title: "Kirish muvaffaqiyatsiz",
+        description: error.message || "Noto'g'ri email yoki parol",
         variant: "destructive",
       });
     } finally {
@@ -77,8 +77,8 @@ const AuthPage: React.FC = () => {
     
     if (!formData.name || !formData.school) {
       toast({
-        title: "Incomplete Information",
-        description: "Please fill in all required fields.",
+        title: "Ma'lumot yetishmayapti",
+        description: "Iltimos, barcha majburiy maydonlarni to'ldiring.",
         variant: "destructive",
       });
       return;
@@ -103,14 +103,14 @@ const AuthPage: React.FC = () => {
 
       if (data.user) {
         toast({
-          title: "Account Created",
-          description: "Welcome to TeachPro! Your account has been created successfully.",
+          title: "Hisob yaratildi",
+          description: "TeachPro ga xush kelibsiz! Hisobingiz muvaffaqiyatli yaratildi.",
         });
       }
     } catch (error: any) {
       toast({
-        title: "Sign Up Failed",
-        description: error.message || "Failed to create account",
+        title: "Ro'yxatdan o'tish muvaffaqiyatsiz",
+        description: error.message || "Hisob yaratishda xatolik",
         variant: "destructive",
       });
     } finally {
@@ -120,46 +120,41 @@ const AuthPage: React.FC = () => {
 
   if (step === 'password') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md apple-card p-8 animate-fade-in">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg rounded-2xl p-8 animate-fade-in">
           <div className="text-center mb-8">
-            <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-4">
+            <div className="mx-auto w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4">
               <Shield className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-semibold text-foreground mb-2">TeachPro</h1>
-            <p className="text-muted-foreground">Secure access for teachers only</p>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-700">
-                <strong>Access Password:</strong> TeachPro2024!
-              </p>
-            </div>
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">TeachPro</h1>
+            <p className="text-gray-600">Faqat o'qituvchilar uchun xavfsiz kirish</p>
           </div>
 
           <form onSubmit={handleMasterPasswordSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="masterPassword">Access Password</Label>
+              <Label htmlFor="masterPassword" className="text-gray-700">Kirish paroli</Label>
               <div className="relative">
                 <Input
                   id="masterPassword"
                   type={showPassword ? "text" : "password"}
                   value={masterPassword}
                   onChange={(e) => setMasterPassword(e.target.value)}
-                  placeholder="Enter your access password"
-                  className="pr-10"
+                  placeholder="Kirish parolini kiriting"
+                  className="pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <Button type="submit" className="w-full apple-button">
-              Access Platform
+            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5">
+              Platformaga kirish
             </Button>
           </form>
         </Card>
@@ -168,43 +163,43 @@ const AuthPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg apple-card p-8 animate-slide-up">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg rounded-2xl p-8 animate-slide-up">
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-4">
+          <div className="mx-auto w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4">
             <User className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-semibold text-foreground mb-2">
-            {authMode === 'signin' ? 'Welcome Back' : 'Join TeachPro'}
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">
+            {authMode === 'signin' ? 'Xush kelibsiz' : 'TeachPro ga qo\'shiling'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-gray-600">
             {authMode === 'signin' 
-              ? 'Sign in to your teacher account' 
-              : 'Create your teacher account'
+              ? 'O\'qituvchi hisobingizga kiring' 
+              : 'O\'qituvchi hisobingizni yarating'
             }
           </p>
         </div>
 
-        <div className="flex mb-6 bg-secondary rounded-xl p-1">
+        <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
           <button
             onClick={() => setAuthMode('signin')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
               authMode === 'signin'
-                ? 'bg-white text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Sign In
+            Kirish
           </button>
           <button
             onClick={() => setAuthMode('signup')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
               authMode === 'signup'
-                ? 'bg-white text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            Sign Up
+            Ro'yxatdan o'tish
           </button>
         </div>
 
@@ -212,44 +207,45 @@ const AuthPage: React.FC = () => {
           {authMode === 'signup' && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
+                <Label htmlFor="name" className="text-gray-700">To'liq ism *</Label>
                 <Input
                   id="name"
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter your full name"
+                  placeholder="To'liq ismingizni kiriting"
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="school">School/Institution *</Label>
+                <Label htmlFor="school" className="text-gray-700">Maktab/Muassasa *</Label>
                 <div className="relative">
-                  <School className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <School className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <Input
                     id="school"
                     type="text"
                     value={formData.school}
                     onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                    placeholder="Your school or institution name"
-                    className="pl-10"
+                    placeholder="Maktab yoki muassasa nomi"
+                    className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone" className="text-gray-700">Telefon raqam</Label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <Input
                     id="phone"
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+1 (555) 123-4567"
-                    className="pl-10"
+                    placeholder="+998 (90) 123-45-67"
+                    className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -257,52 +253,52 @@ const AuthPage: React.FC = () => {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email" className="text-gray-700">Email manzil</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="your.email@school.edu"
-                className="pl-10"
+                placeholder="sizning.email@maktab.uz"
+                className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-gray-700">Parol</Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Enter your password"
-                className="pr-10"
+                placeholder="Parolingizni kiriting"
+                className="pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 required
                 minLength={6}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full apple-button">
+          <Button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5">
             {loading ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>{authMode === 'signin' ? 'Signing In...' : 'Creating Account...'}</span>
+                <span>{authMode === 'signin' ? 'Kirilmoqda...' : 'Hisob yaratilmoqda...'}</span>
               </div>
             ) : (
-              authMode === 'signin' ? 'Sign In' : 'Create Account'
+              authMode === 'signin' ? 'Kirish' : 'Hisob yaratish'
             )}
           </Button>
         </form>
