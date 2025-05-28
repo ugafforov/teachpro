@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,9 +48,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
 
   useEffect(() => {
     fetchStudents();
-    fetchAttendanceRecords();
-    fetchStats();
-  }, [groupName, teacherId, selectedDate]);
+  }, [groupName, teacherId]);
+
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchAttendanceRecords();
+      fetchStats();
+    }
+  }, [selectedDate, students]);
 
   const fetchStudents = async () => {
     try {
@@ -82,7 +86,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
         .in('student_id', students.map(s => s.id));
 
       if (error) throw error;
-      setAttendanceRecords(data || []);
+      
+      // Type assertion to ensure status is properly typed
+      const typedRecords: AttendanceRecord[] = (data || []).map(record => ({
+        ...record,
+        status: record.status as 'present' | 'absent' | 'late'
+      }));
+      
+      setAttendanceRecords(typedRecords);
     } catch (error) {
       console.error('Error fetching attendance records:', error);
     }
