@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Users, Check, X, Clock, Download } from 'lucide-react';
+import { Calendar, Users, Check, X, Clock, Download, Gift, AlertTriangle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import StudentDetailsPopup from './StudentDetailsPopup';
 
 interface Student {
   id: string;
@@ -35,6 +35,10 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
+  const [rewardPoints, setRewardPoints] = useState('');
+  const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,7 +87,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       if (error) throw error;
       
-      // Type assertion to ensure status is the correct type and filter active students
       const typedData = (data || [])
         .filter(record => record.students?.is_active)
         .map(record => ({
@@ -168,6 +171,73 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       toast({
         title: "Xatolik",
         description: "Davomatni yangilashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStudentClick = async (studentId: string) => {
+    try {
+      const { data: student, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+
+      if (error) throw error;
+      setSelectedStudent(student);
+    } catch (error) {
+      console.error('Error fetching student details:', error);
+    }
+  };
+
+  const addReward = async (studentId: string) => {
+    if (!rewardPoints) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "Ball miqdorini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const points = parseFloat(rewardPoints);
+    if (isNaN(points)) {
+      toast({
+        title: "Noto'g'ri format",
+        description: "Ball sonli qiymat bo'lishi kerak",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reward_penalty_history')
+        .insert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
+          type: rewardType
+        });
+
+      if (error) throw error;
+
+      await onStatsUpdate();
+      setShowRewardDialog(null);
+      setRewardPoints('');
+      
+      const studentName = students.find(s => s.id === studentId)?.name || '';
+      toast({
+        title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
+        description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
+      });
+    } catch (error) {
+      console.error('Error adding reward/penalty:', error);
+      toast({
+        title: "Xatolik",
+        description: "Ball qo'shishda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -345,7 +415,9 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium">{student.name}</p>
+                      <p className="font-medium cursor-pointer hover:text-blue-600" onClick={() => handleStudentClick(student.id)}>
+                        {student.name}
+                      </p>
                       <p className="text-sm text-muted-foreground">{student.group_name}</p>
                     </div>
                   </div>
@@ -385,6 +457,15 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       >
                         <X className="w-4 h-4" />
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowRewardDialog(student.id)}
+                        className="w-8 h-8 p-0"
+                        title="Mukofot/Jarima berish"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -393,6 +474,72 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
           </div>
         )}
       </Card>
+
+      {/* Reward Dialog */}
+      {showRewardDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setRewardType('reward')}
+                  variant={rewardType === 'reward' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Gift className="w-4 h-4" />
+                  Mukofot
+                </Button>
+                <Button
+                  onClick={() => setRewardType('penalty')}
+                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Jarima
+                </Button>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ball miqdori</label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={rewardPoints}
+                  onChange={(e) => setRewardPoints(e.target.value)}
+                  placeholder="Masalan: 5"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => addReward(showRewardDialog)}
+                  className="flex-1"
+                >
+                  Saqlash
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRewardDialog(null);
+                    setRewardPoints('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedStudent && (
+        <StudentDetailsPopup
+          student={selectedStudent}
+          teacherId={teacherId}
+          onClose={() => setSelectedStudent(null)}
+          onUpdate={onStatsUpdate}
+        />
+      )}
     </div>
   );
 };

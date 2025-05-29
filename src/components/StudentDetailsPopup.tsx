@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -14,8 +12,7 @@ import {
   BarChart3, 
   Clock, 
   Check, 
-  Plus, 
-  Minus,
+  Plus,
   Gift,
   AlertTriangle,
   Calendar
@@ -69,7 +66,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
   const [rewardPenaltyHistory, setRewardPenaltyHistory] = useState<RewardPenaltyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingReward, setIsAddingReward] = useState(false);
-  const [newReward, setNewReward] = useState({ points: '', reason: '', type: 'reward' });
+  const [newReward, setNewReward] = useState({ points: '', type: 'reward' });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -129,10 +126,10 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
   };
 
   const addRewardPenalty = async () => {
-    if (!newReward.points || !newReward.reason) {
+    if (!newReward.points) {
       toast({
         title: "Ma'lumot yetishmayapti",
-        description: "Ball va sababni kiriting",
+        description: "Ball miqdorini kiriting",
         variant: "destructive",
       });
       return;
@@ -155,7 +152,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
           student_id: student.id,
           teacher_id: teacherId,
           points: newReward.type === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: newReward.reason,
+          reason: newReward.type === 'reward' ? 'Mukofot' : 'Jarima',
           type: newReward.type
         });
 
@@ -164,7 +161,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       await fetchStudentData();
       onUpdate();
       
-      setNewReward({ points: '', reason: '', type: 'reward' });
+      setNewReward({ points: '', type: 'reward' });
       setIsAddingReward(false);
       
       toast({
@@ -244,7 +241,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         <div className="p-6 space-y-6">
           {/* Score and Ranking */}
           {studentScore && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="p-4 text-center border border-gray-200">
                 <div className="flex items-center justify-center mb-2">
                   <Trophy className="w-8 h-8 text-orange-500" />
@@ -265,13 +262,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                 </div>
                 <p className="text-2xl font-bold">{studentScore.attendance_points.toFixed(1)}</p>
                 <p className="text-sm text-gray-600">Davomat balli</p>
-              </Card>
-              <Card className="p-4 text-center border border-gray-200">
-                <div className="flex items-center justify-center mb-2">
-                  <Gift className="w-8 h-8 text-purple-500" />
-                </div>
-                <p className="text-2xl font-bold">{studentScore.reward_penalty_points.toFixed(1)}</p>
-                <p className="text-sm text-gray-600">Mukofot/Jarima</p>
               </Card>
             </div>
           )}
@@ -312,22 +302,13 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                     </Button>
                   </div>
                   <div>
-                    <Label>Ball</Label>
+                    <Label>Ball miqdori</Label>
                     <Input
                       type="number"
                       step="0.1"
                       value={newReward.points}
                       onChange={(e) => setNewReward({ ...newReward, points: e.target.value })}
                       placeholder="Masalan: 5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Sabab</Label>
-                    <Textarea
-                      value={newReward.reason}
-                      onChange={(e) => setNewReward({ ...newReward, reason: e.target.value })}
-                      placeholder="Mukofot/jarima sababi..."
-                      rows={2}
                     />
                   </div>
                   <div className="flex space-x-2">

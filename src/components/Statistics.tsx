@@ -2,29 +2,25 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
+import { Calendar, TrendingUp, Users, Award, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Users, Calendar, Target, Clock } from 'lucide-react';
 
 interface StatisticsProps {
   teacherId: string;
 }
 
 const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
-  const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>('30');
-  const [groups, setGroups] = useState<string[]>([]);
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
-  const [weeklyData, setWeeklyData] = useState<any[]>([]);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [groupStats, setGroupStats] = useState<any[]>([]);
+  const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [groups, setGroups] = useState<string[]>([]);
   const [summaryStats, setSummaryStats] = useState({
     totalStudents: 0,
-    averageAttendance: 0,
-    presentToday: 0,
     totalClasses: 0,
-    trend: 0,
-    bestGroup: '',
-    worstGroup: ''
+    averageAttendance: 0,
+    topPerformer: ''
   });
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +31,7 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
 
   useEffect(() => {
     fetchStatistics();
-  }, [selectedGroup, selectedTimeRange]);
+  }, [selectedGroup]);
 
   const fetchGroups = async () => {
     try {
@@ -55,245 +51,132 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
   };
 
   const fetchStatistics = async () => {
-    setLoading(true);
     try {
-      // O'quvchilarni olish
-      let studentsQuery = supabase
-        .from('students')
-        .select('id, name, group_name')
+      // Fetch attendance statistics
+      let attendanceQuery = supabase
+        .from('attendance_records')
+        .select(`
+          status,
+          date,
+          students!inner(name, group_name, is_active)
+        `)
         .eq('teacher_id', teacherId)
-        .eq('is_active', true);
+        .eq('students.is_active', true);
 
       if (selectedGroup !== 'all') {
-        studentsQuery = studentsQuery.eq('group_name', selectedGroup);
+        attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
       }
 
-      const { data: students, error: studentsError } = await studentsQuery;
-      if (studentsError) throw studentsError;
-
-      const studentIds = students?.map(s => s.id) || [];
-
-      if (studentIds.length === 0) {
-        setAttendanceData([]);
-        setWeeklyData([]);
-        setMonthlyData([]);
-        setSummaryStats({
-          totalStudents: 0,
-          averageAttendance: 0,
-          presentToday: 0,
-          totalClasses: 0,
-          trend: 0,
-          bestGroup: '',
-          worstGroup: ''
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Davomat ma'lumotlarini olish
-      const daysAgo = parseInt(selectedTimeRange);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysAgo);
-      
-      const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance_records')
-        .select('date, status, student_id')
-        .eq('teacher_id', teacherId)
-        .in('student_id', studentIds)
-        .gte('date', startDate.toISOString().split('T')[0]);
-
+      const { data: attendanceRecords, error: attendanceError } = await attendanceQuery;
       if (attendanceError) throw attendanceError;
 
-      // Ma'lumotlarni qayta ishlash
-      const dailyAttendance = processDailyAttendance(attendance || [], daysAgo);
-      const weeklyAttendance = processWeeklyAttendance(attendance || []);
-      const monthlyAttendance = processMonthlyAttendance(attendance || []);
-      
-      setAttendanceData(dailyAttendance);
-      setWeeklyData(weeklyAttendance);
-      setMonthlyData(monthlyAttendance);
+      // Calculate attendance distribution
+      const statusCounts = attendanceRecords?.reduce((acc, record) => {
+        acc[record.status] = (acc[record.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
 
-      // Umumiy statistikani hisoblash
-      await calculateSummaryStats(students || [], attendance || []);
+      const attendanceChartData = [
+        { name: 'Kelgan', value: statusCounts.present || 0, color: '#22c55e' },
+        { name: 'Kechikkan', value: statusCounts.late || 0, color: '#f59e0b' },
+        { name: 'Kelmagan', value: statusCounts.absent || 0, color: '#ef4444' }
+      ];
+
+      setAttendanceData(attendanceChartData);
+
+      // Calculate group statistics
+      if (selectedGroup === 'all') {
+        const groupData = groups.map(groupName => {
+          const groupRecords = attendanceRecords?.filter(r => r.students.group_name === groupName) || [];
+          const present = groupRecords.filter(r => r.status === 'present').length;
+          const total = groupRecords.length;
+          const percentage = total > 0 ? (present / total) * 100 : 0;
+
+          return {
+            name: groupName,
+            attendance: Math.round(percentage * 100) / 100,
+            total: total,
+            present: present
+          };
+        });
+
+        setGroupStats(groupData);
+      } else {
+        setGroupStats([]);
+      }
+
+      // Calculate monthly statistics for the last 10 months
+      const now = new Date();
+      const monthlyData = [];
+      
+      for (let i = 9; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+        const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        
+        const monthRecords = attendanceRecords?.filter(record => {
+          const recordDate = new Date(record.date);
+          return recordDate >= monthStart && recordDate <= monthEnd;
+        }) || [];
+
+        const present = monthRecords.filter(r => r.status === 'present').length;
+        const total = monthRecords.length;
+        const percentage = total > 0 ? (present / total) * 100 : 0;
+
+        monthlyData.push({
+          month: date.toLocaleDateString('uz-UZ', { month: 'short', year: 'numeric' }),
+          attendance: Math.round(percentage * 100) / 100,
+          total: total,
+          present: present
+        });
+      }
+
+      setMonthlyStats(monthlyData);
+
+      // Calculate summary statistics
+      const totalRecords = attendanceRecords?.length || 0;
+      const presentCount = attendanceRecords?.filter(r => r.status === 'present').length || 0;
+      const avgAttendance = totalRecords > 0 ? (presentCount / totalRecords) * 100 : 0;
+
+      // Get unique students count
+      const uniqueStudents = new Set(attendanceRecords?.map(r => r.students.name) || []).size;
+
+      // Find top performer
+      const studentStats = attendanceRecords?.reduce((acc, record) => {
+        const studentName = record.students.name;
+        if (!acc[studentName]) {
+          acc[studentName] = { present: 0, total: 0 };
+        }
+        acc[studentName].total += 1;
+        if (record.status === 'present') {
+          acc[studentName].present += 1;
+        }
+        return acc;
+      }, {} as Record<string, { present: number; total: number }>) || {};
+
+      let topPerformer = '';
+      let bestAttendance = 0;
+      Object.entries(studentStats).forEach(([name, stats]) => {
+        const percentage = stats.total > 0 ? (stats.present / stats.total) * 100 : 0;
+        if (percentage > bestAttendance && stats.total >= 5) { // Minimum 5 classes
+          bestAttendance = percentage;
+          topPerformer = name;
+        }
+      });
+
+      setSummaryStats({
+        totalStudents: uniqueStudents,
+        totalClasses: totalRecords,
+        averageAttendance: Math.round(avgAttendance * 100) / 100,
+        topPerformer: topPerformer || 'Ma\'lumot yo\'q'
+      });
+
     } catch (error) {
       console.error('Error fetching statistics:', error);
     } finally {
       setLoading(false);
     }
   };
-
-  const processDailyAttendance = (attendance: any[], days: number) => {
-    const dailyData: { [key: string]: { present: number; absent: number; late: number; total: number } } = {};
-    
-    // So'nggi kunlar uchun boshlang'ich ma'lumotlar
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().split('T')[0];
-      dailyData[dateKey] = { present: 0, absent: 0, late: 0, total: 0 };
-    }
-    
-    attendance.forEach(record => {
-      const date = record.date;
-      if (dailyData[date]) {
-        dailyData[date][record.status]++;
-        dailyData[date].total++;
-      }
-    });
-
-    return Object.entries(dailyData)
-      .map(([date, data]) => ({
-        date: new Date(date).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' }),
-        rawDate: date,
-        present: data.present,
-        absent: data.absent,
-        late: data.late,
-        total: data.total,
-        percentage: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
-      }))
-      .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
-  };
-
-  const processWeeklyAttendance = (attendance: any[]) => {
-    const weeklyData: { [key: string]: { present: number; total: number } } = {};
-    
-    attendance.forEach(record => {
-      const date = new Date(record.date);
-      const weekStart = new Date(date);
-      weekStart.setDate(date.getDate() - date.getDay());
-      const weekKey = weekStart.toISOString().split('T')[0];
-      
-      if (!weeklyData[weekKey]) {
-        weeklyData[weekKey] = { present: 0, total: 0 };
-      }
-      
-      weeklyData[weekKey].total++;
-      if (record.status === 'present') {
-        weeklyData[weekKey].present++;
-      }
-    });
-
-    return Object.entries(weeklyData)
-      .map(([week, data]) => ({
-        week: new Date(week).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' }),
-        rawWeek: week,
-        present: data.present,
-        total: data.total,
-        percentage: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
-      }))
-      .sort((a, b) => new Date(a.rawWeek).getTime() - new Date(b.rawWeek).getTime())
-      .slice(-8);
-  };
-
-  const processMonthlyAttendance = (attendance: any[]) => {
-    const monthlyData: { [key: string]: { present: number; total: number } } = {};
-    
-    attendance.forEach(record => {
-      const date = new Date(record.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { present: 0, total: 0 };
-      }
-      
-      monthlyData[monthKey].total++;
-      if (record.status === 'present') {
-        monthlyData[monthKey].present++;
-      }
-    });
-
-    return Object.entries(monthlyData)
-      .map(([month, data]) => ({
-        month: new Date(month + '-01').toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' }),
-        rawMonth: month,
-        present: data.present,
-        total: data.total,
-        percentage: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
-      }))
-      .sort((a, b) => a.rawMonth.localeCompare(b.rawMonth))
-      .slice(-6);
-  };
-
-  const calculateSummaryStats = async (students: any[], attendance: any[]) => {
-    const today = new Date().toISOString().split('T')[0];
-    const todayAttendance = attendance.filter(a => a.date === today);
-    const presentToday = todayAttendance.filter(a => a.status === 'present').length;
-    
-    const totalRecords = attendance.length;
-    const presentRecords = attendance.filter(a => a.status === 'present').length;
-    const averageAttendance = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
-
-    // Haftalik trend hisoblash
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-    const lastWeek = attendance.filter(a => 
-      new Date(a.date) >= sevenDaysAgo && a.status === 'present'
-    ).length;
-    
-    const previousWeek = attendance.filter(a => 
-      new Date(a.date) >= fourteenDaysAgo && 
-      new Date(a.date) < sevenDaysAgo && 
-      a.status === 'present'
-    ).length;
-
-    const trend = previousWeek > 0 ? Math.round(((lastWeek - previousWeek) / previousWeek) * 100) : 0;
-
-    // Guruhlar bo'yicha statistika
-    let bestGroup = '';
-    let worstGroup = '';
-    
-    if (selectedGroup === 'all' && groups.length > 1) {
-      const groupStats = await Promise.all(
-        groups.map(async (groupName) => {
-          const groupStudents = students.filter(s => s.group_name === groupName);
-          const groupAttendance = attendance.filter(a => 
-            groupStudents.some(s => s.id === a.student_id)
-          );
-          const groupPresent = groupAttendance.filter(a => a.status === 'present').length;
-          const groupTotal = groupAttendance.length;
-          const groupPercentage = groupTotal > 0 ? (groupPresent / groupTotal) * 100 : 0;
-          
-          return { groupName, percentage: groupPercentage };
-        })
-      );
-      
-      if (groupStats.length > 0) {
-        groupStats.sort((a, b) => b.percentage - a.percentage);
-        bestGroup = groupStats[0].groupName;
-        worstGroup = groupStats[groupStats.length - 1].groupName;
-      }
-    }
-
-    // Umumiy darslar soni
-    const uniqueDates = [...new Set(attendance.map(a => a.date))];
-    const totalClasses = uniqueDates.length;
-
-    setSummaryStats({
-      totalStudents: students.length,
-      averageAttendance,
-      presentToday,
-      totalClasses,
-      trend,
-      bestGroup,
-      worstGroup
-    });
-  };
-
-  const pieData = [
-    { name: 'Kelgan', value: summaryStats.presentToday, color: '#10b981' },
-    { name: 'Kelmagan', value: Math.max(0, summaryStats.totalStudents - summaryStats.presentToday), color: '#ef4444' }
-  ];
-
-  const timeRangeOptions = [
-    { value: '7', label: '7 kun' },
-    { value: '14', label: '2 hafta' },
-    { value: '30', label: '1 oy' },
-    { value: '60', label: '2 oy' },
-    { value: '90', label: '3 oy' }
-  ];
 
   if (loading) {
     return (
@@ -308,21 +191,11 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Statistika</h2>
-          <p className="text-muted-foreground">Davomat statistikasi va tahlil</p>
+          <p className="text-muted-foreground">Oxirgi 10 oylik davomat tahlili</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {timeRangeOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="w-full sm:w-64">
           <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger>
               <SelectValue placeholder="Guruhni tanlang" />
             </SelectTrigger>
             <SelectContent>
@@ -335,163 +208,161 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
         </div>
       </div>
 
-      {/* Umumiy ko'rsatkichlar */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="apple-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
               <p className="text-sm font-medium text-muted-foreground">Jami o'quvchilar</p>
               <p className="text-2xl font-bold">{summaryStats.totalStudents}</p>
             </div>
-            <Users className="w-8 h-8 text-blue-500" />
           </div>
         </Card>
 
         <Card className="apple-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">O'rtacha davomat</p>
-              <p className="text-2xl font-bold">{summaryStats.averageAttendance}%</p>
+          <div className="flex items-center">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <Calendar className="w-6 h-6 text-green-600" />
             </div>
-            <Target className="w-8 h-8 text-green-500" />
-          </div>
-        </Card>
-
-        <Card className="apple-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Bugun kelgan</p>
-              <p className="text-2xl font-bold">{summaryStats.presentToday}</p>
-            </div>
-            <Calendar className="w-8 h-8 text-purple-500" />
-          </div>
-        </Card>
-
-        <Card className="apple-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
+            <div className="ml-4">
               <p className="text-sm font-medium text-muted-foreground">Jami darslar</p>
               <p className="text-2xl font-bold">{summaryStats.totalClasses}</p>
             </div>
-            <Clock className="w-8 h-8 text-orange-500" />
+          </div>
+        </Card>
+
+        <Card className="apple-card p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-yellow-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-muted-foreground">O'rtacha davomat</p>
+              <p className="text-2xl font-bold">{summaryStats.averageAttendance}%</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="apple-card p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Award className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-muted-foreground">Eng yaxshi o'quvchi</p>
+              <p className="text-lg font-bold truncate">{summaryStats.topPerformer}</p>
+            </div>
           </div>
         </Card>
       </div>
 
-      {/* Qo'shimcha ko'rsatkichlar */}
-      {summaryStats.bestGroup && summaryStats.worstGroup && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="apple-card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Eng yaxshi guruh</p>
-                <p className="text-lg font-bold text-green-600">{summaryStats.bestGroup}</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-green-500" />
-            </div>
-          </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Attendance Distribution */}
+        <Card className="apple-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Davomat taqsimoti</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={attendanceData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {attendanceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
 
-          <Card className="apple-card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Haftalik trend</p>
-                <p className="text-lg font-bold flex items-center">
-                  {summaryStats.trend >= 0 ? '+' : ''}{summaryStats.trend}%
-                  {summaryStats.trend >= 0 ? 
-                    <TrendingUp className="w-5 h-5 text-green-500 ml-2" /> : 
-                    <TrendingDown className="w-5 h-5 text-red-500 ml-2" />
-                  }
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
+        {/* Monthly Attendance Trend */}
+        <Card className="apple-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Oylik davomat tendensiyasi (10 oy)</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
+                <Line 
+                  type="monotone" 
+                  dataKey="attendance" 
+                  stroke="#22c55e" 
+                  strokeWidth={3}
+                  dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Group Comparison */}
+      {selectedGroup === 'all' && groupStats.length > 0 && (
+        <Card className="apple-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Guruhlar bo'yicha taqqoslash</h3>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={groupStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
+                <Legend />
+                <Bar dataKey="attendance" fill="#22c55e" name="Davomat foizi" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       )}
 
-      {/* Diagrammalar */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Kunlik davomat foizi</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={attendanceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={(value) => [`${value}%`, 'Davomat']} />
-              <Line 
-                type="monotone" 
-                dataKey="percentage" 
-                stroke="#0ea5e9" 
-                strokeWidth={3}
-                dot={{ fill: '#0ea5e9', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Bugungi davomat</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex justify-center space-x-4 mt-4">
-            {pieData.map((entry, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: entry.color }}
-                ></div>
-                <span className="text-sm">{entry.name}: {entry.value}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Haftalik va oylik ma'lumotlar */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Haftalik davomat</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={weeklyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="week" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={(value) => [`${value}%`, 'Davomat']} />
-              <Bar dataKey="percentage" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Oylik davomat</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip formatter={(value) => [`${value}%`, 'Davomat']} />
-              <Bar dataKey="percentage" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </div>
+      {/* Monthly Stats Table */}
+      <Card className="apple-card p-6">
+        <h3 className="text-lg font-semibold mb-4">Oylik batafsil statistika</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left p-2">Oy</th>
+                <th className="text-right p-2">Jami darslar</th>
+                <th className="text-right p-2">Kelgan</th>
+                <th className="text-right p-2">Davomat %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyStats.map((month, index) => (
+                <tr key={index} className="border-b hover:bg-gray-50">
+                  <td className="p-2 font-medium">{month.month}</td>
+                  <td className="p-2 text-right">{month.total}</td>
+                  <td className="p-2 text-right">{month.present}</td>
+                  <td className="p-2 text-right">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      month.attendance >= 90 ? 'bg-green-100 text-green-800' :
+                      month.attendance >= 80 ? 'bg-blue-100 text-blue-800' :
+                      month.attendance >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {month.attendance}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 };
