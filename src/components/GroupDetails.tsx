@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,7 +99,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       if (error) throw error;
 
-      const attendanceData: AttendanceRecord[] = data || [];
+      // Handle the data properly by casting the status to AttendanceStatus
+      const attendanceData = (data || []).map(record => ({
+        ...record,
+        status: record.status as AttendanceStatus
+      }));
+      
       const attendanceMap: Record<string, boolean> = {};
       attendanceData.forEach(record => {
         attendanceMap[record.student_id] = record.status === 'present';
