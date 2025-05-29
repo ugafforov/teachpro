@@ -20,6 +20,7 @@ interface Student {
   student_id?: string;
   email?: string;
   phone?: string;
+  group_name: string;
 }
 
 interface AttendanceRecord {
@@ -30,12 +31,13 @@ interface AttendanceRecord {
 }
 
 interface GroupDetailsProps {
-  group: Group;
+  groupName: string;
   teacherId: string;
   onBack: () => void;
+  onStatsUpdate: () => Promise<void>;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack }) => {
+const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBack, onStatsUpdate }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -48,7 +50,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
 
   useEffect(() => {
     fetchStudents();
-  }, [group.id, teacherId]);
+  }, [groupName, teacherId]);
 
   useEffect(() => {
     fetchAttendanceRecords();
@@ -59,7 +61,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
       const { data, error } = await supabase
         .from('students')
         .select('*')
-        .eq('group_name', group.name)
+        .eq('group_name', groupName)
         .eq('teacher_id', teacherId)
         .eq('is_active', true)
         .order('name');
@@ -91,7 +93,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
         .in('student_id', studentIds);
 
       if (error) throw error;
-      setAttendanceRecords(data || []);
+      
+      // Type assertion to ensure proper types
+      const typedData = (data || []).map(record => ({
+        ...record,
+        status: record.status as 'present' | 'absent' | 'late'
+      }));
+      
+      setAttendanceRecords(typedData);
     } catch (error) {
       console.error('Error fetching attendance records:', error);
     }
@@ -118,6 +127,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
       if (error) throw error;
 
       await fetchAttendanceRecords();
+      await onStatsUpdate();
       
       toast({
         title: "Davomat yangilandi",
@@ -150,6 +160,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
 
       await Promise.all(attendancePromises);
       await fetchAttendanceRecords();
+      await onStatsUpdate();
 
       toast({
         title: "Davomat yangilandi",
@@ -200,6 +211,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
 
       setShowRewardDialog(null);
       setRewardPoints('');
+      await onStatsUpdate();
       
       const studentName = students.find(s => s.id === studentId)?.name || '';
       toast({
@@ -260,7 +272,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
             Orqaga
           </Button>
           <div>
-            <h2 className="text-2xl font-bold">{group.name} guruhi</h2>
+            <h2 className="text-2xl font-bold">{groupName} guruhi</h2>
             <p className="text-muted-foreground">{students.length} o'quvchi</p>
           </div>
         </div>
@@ -441,7 +453,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, teacherId, onBack })
           student={selectedStudent}
           teacherId={teacherId}
           onClose={() => setSelectedStudent(null)}
-          onUpdate={() => {}}
+          onUpdate={onStatsUpdate}
         />
       )}
     </div>
