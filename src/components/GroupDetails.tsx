@@ -92,23 +92,18 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('attendance_records')
-        .select('*')
+        .select('student_id, status')
         .eq('teacher_id', teacherId)
-        .eq('group_name', groupName)
         .eq('date', today);
 
       if (error) throw error;
 
-      // Handle the data properly by casting the status to AttendanceStatus
-      const attendanceData = (data || []).map(record => ({
-        ...record,
-        status: record.status as AttendanceStatus
-      }));
-      
       const attendanceMap: Record<string, boolean> = {};
-      attendanceData.forEach(record => {
-        attendanceMap[record.student_id] = record.status === 'present';
-      });
+      if (data) {
+        data.forEach((record: any) => {
+          attendanceMap[record.student_id] = record.status === 'present';
+        });
+      }
       setAttendance(attendanceMap);
     } catch (error) {
       console.error('Error fetching today\'s attendance:', error);
@@ -190,7 +185,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           .insert({
             teacher_id: teacherId,
             student_id: studentId,
-            group_name: groupName,
             date: today,
             status: isPresent ? 'present' : 'absent'
           });
