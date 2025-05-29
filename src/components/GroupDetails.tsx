@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -95,8 +96,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
       if (error) throw error;
       
       // Type assertion to ensure proper types
-      const typedData = (data || []).map(record => ({
-        ...record,
+      const typedData: AttendanceRecord[] = (data || []).map(record => ({
+        id: record.id,
+        student_id: record.student_id,
+        date: record.date,
         status: record.status as 'present' | 'absent' | 'late'
       }));
       
@@ -328,7 +331,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ groupName, teacherId, onBac
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
+                      <p className="font-medium cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent({ ...student, group_name: groupName })}>
                         {student.name}
                       </p>
                       {student.student_id && (

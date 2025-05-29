@@ -147,7 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacher, onLogout }) => {
       case 'attendance':
         return <AttendanceTracker teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'students':
-        return <StudentManager teacherId={teacher.id} />;
+        return <StudentManager teacherId={teacher.id} onStatsUpdate={fetchStats} />;
       case 'rankings':
         return <StudentRankings teacherId={teacher.id} />;
       case 'statistics':

@@ -29,9 +29,10 @@ interface Group {
 
 interface StudentManagerProps {
   teacherId: string;
+  onStatsUpdate?: () => Promise<void>;
 }
 
-const StudentManager: React.FC<StudentManagerProps> = ({ teacherId }) => {
+const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -144,6 +145,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId }) => {
       if (error) throw error;
 
       await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
       
       setNewStudent({ name: '', student_id: '', email: '', phone: '', group_name: '' });
       setIsAddDialogOpen(false);
@@ -187,6 +189,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId }) => {
       if (error) throw error;
 
       await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
       
       setEditingStudent(null);
       setIsEditDialogOpen(false);
@@ -229,6 +232,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId }) => {
         .eq('id', studentId);
 
       await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
       
       toast({
         title: "O'quvchi arxivlandi",
@@ -279,6 +283,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId }) => {
 
       setShowRewardDialog(null);
       setRewardPoints('');
+      if (onStatsUpdate) await onStatsUpdate();
       
       const studentName = students.find(s => s.id === studentId)?.name || '';
       toast({
