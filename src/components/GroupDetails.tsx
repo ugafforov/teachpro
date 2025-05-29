@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
@@ -47,8 +48,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   onStatsUpdate 
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<Record<string, boolean>>({});
+  const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
+  const [rewardPoints, setRewardPoints] = useState('');
+  const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
   const [newStudent, setNewStudent] = useState({
     name: '',
@@ -60,8 +65,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   useEffect(() => {
     fetchStudents();
-    fetchTodayAttendance();
-  }, [groupName, teacherId]);
+    fetchAttendanceForDate(selectedDate);
+  }, [groupName, teacherId, selectedDate]);
 
   const fetchStudents = async () => {
     try {
@@ -87,29 +92,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const fetchTodayAttendance = async () => {
+  const fetchAttendanceForDate = async (date: string) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
         .from('attendance_records')
         .select('student_id, status')
         .eq('teacher_id', teacherId)
-        .eq('date', today);
+        .eq('date', date);
 
       if (error) throw error;
 
-      const attendanceMap: Record<string, boolean> = {};
+      const attendanceMap: Record<string, AttendanceStatus> = {};
       if (data) {
         data.forEach((record: any) => {
-          attendanceMap[record.student_id] = record.status === 'present';
+          attendanceMap[record.student_id] = record.status as AttendanceStatus;
         });
       }
       setAttendance(attendanceMap);
     } catch (error) {
-      console.error('Error fetching today\'s attendance:', error);
+      console.error('Error fetching attendance:', error);
       toast({
         title: "Xatolik",
-        description: "Bugungi davomatni yuklashda xatolik yuz berdi",
+        description: "Davomatni yuklashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -159,22 +163,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const markAttendance = async (studentId: string, isPresent: boolean) => {
+  const markAttendance = async (studentId: string, status: AttendanceStatus) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
       const existingRecord = await supabase
         .from('attendance_records')
         .select('*')
         .eq('teacher_id', teacherId)
         .eq('student_id', studentId)
-        .eq('date', today)
+        .eq('date', selectedDate)
         .single();
 
       if (existingRecord.data) {
         // Update existing record
         const { error } = await supabase
           .from('attendance_records')
-          .update({ status: isPresent ? 'present' : 'absent' })
+          .update({ status: status })
           .eq('id', existingRecord.data.id);
 
         if (error) throw error;
@@ -185,8 +188,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           .insert({
             teacher_id: teacherId,
             student_id: studentId,
-            date: today,
-            status: isPresent ? 'present' : 'absent'
+            date: selectedDate,
+            status: status
           });
 
         if (error) throw error;
@@ -194,7 +197,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       setAttendance(prevAttendance => ({
         ...prevAttendance,
-        [studentId]: isPresent,
+        [studentId]: status,
       }));
       await onStatsUpdate();
       
@@ -209,6 +212,86 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         description: "Davomatni belgilashda xatolik yuz berdi",
         variant: "destructive",
       });
+    }
+  };
+
+  const markAllAsPresent = async () => {
+    try {
+      for (const student of students) {
+        await markAttendance(student.id, 'present');
+      }
+      toast({
+        title: "Barchasi belgilandi",
+        description: "Barcha o'quvchilar kelgan deb belgilandi",
+      });
+    } catch (error) {
+      console.error('Error marking all as present:', error);
+      toast({
+        title: "Xatolik",
+        description: "Barchasini belgilashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const addReward = async (studentId: string) => {
+    if (!rewardPoints) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "Ball miqdorini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const points = parseFloat(rewardPoints);
+    if (isNaN(points)) {
+      toast({
+        title: "Noto'g'ri format",
+        description: "Ball sonli qiymat bo'lishi kerak",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reward_penalty_history')
+        .insert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
+          type: rewardType
+        });
+
+      if (error) throw error;
+
+      setShowRewardDialog(null);
+      setRewardPoints('');
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      const studentName = students.find(s => s.id === studentId)?.name || '';
+      toast({
+        title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
+        description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
+      });
+    } catch (error) {
+      console.error('Error adding reward/penalty:', error);
+      toast({
+        title: "Xatolik",
+        description: "Ball qo'shishda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusColor = (status: AttendanceStatus | undefined) => {
+    switch (status) {
+      case 'present': return 'text-green-600 bg-green-50';
+      case 'late': return 'text-yellow-600 bg-yellow-50';
+      case 'absent': return 'text-red-600 bg-red-50';
+      default: return 'text-gray-600 bg-gray-50';
     }
   };
 
@@ -238,7 +321,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             groupName={groupName}
             onImportComplete={() => {
               fetchStudents();
-              fetchTodayAttendance();
+              fetchAttendanceForDate(selectedDate);
               if (onStatsUpdate) onStatsUpdate();
             }}
           />
@@ -307,7 +390,34 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       <Card className="apple-card">
         <div className="p-6 border-b border-border/50">
-          <h3 className="text-lg font-semibold">Bugungi davomat ({new Date().toLocaleDateString('uz-UZ')})</h3>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Davomat</h3>
+              <p className="text-sm text-muted-foreground">
+                O'quvchilar davomatini boshqaring
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <Button
+                onClick={markAllAsPresent}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Barchani kelgan deb belgilash
+              </Button>
+            </div>
+          </div>
         </div>
         {students.length === 0 ? (
           <div className="p-12 text-center">
@@ -339,20 +449,104 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`attendance-${student.id}`}
-                    checked={attendance[student.id] === true}
-                    onCheckedChange={(checked) => markAttendance(student.id, checked === true)}
-                  />
-                  <Label htmlFor={`attendance-${student.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed">
-                    {attendance[student.id] === true ? 'Keldi' : 'Yo\'q'}
-                  </Label>
+                  <Button
+                    size="sm"
+                    variant={attendance[student.id] === 'present' ? 'default' : 'outline'}
+                    onClick={() => markAttendance(student.id, 'present')}
+                    className="flex items-center gap-1"
+                  >
+                    <CheckCircle className="w-3 h-3" />
+                    Keldi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={attendance[student.id] === 'late' ? 'default' : 'outline'}
+                    onClick={() => markAttendance(student.id, 'late')}
+                    className="flex items-center gap-1"
+                  >
+                    <Clock className="w-3 h-3" />
+                    Kechikdi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={attendance[student.id] === 'absent' ? 'default' : 'outline'}
+                    onClick={() => markAttendance(student.id, 'absent')}
+                    className="flex items-center gap-1"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Yo'q
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowRewardDialog(student.id)}
+                    title="Mukofot/Jarima berish"
+                  >
+                    <Gift className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      {/* Reward Dialog */}
+      {showRewardDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setRewardType('reward')}
+                  variant={rewardType === 'reward' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Gift className="w-4 h-4" />
+                  Mukofot
+                </Button>
+                <Button
+                  onClick={() => setRewardType('penalty')}
+                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Jarima
+                </Button>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ball miqdori</label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={rewardPoints}
+                  onChange={(e) => setRewardPoints(e.target.value)}
+                  placeholder="Masalan: 5"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => addReward(showRewardDialog)}
+                  className="flex-1"
+                >
+                  Saqlash
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRewardDialog(null);
+                    setRewardPoints('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

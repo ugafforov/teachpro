@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
@@ -576,15 +576,17 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               onClick={() => setViewMode('grid')}
               size="sm"
+              title="Grid ko'rinishi"
             >
-              <Users className="w-4 h-4" />
+              <LayoutGrid className="w-4 h-4" />
             </Button>
             <Button
               variant={viewMode === 'list' ? 'default' : 'outline'}
               onClick={() => setViewMode('list')}
               size="sm"
+              title="Ro'yxat ko'rinishi"
             >
-              <Users className="w-4 h-4" />
+              <List className="w-4 h-4" />
             </Button>
           </div>
         </div>
