@@ -197,6 +197,51 @@ export type Database = {
           },
         ]
       }
+      reward_penalty_history: {
+        Row: {
+          created_at: string
+          id: string
+          points: number
+          reason: string
+          student_id: string
+          teacher_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points: number
+          reason: string
+          student_id: string
+          teacher_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points?: number
+          reason?: string
+          student_id?: string
+          teacher_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_penalty_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_penalty_history_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_rankings: {
         Row: {
           absent_count: number | null
@@ -244,6 +289,57 @@ export type Database = {
           },
           {
             foreignKeyName: "student_rankings_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_scores: {
+        Row: {
+          attendance_points: number | null
+          class_rank: number | null
+          created_at: string
+          id: string
+          reward_penalty_points: number | null
+          student_id: string
+          teacher_id: string
+          total_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          attendance_points?: number | null
+          class_rank?: number | null
+          created_at?: string
+          id?: string
+          reward_penalty_points?: number | null
+          student_id: string
+          teacher_id: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          attendance_points?: number | null
+          class_rank?: number | null
+          created_at?: string
+          id?: string
+          reward_penalty_points?: number | null
+          student_id?: string
+          teacher_id?: string
+          total_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_scores_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_scores_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "teachers"
@@ -346,7 +442,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_attendance_points: {
+        Args: { p_student_id: string; p_teacher_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

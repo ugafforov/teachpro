@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, Plus, Upload, Edit2, Search, Archive, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import StudentDetailsPopup from './StudentDetailsPopup';
 
 interface Student {
   id: string;
@@ -41,6 +42,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [bulkImportText, setBulkImportText] = useState('');
   const [loading, setLoading] = useState(true);
   const [newStudent, setNewStudent] = useState<Partial<Student>>({
@@ -247,7 +249,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       const student = students.find(s => s.id === studentId);
       if (!student) return;
 
-      // O'quvchini arxivga ko'chirish
       await supabase
         .from('archived_students')
         .insert({
@@ -261,7 +262,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
           archived_by: teacherId
         });
 
-      // O'quvchini faolsizlashtirish
       await supabase
         .from('students')
         .update({ is_active: false })
@@ -287,7 +287,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
       </div>
     );
   }
@@ -297,12 +297,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">O'quvchilar boshqaruvi</h2>
-          <p className="text-muted-foreground">O'quvchilar ro'yxatini boshqaring</p>
+          <p className="text-gray-600">O'quvchilar ro'yxatini boshqaring</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="apple-button-secondary">
+              <Button variant="outline" className="border-black text-black hover:bg-gray-50">
                 <Upload className="w-4 h-4 mr-2" />
                 Ommaviy import
               </Button>
@@ -327,7 +327,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                 </div>
                 <div>
                   <Label>O'quvchi ismlarini kiriting</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
+                  <p className="text-xs text-gray-600 mb-2">
                     Har bir qatorda bitta ism kiriting
                   </p>
                   <Textarea
@@ -338,7 +338,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                   />
                 </div>
                 <div className="flex space-x-2">
-                  <Button onClick={processBulkImport} className="apple-button flex-1">
+                  <Button onClick={processBulkImport} className="bg-black text-white hover:bg-gray-800 flex-1">
                     Import qilish
                   </Button>
                   <Button onClick={() => setIsBulkImportOpen(false)} variant="outline" className="flex-1">
@@ -351,7 +351,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="apple-button">
+              <Button className="bg-black text-white hover:bg-gray-800">
                 <Plus className="w-4 h-4 mr-2" />
                 O'quvchi qo'shish
               </Button>
@@ -387,7 +387,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                   </Select>
                 </div>
                 <div className="flex space-x-2">
-                  <Button onClick={addStudent} className="apple-button flex-1">
+                  <Button onClick={addStudent} className="bg-black text-white hover:bg-gray-800 flex-1">
                     O'quvchi qo'shish
                   </Button>
                   <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
@@ -401,71 +401,78 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       </div>
 
       {/* Qidiruv va filtr */}
-      <Card className="apple-card p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>O'quvchilarni qidirish</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Ism bo'yicha qidirish..."
-                className="pl-10"
-              />
+      <Card className="bg-white border border-gray-200 shadow-sm">
+        <div className="p-6 border-b border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>O'quvchilarni qidirish</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-600" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Ism bo'yicha qidirish..."
+                  className="pl-10"
+                />
+              </div>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Guruh bo'yicha filtr</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Barcha guruhlar</SelectItem>
-                {availableGroups.map(group => (
-                  <SelectItem key={group} value={group}>{group}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label>Guruh bo'yicha filtr</Label>
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Barcha guruhlar</SelectItem>
+                  {availableGroups.map(group => (
+                    <SelectItem key={group} value={group}>{group}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </Card>
 
       {/* O'quvchilar ro'yxati */}
-      <Card className="apple-card">
-        <div className="p-6 border-b border-border/50">
+      <Card className="bg-white border border-gray-200 shadow-sm">
+        <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold">
             {selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `Guruh: ${selectedGroup}`}
           </h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-gray-600">
             {filteredStudents.length} o'quvchi topildi
           </p>
         </div>
         
         {filteredStudents.length === 0 ? (
           <div className="p-12 text-center">
-            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-gray-600 mb-4">
               Birinchi o'quvchingizni qo'shishni boshlang
             </p>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+            <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
               <Plus className="w-4 h-4 mr-2" />
               Birinchi o'quvchini qo'shish
             </Button>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="divide-y divide-gray-200">
             {filteredStudents.map(student => (
-              <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors">
+              <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                     <User className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-medium">{student.name}</p>
-                    <p className="text-sm text-muted-foreground">{student.group_name}</p>
+                    <button
+                      onClick={() => setSelectedStudent(student)}
+                      className="font-medium text-black hover:underline cursor-pointer text-left"
+                    >
+                      {student.name}
+                    </button>
+                    <p className="text-sm text-gray-600">{student.group_name}</p>
                   </div>
                 </div>
                 
@@ -484,7 +491,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                     size="sm"
                     variant="ghost"
                     onClick={() => archiveStudent(student.id, student.name)}
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
                   >
                     <Archive className="w-4 h-4" />
                   </Button>
@@ -494,6 +501,19 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
           </div>
         )}
       </Card>
+
+      {/* Student Details Popup */}
+      {selectedStudent && (
+        <StudentDetailsPopup
+          student={selectedStudent}
+          teacherId={teacherId}
+          onClose={() => setSelectedStudent(null)}
+          onUpdate={() => {
+            fetchStudents();
+            onStatsUpdate();
+          }}
+        />
+      )}
 
       {/* Tahrirlash dialogi */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -528,7 +548,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                 </Select>
               </div>
               <div className="flex space-x-2">
-                <Button onClick={editStudent} className="apple-button flex-1">
+                <Button onClick={editStudent} className="bg-black text-white hover:bg-gray-800 flex-1">
                   O'zgarishlarni saqlash
                 </Button>
                 <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
