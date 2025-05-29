@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { Calendar, TrendingUp, Users, Award, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,8 +14,9 @@ interface StatisticsProps {
 const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState<any[]>([]);
-  const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
+  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('1month');
   const [groups, setGroups] = useState<string[]>([]);
   const [summaryStats, setSummaryStats] = useState({
     totalStudents: 0,
@@ -24,6 +26,17 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
   });
   const [loading, setLoading] = useState(true);
 
+  const periodOptions = [
+    { value: '1day', label: '1 kun', days: 1 },
+    { value: '1week', label: '1 hafta', days: 7 },
+    { value: '2weeks', label: '2 hafta', days: 14 },
+    { value: '1month', label: '1 oy', days: 30 },
+    { value: '2months', label: '2 oy', days: 60 },
+    { value: '3months', label: '3 oy', days: 90 },
+    { value: '6months', label: '6 oy', days: 180 },
+    { value: '10months', label: '10 oy', days: 300 },
+  ];
+
   useEffect(() => {
     fetchGroups();
     fetchStatistics();
@@ -31,7 +44,7 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
 
   useEffect(() => {
     fetchStatistics();
-  }, [selectedGroup]);
+  }, [selectedGroup, selectedPeriod]);
 
   const fetchGroups = async () => {
     try {
@@ -52,6 +65,10 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
 
   const fetchStatistics = async () => {
     try {
+      const selectedPeriodDays = periodOptions.find(p => p.value === selectedPeriod)?.days || 30;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - selectedPeriodDays);
+
       // Fetch attendance statistics
       let attendanceQuery = supabase
         .from('attendance_records')
@@ -61,7 +78,8 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
           students!inner(name, group_name, is_active)
         `)
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true);
+        .eq('students.is_active', true)
+        .gte('date', startDate.toISOString().split('T')[0]);
 
       if (selectedGroup !== 'all') {
         attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
@@ -105,33 +123,77 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
         setGroupStats([]);
       }
 
-      // Calculate monthly statistics for the last 10 months
-      const now = new Date();
-      const monthlyData = [];
+      // Calculate time series data based on selected period
+      const timeSeriesData = [];
+      const periodDays = periodOptions.find(p => p.value === selectedPeriod)?.days || 30;
       
-      for (let i = 9; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-        const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-        
-        const monthRecords = attendanceRecords?.filter(record => {
-          const recordDate = new Date(record.date);
-          return recordDate >= monthStart && recordDate <= monthEnd;
-        }) || [];
+      if (selectedPeriod === '1day') {
+        // Hourly data for 1 day
+        for (let hour = 0; hour < 24; hour++) {
+          const hourRecords = attendanceRecords?.filter(record => {
+            const recordDate = new Date(record.date);
+            return recordDate.getHours() === hour;
+          }) || [];
 
-        const present = monthRecords.filter(r => r.status === 'present').length;
-        const total = monthRecords.length;
-        const percentage = total > 0 ? (present / total) * 100 : 0;
+          const present = hourRecords.filter(r => r.status === 'present').length;
+          const total = hourRecords.length;
+          const percentage = total > 0 ? (present / total) * 100 : 0;
 
-        monthlyData.push({
-          month: date.toLocaleDateString('uz-UZ', { month: 'short', year: 'numeric' }),
-          attendance: Math.round(percentage * 100) / 100,
-          total: total,
-          present: present
-        });
+          timeSeriesData.push({
+            period: `${hour}:00`,
+            attendance: Math.round(percentage * 100) / 100,
+            total: total,
+            present: present
+          });
+        }
+      } else if (selectedPeriod === '1week' || selectedPeriod === '2weeks') {
+        // Daily data for weeks
+        const days = selectedPeriod === '1week' ? 7 : 14;
+        for (let i = days - 1; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          const dayRecords = attendanceRecords?.filter(record => record.date === dateStr) || [];
+          const present = dayRecords.filter(r => r.status === 'present').length;
+          const total = dayRecords.length;
+          const percentage = total > 0 ? (present / total) * 100 : 0;
+
+          timeSeriesData.push({
+            period: date.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' }),
+            attendance: Math.round(percentage * 100) / 100,
+            total: total,
+            present: present
+          });
+        }
+      } else {
+        // Monthly data for longer periods
+        const months = Math.ceil(periodDays / 30);
+        for (let i = months - 1; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          
+          const monthRecords = attendanceRecords?.filter(record => {
+            const recordDate = new Date(record.date);
+            return recordDate >= monthStart && recordDate <= monthEnd;
+          }) || [];
+
+          const present = monthRecords.filter(r => r.status === 'present').length;
+          const total = monthRecords.length;
+          const percentage = total > 0 ? (present / total) * 100 : 0;
+
+          timeSeriesData.push({
+            period: date.toLocaleDateString('uz-UZ', { month: 'short', year: 'numeric' }),
+            attendance: Math.round(percentage * 100) / 100,
+            total: total,
+            present: present
+          });
+        }
       }
 
-      setMonthlyStats(monthlyData);
+      setTimeSeriesData(timeSeriesData);
 
       // Calculate summary statistics
       const totalRecords = attendanceRecords?.length || 0;
@@ -158,7 +220,7 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
       let bestAttendance = 0;
       Object.entries(studentStats).forEach(([name, stats]) => {
         const percentage = stats.total > 0 ? (stats.present / stats.total) * 100 : 0;
-        if (percentage > bestAttendance && stats.total >= 5) { // Minimum 5 classes
+        if (percentage > bestAttendance && stats.total >= 3) {
           bestAttendance = percentage;
           topPerformer = name;
         }
@@ -191,20 +253,36 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Statistika</h2>
-          <p className="text-muted-foreground">Oxirgi 10 oylik davomat tahlili</p>
+          <p className="text-muted-foreground">Davomat tahlili va statistikalar</p>
         </div>
-        <div className="w-full sm:w-64">
-          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-            <SelectTrigger>
-              <SelectValue placeholder="Guruhni tanlang" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha guruhlar</SelectItem>
-              {groups.map(group => (
-                <SelectItem key={group} value={group}>{group}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex gap-4">
+          <div className="w-full sm:w-48">
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Davr tanlang" />
+              </SelectTrigger>
+              <SelectContent>
+                {periodOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+              <SelectTrigger>
+                <SelectValue placeholder="Guruhni tanlang" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barcha guruhlar</SelectItem>
+                {groups.map(group => (
+                  <SelectItem key={group} value={group}>{group}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -259,110 +337,128 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Attendance Distribution */}
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Davomat taqsimoti</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={attendanceData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {attendanceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview">Umumiy ko'rinish</TabsTrigger>
+          <TabsTrigger value="trends">Tendensiyalar</TabsTrigger>
+          <TabsTrigger value="details">Batafsil</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Attendance Distribution */}
+            <Card className="apple-card p-6">
+              <h3 className="text-lg font-semibold mb-4">Davomat taqsimoti</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={attendanceData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {attendanceData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Group Comparison */}
+            {selectedGroup === 'all' && groupStats.length > 0 && (
+              <Card className="apple-card p-6">
+                <h3 className="text-lg font-semibold mb-4">Guruhlar bo'yicha taqqoslash</h3>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={groupStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
+                      <Legend />
+                      <Bar dataKey="attendance" fill="#22c55e" name="Davomat foizi" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="trends" className="space-y-6">
+          {/* Time Series Trend */}
+          <Card className="apple-card p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              Davomat tendensiyasi ({periodOptions.find(p => p.value === selectedPeriod)?.label})
+            </h3>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={timeSeriesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="period" />
+                  <YAxis />
+                  <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="attendance" 
+                    stroke="#22c55e" 
+                    strokeWidth={3}
+                    dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="details" className="space-y-6">
+          {/* Detailed Stats Table */}
+          <Card className="apple-card p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              Batafsil statistika ({periodOptions.find(p => p.value === selectedPeriod)?.label})
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Davr</th>
+                    <th className="text-right p-2">Jami darslar</th>
+                    <th className="text-right p-2">Kelgan</th>
+                    <th className="text-right p-2">Davomat %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeSeriesData.map((period, index) => (
+                    <tr key={index} className="border-b hover:bg-gray-50">
+                      <td className="p-2 font-medium">{period.period}</td>
+                      <td className="p-2 text-right">{period.total}</td>
+                      <td className="p-2 text-right">{period.present}</td>
+                      <td className="p-2 text-right">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          period.attendance >= 90 ? 'bg-green-100 text-green-800' :
+                          period.attendance >= 80 ? 'bg-blue-100 text-blue-800' :
+                          period.attendance >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {period.attendance}%
+                        </span>
+                      </td>
+                    </tr>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Monthly Attendance Trend */}
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Oylik davomat tendensiyasi (10 oy)</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
-                <Line 
-                  type="monotone" 
-                  dataKey="attendance" 
-                  stroke="#22c55e" 
-                  strokeWidth={3}
-                  dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
-
-      {/* Group Comparison */}
-      {selectedGroup === 'all' && groupStats.length > 0 && (
-        <Card className="apple-card p-6">
-          <h3 className="text-lg font-semibold mb-4">Guruhlar bo'yicha taqqoslash</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={groupStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
-                <Legend />
-                <Bar dataKey="attendance" fill="#22c55e" name="Davomat foizi" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
-
-      {/* Monthly Stats Table */}
-      <Card className="apple-card p-6">
-        <h3 className="text-lg font-semibold mb-4">Oylik batafsil statistika</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">Oy</th>
-                <th className="text-right p-2">Jami darslar</th>
-                <th className="text-right p-2">Kelgan</th>
-                <th className="text-right p-2">Davomat %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyStats.map((month, index) => (
-                <tr key={index} className="border-b hover:bg-gray-50">
-                  <td className="p-2 font-medium">{month.month}</td>
-                  <td className="p-2 text-right">{month.total}</td>
-                  <td className="p-2 text-right">{month.present}</td>
-                  <td className="p-2 text-right">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      month.attendance >= 90 ? 'bg-green-100 text-green-800' :
-                      month.attendance >= 80 ? 'bg-blue-100 text-blue-800' :
-                      month.attendance >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {month.attendance}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -73,6 +74,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
   const fetchAttendanceRankings = async () => {
     try {
+      setLoading(true);
+      
       let studentsQuery = supabase
         .from('students')
         .select('id, name, group_name')
@@ -86,12 +89,12 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       const { data: students, error: studentsError } = await studentsQuery;
       if (studentsError) throw studentsError;
 
-      const studentIds = students?.map(s => s.id) || [];
-
-      if (studentIds.length === 0) {
+      if (!students || students.length === 0) {
         setAttendanceRankings([]);
         return;
       }
+
+      const studentIds = students.map(s => s.id);
 
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_records')
@@ -101,7 +104,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       if (attendanceError) throw attendanceError;
 
-      const studentStats = students?.map(student => {
+      const studentStats = students.map(student => {
         const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
         const totalClasses = studentAttendance.length;
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
@@ -121,7 +124,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
           attendance_percentage: Math.round(attendancePercentage * 100) / 100,
           rank_position: 0
         };
-      }) || [];
+      });
 
       const sortedStats = studentStats
         .sort((a, b) => {
@@ -143,37 +146,87 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
   const fetchScoreRankings = async () => {
     try {
-      let scoresQuery = supabase
-        .from('student_scores')
-        .select(`
-          *,
-          students!inner(name, group_name, is_active)
-        `)
+      let studentsQuery = supabase
+        .from('students')
+        .select('id, name, group_name')
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true);
+        .eq('is_active', true);
 
       if (selectedGroup !== 'all') {
-        scoresQuery = scoresQuery.eq('students.group_name', selectedGroup);
+        studentsQuery = studentsQuery.eq('group_name', selectedGroup);
       }
 
-      const { data: scores, error } = await scoresQuery;
-      if (error) throw error;
+      const { data: students, error: studentsError } = await studentsQuery;
+      if (studentsError) throw studentsError;
 
-      const formattedScores = scores?.map(score => ({
-        id: score.id,
-        student_id: score.student_id,
-        student_name: score.students.name,
-        group_name: score.students.group_name,
-        total_score: score.total_score || 0,
-        attendance_points: score.attendance_points || 0,
-        reward_penalty_points: score.reward_penalty_points || 0,
-        class_rank: score.class_rank || 999
-      })) || [];
+      if (!students || students.length === 0) {
+        setScoreRankings([]);
+        setLoading(false);
+        return;
+      }
 
-      const sortedScores = formattedScores.sort((a, b) => a.class_rank - b.class_rank);
+      const studentIds = students.map(s => s.id);
+
+      // Get attendance points
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance_records')
+        .select('student_id, status')
+        .eq('teacher_id', teacherId)
+        .in('student_id', studentIds);
+
+      if (attendanceError) throw attendanceError;
+
+      // Get reward/penalty points
+      const { data: rewards, error: rewardsError } = await supabase
+        .from('reward_penalty_history')
+        .select('student_id, points')
+        .eq('teacher_id', teacherId)
+        .in('student_id', studentIds);
+
+      if (rewardsError) throw rewardsError;
+
+      const formattedScores = students.map((student, index) => {
+        // Calculate attendance points
+        const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
+        const attendancePoints = studentAttendance.reduce((total, record) => {
+          switch (record.status) {
+            case 'present': return total + 1;
+            case 'late': return total - 0.5;
+            case 'absent': return total - 1;
+            default: return total;
+          }
+        }, 0);
+
+        // Calculate reward/penalty points
+        const studentRewards = rewards?.filter(r => r.student_id === student.id) || [];
+        const rewardPenaltyPoints = studentRewards.reduce((total, reward) => total + (reward.points || 0), 0);
+
+        const totalScore = attendancePoints + rewardPenaltyPoints;
+
+        return {
+          id: student.id,
+          student_id: student.id,
+          student_name: student.name,
+          group_name: student.group_name,
+          total_score: totalScore,
+          attendance_points: attendancePoints,
+          reward_penalty_points: rewardPenaltyPoints,
+          class_rank: index + 1
+        };
+      });
+
+      const sortedScores = formattedScores
+        .sort((a, b) => b.total_score - a.total_score)
+        .map((score, index) => ({
+          ...score,
+          class_rank: index + 1
+        }));
+
       setScoreRankings(sortedScores);
     } catch (error) {
       console.error('Error fetching score rankings:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

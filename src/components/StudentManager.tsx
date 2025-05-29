@@ -9,6 +9,7 @@ import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search } from 'lucide
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import StudentImport from './StudentImport';
 
 interface Student {
   id: string;
@@ -38,6 +39,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -300,6 +302,148 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
+  const renderStudentsList = () => (
+    <Card className="apple-card">
+      <div className="p-6 border-b border-border/50">
+        <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
+        <p className="text-sm text-muted-foreground">
+          {filteredStudents.length} o'quvchi topildi
+        </p>
+      </div>
+      <div className="divide-y divide-border/50">
+        {filteredStudents.map(student => (
+          <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium">
+                  {student.name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+              <div>
+                <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
+                  {student.name}
+                </h3>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  {student.student_id && <span>ID: {student.student_id}</span>}
+                  <span className="text-blue-600">{student.group_name}</span>
+                </div>
+                {(student.email || student.phone) && (
+                  <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-1">
+                    {student.email && <span>{student.email}</span>}
+                    {student.phone && <span>{student.phone}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowRewardDialog(student.id)}
+                title="Mukofot/Jarima berish"
+              >
+                <Gift className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingStudent(student);
+                  setIsEditDialogOpen(true);
+                }}
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => archiveStudent(student.id, student.name)}
+                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <Archive className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  const renderStudentsGrid = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {filteredStudents.map(student => (
+        <Card key={student.id} className="apple-card p-6">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
+                  <span className="text-lg font-medium">
+                    {student.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
+                    {student.name}
+                  </h3>
+                  {student.student_id && (
+                    <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
+                  )}
+                  <p className="text-sm text-blue-600">{student.group_name}</p>
+                </div>
+              </div>
+            </div>
+
+            {(student.email || student.phone) && (
+              <div className="space-y-1">
+                {student.email && (
+                  <p className="text-sm text-muted-foreground">{student.email}</p>
+                )}
+                {student.phone && (
+                  <p className="text-sm text-muted-foreground">{student.phone}</p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <span className="text-xs text-muted-foreground">
+                {new Date(student.created_at).toLocaleDateString('uz-UZ')}
+              </span>
+              <div className="flex items-center space-x-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowRewardDialog(student.id)}
+                  title="Mukofot/Jarima berish"
+                >
+                  <Gift className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingStudent(student);
+                    setIsEditDialogOpen(true);
+                  }}
+                >
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => archiveStudent(student.id, student.name)}
+                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                >
+                  <Archive className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -315,81 +459,91 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
           <h2 className="text-2xl font-bold">O'quvchilar boshqaruvi</h2>
           <p className="text-muted-foreground">O'quvchilarni qo'shing va boshqaring</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="apple-button">
-              <Plus className="w-4 h-4 mr-2" />
-              Yangi o'quvchi
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="studentName">O'quvchi nomi *</Label>
-                <Input
-                  id="studentName"
-                  value={newStudent.name}
-                  onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                  placeholder="To'liq ism sharif"
-                />
+        <div className="flex gap-2">
+          <StudentImport 
+            teacherId={teacherId} 
+            groupName={selectedGroup !== 'all' ? selectedGroup : undefined}
+            onImportComplete={() => {
+              fetchStudents();
+              if (onStatsUpdate) onStatsUpdate();
+            }}
+          />
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                Yangi o'quvchi
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="studentName">O'quvchi nomi *</Label>
+                  <Input
+                    id="studentName"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    placeholder="To'liq ism sharif"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentId">O'quvchi ID</Label>
+                  <Input
+                    id="studentId"
+                    value={newStudent.student_id}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
+                    placeholder="Masalan: 2024001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentGroup">Guruh *</Label>
+                  <Select value={newStudent.group_name} onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Guruhni tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map(group => (
+                        <SelectItem key={group.id} value={group.name}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="studentEmail">Email</Label>
+                  <Input
+                    id="studentEmail"
+                    type="email"
+                    value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                    placeholder="student@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentPhone">Telefon</Label>
+                  <Input
+                    id="studentPhone"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                    placeholder="+998 90 123 45 67"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button onClick={addStudent} className="apple-button flex-1">
+                    Qo'shish
+                  </Button>
+                  <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
+                    Bekor qilish
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="studentId">O'quvchi ID</Label>
-                <Input
-                  id="studentId"
-                  value={newStudent.student_id}
-                  onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
-                  placeholder="Masalan: 2024001"
-                />
-              </div>
-              <div>
-                <Label htmlFor="studentGroup">Guruh *</Label>
-                <Select value={newStudent.group_name} onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Guruhni tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map(group => (
-                      <SelectItem key={group.id} value={group.name}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="studentEmail">Email</Label>
-                <Input
-                  id="studentEmail"
-                  type="email"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                  placeholder="student@example.com"
-                />
-              </div>
-              <div>
-                <Label htmlFor="studentPhone">Telefon</Label>
-                <Input
-                  id="studentPhone"
-                  value={newStudent.phone}
-                  onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                  placeholder="+998 90 123 45 67"
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button onClick={addStudent} className="apple-button flex-1">
-                  Qo'shish
-                </Button>
-                <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
-                  Bekor qilish
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filter va qidiruv */}
@@ -417,6 +571,22 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               ))}
             </SelectContent>
           </Select>
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'outline'}
+              onClick={() => setViewMode('grid')}
+              size="sm"
+            >
+              <Users className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              onClick={() => setViewMode('list')}
+              size="sm"
+            >
+              <Users className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -432,84 +602,23 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
             }
           </p>
           {!searchTerm && selectedGroup === 'all' && (
-            <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
-              <Plus className="w-4 h-4 mr-2" />
-              Birinchi o'quvchini qo'shish
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                Birinchi o'quvchini qo'shish
+              </Button>
+              <StudentImport 
+                teacherId={teacherId} 
+                onImportComplete={() => {
+                  fetchStudents();
+                  if (onStatsUpdate) onStatsUpdate();
+                }}
+              />
+            </div>
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map(student => (
-            <Card key={student.id} className="apple-card p-6">
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-                      <span className="text-lg font-medium">
-                        {student.name.split(' ').map(n => n[0]).join('')}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
-                        {student.name}
-                      </h3>
-                      {student.student_id && (
-                        <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
-                      )}
-                      <p className="text-sm text-blue-600">{student.group_name}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {(student.email || student.phone) && (
-                  <div className="space-y-1">
-                    {student.email && (
-                      <p className="text-sm text-muted-foreground">{student.email}</p>
-                    )}
-                    {student.phone && (
-                      <p className="text-sm text-muted-foreground">{student.phone}</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(student.created_at).toLocaleDateString('uz-UZ')}
-                  </span>
-                  <div className="flex items-center space-x-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowRewardDialog(student.id)}
-                      title="Mukofot/Jarima berish"
-                    >
-                      <Gift className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingStudent(student);
-                        setIsEditDialogOpen(true);
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => archiveStudent(student.id, student.name)}
-                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        viewMode === 'grid' ? renderStudentsGrid() : renderStudentsList()
       )}
 
       {/* Reward Dialog */}
