@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
@@ -165,24 +164,46 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const markAttendance = async (studentId: string, status: AttendanceStatus) => {
     try {
-      const existingRecord = await supabase
+      const { data: existingRecord } = await supabase
         .from('attendance_records')
         .select('*')
         .eq('teacher_id', teacherId)
         .eq('student_id', studentId)
         .eq('date', selectedDate)
-        .single();
+        .maybeSingle();
 
-      if (existingRecord.data) {
-        // Update existing record
-        const { error } = await supabase
-          .from('attendance_records')
-          .update({ status: status })
-          .eq('id', existingRecord.data.id);
+      if (existingRecord) {
+        // Agar belgi bir xil bo'lsa, belgilanmagan holatga qaytarish
+        if (existingRecord.status === status) {
+          const { error } = await supabase
+            .from('attendance_records')
+            .delete()
+            .eq('id', existingRecord.id);
 
-        if (error) throw error;
+          if (error) throw error;
+
+          // State'dan o'chirish
+          setAttendance(prevAttendance => {
+            const newAttendance = { ...prevAttendance };
+            delete newAttendance[studentId];
+            return newAttendance;
+          });
+        } else {
+          // Mavjud yozuvni yangilash
+          const { error } = await supabase
+            .from('attendance_records')
+            .update({ status: status })
+            .eq('id', existingRecord.id);
+
+          if (error) throw error;
+
+          setAttendance(prevAttendance => ({
+            ...prevAttendance,
+            [studentId]: status,
+          }));
+        }
       } else {
-        // Insert new record
+        // Yangi yozuv yaratish
         const { error } = await supabase
           .from('attendance_records')
           .insert({
@@ -193,12 +214,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           });
 
         if (error) throw error;
+
+        setAttendance(prevAttendance => ({
+          ...prevAttendance,
+          [studentId]: status,
+        }));
       }
 
-      setAttendance(prevAttendance => ({
-        ...prevAttendance,
-        [studentId]: status,
-      }));
       await onStatsUpdate();
       
       toast({
@@ -217,9 +239,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const markAllAsPresent = async () => {
     try {
-      for (const student of students) {
-        await markAttendance(student.id, 'present');
-      }
+      const attendancePromises = students.map(student => 
+        markAttendance(student.id, 'present')
+      );
+      
+      await Promise.all(attendancePromises);
+      
       toast({
         title: "Barchasi belgilandi",
         description: "Barcha o'quvchilar kelgan deb belgilandi",
@@ -229,6 +254,33 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       toast({
         title: "Xatolik",
         description: "Barchasini belgilashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const clearAllAttendance = async () => {
+    try {
+      const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('teacher_id', teacherId)
+        .eq('date', selectedDate);
+
+      if (error) throw error;
+
+      setAttendance({});
+      await onStatsUpdate();
+      
+      toast({
+        title: "Belgilar tozalandi",
+        description: "Barcha davomat belgilari olib tashlandi",
+      });
+    } catch (error) {
+      console.error('Error clearing attendance:', error);
+      toast({
+        title: "Xatolik",
+        description: "Belgilarni tozalashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
@@ -415,6 +467,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               >
                 <CheckCircle className="w-4 h-4" />
                 Barchani kelgan deb belgilash
+              </Button>
+              <Button
+                onClick={clearAllAttendance}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Belgilarni tozalash
               </Button>
             </div>
           </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,7 +76,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchStudentData = async () => {
     try {
-      // Fetch student score and ranking
+      // Ball reytingi bo'yicha reyting olish
       const { data: scoreData, error: scoreError } = await supabase
         .from('student_scores')
         .select('*')
@@ -89,7 +90,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         setStudentScore(scoreData);
       }
 
-      // Fetch recent attendance
+      // Oxirgi davomat ma'lumotlarini olish
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance_records')
         .select('date, status')
@@ -104,7 +105,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         setRecentAttendance(attendanceData || []);
       }
 
-      // Fetch reward/penalty history
+      // Mukofot/jarima tarixini olish
       const { data: historyData, error: historyError } = await supabase
         .from('reward_penalty_history')
         .select('*')
@@ -239,7 +240,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Score and Ranking */}
+          {/* Ball reytingi va statistika */}
           {studentScore && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="p-4 text-center border border-gray-200">
@@ -247,7 +248,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                   <Trophy className="w-8 h-8 text-orange-500" />
                 </div>
                 <p className="text-2xl font-bold">{studentScore.class_rank || 'N/A'}</p>
-                <p className="text-sm text-gray-600">Reyting o'rni</p>
+                <p className="text-sm text-gray-600">Ball reytingi o'rni</p>
               </Card>
               <Card className="p-4 text-center border border-gray-200">
                 <div className="flex items-center justify-center mb-2">

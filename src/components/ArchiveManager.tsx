@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -167,6 +166,27 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
   const permanentDeleteStudent = async (archivedStudent: ArchivedStudent) => {
     try {
+      // Avval barcha bog'liq ma'lumotlarni o'chirish
+      await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('student_id', archivedStudent.original_student_id);
+
+      await supabase
+        .from('reward_penalty_history')
+        .delete()
+        .eq('student_id', archivedStudent.original_student_id);
+
+      await supabase
+        .from('student_scores')
+        .delete()
+        .eq('student_id', archivedStudent.original_student_id);
+
+      await supabase
+        .from('student_rankings')
+        .delete()
+        .eq('student_id', archivedStudent.original_student_id);
+
       // O'quvchini butunlay o'chirish
       const { error: deleteStudentError } = await supabase
         .from('students')
@@ -202,14 +222,46 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
   const permanentDeleteGroup = async (archivedGroup: ArchivedGroup) => {
     try {
-      // Guruhdagi barcha o'quvchilarni butunlay o'chirish
-      const { error: deleteStudentsError } = await supabase
+      // Guruhdagi barcha o'quvchilarni topish
+      const { data: groupStudents, error: studentsError } = await supabase
         .from('students')
-        .delete()
+        .select('id')
         .eq('teacher_id', teacherId)
         .eq('group_name', archivedGroup.name);
 
-      if (deleteStudentsError) throw deleteStudentsError;
+      if (studentsError) throw studentsError;
+
+      if (groupStudents && groupStudents.length > 0) {
+        const studentIds = groupStudents.map(s => s.id);
+
+        // Har bir o'quvchi uchun bog'liq ma'lumotlarni o'chirish
+        await supabase
+          .from('attendance_records')
+          .delete()
+          .in('student_id', studentIds);
+
+        await supabase
+          .from('reward_penalty_history')
+          .delete()
+          .in('student_id', studentIds);
+
+        await supabase
+          .from('student_scores')
+          .delete()
+          .in('student_id', studentIds);
+
+        await supabase
+          .from('student_rankings')
+          .delete()
+          .in('student_id', studentIds);
+
+        // Guruhdagi barcha o'quvchilarni o'chirish
+        await supabase
+          .from('students')
+          .delete()
+          .eq('teacher_id', teacherId)
+          .eq('group_name', archivedGroup.name);
+      }
 
       // Guruhni butunlay o'chirish
       const { error: deleteGroupError } = await supabase

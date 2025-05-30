@@ -2,241 +2,164 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { Calendar, TrendingUp, Users, Award, Clock } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, Calendar, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface StatisticsProps {
   teacherId: string;
 }
 
+interface StatsData {
+  totalStudents: number;
+  totalClasses: number;
+  averageAttendance: number;
+  topStudent: string;
+}
+
+interface MonthlyData {
+  month: string;
+  totalClasses: number;
+  averageAttendance: number;
+  totalStudents: number;
+}
+
 const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
-  const [attendanceData, setAttendanceData] = useState<any[]>([]);
-  const [groupStats, setGroupStats] = useState<any[]>([]);
-  const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('1month');
-  const [groups, setGroups] = useState<string[]>([]);
-  const [summaryStats, setSummaryStats] = useState({
+  const [stats, setStats] = useState<StatsData>({
     totalStudents: 0,
     totalClasses: 0,
     averageAttendance: 0,
-    topPerformer: ''
+    topStudent: ''
   });
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState('1oy');
   const [loading, setLoading] = useState(true);
 
-  const periodOptions = [
-    { value: '1day', label: '1 kun', days: 1 },
-    { value: '1week', label: '1 hafta', days: 7 },
-    { value: '2weeks', label: '2 hafta', days: 14 },
-    { value: '1month', label: '1 oy', days: 30 },
-    { value: '2months', label: '2 oy', days: 60 },
-    { value: '3months', label: '3 oy', days: 90 },
-    { value: '6months', label: '6 oy', days: 180 },
-    { value: '10months', label: '10 oy', days: 300 },
-  ];
-
-  useEffect(() => {
-    fetchGroups();
-    fetchStatistics();
-  }, [teacherId]);
-
   useEffect(() => {
     fetchStatistics();
-  }, [selectedGroup, selectedPeriod]);
-
-  const fetchGroups = async () => {
-    try {
-      const { data: students, error } = await supabase
-        .from('students')
-        .select('group_name')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      const uniqueGroups = [...new Set(students?.map(s => s.group_name) || [])];
-      setGroups(uniqueGroups);
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-    }
-  };
+  }, [teacherId, selectedPeriod]);
 
   const fetchStatistics = async () => {
     try {
-      const selectedPeriodDays = periodOptions.find(p => p.value === selectedPeriod)?.days || 30;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - selectedPeriodDays);
+      setLoading(true);
 
-      // Fetch attendance statistics
-      let attendanceQuery = supabase
-        .from('attendance_records')
-        .select(`
-          status,
-          date,
-          students!inner(name, group_name, is_active)
-        `)
+      // Umumiy o'quvchilar sonini olish
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('id')
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true)
-        .gte('date', startDate.toISOString().split('T')[0]);
+        .eq('is_active', true);
 
-      if (selectedGroup !== 'all') {
-        attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
-      }
+      if (studentsError) throw studentsError;
 
-      const { data: attendanceRecords, error: attendanceError } = await attendanceQuery;
-      if (attendanceError) throw attendanceError;
+      const totalStudents = studentsData?.length || 0;
 
-      // Calculate attendance distribution
-      const statusCounts = attendanceRecords?.reduce((acc, record) => {
-        acc[record.status] = (acc[record.status] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>) || {};
+      // Jami darslar sonini to'g'ri hisoblash - kunlik davomat belgilangan sanalar soni
+      const { data: classesData, error: classesError } = await supabase
+        .from('attendance_records')
+        .select('date')
+        .eq('teacher_id', teacherId);
 
-      const attendanceChartData = [
-        { name: 'Kelgan', value: statusCounts.present || 0, color: '#22c55e' },
-        { name: 'Kechikkan', value: statusCounts.late || 0, color: '#f59e0b' },
-        { name: 'Kelmagan', value: statusCounts.absent || 0, color: '#ef4444' }
-      ];
+      if (classesError) throw classesError;
 
-      setAttendanceData(attendanceChartData);
+      // Noyob sanalarni topish (har bir sana = 1 ta dars)
+      const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
+      const totalClasses = uniqueDates.length;
 
-      // Calculate group statistics
-      if (selectedGroup === 'all') {
-        const groupData = groups.map(groupName => {
-          const groupRecords = attendanceRecords?.filter(r => r.students.group_name === groupName) || [];
-          const present = groupRecords.filter(r => r.status === 'present').length;
-          const total = groupRecords.length;
-          const percentage = total > 0 ? (present / total) * 100 : 0;
+      // O'rtacha davomatni hisoblash
+      if (totalClasses > 0 && totalStudents > 0) {
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance_records')
+          .select('status')
+          .eq('teacher_id', teacherId)
+          .eq('status', 'present');
 
-          return {
-            name: groupName,
-            attendance: Math.round(percentage * 100) / 100,
-            total: total,
-            present: present
-          };
+        if (attendanceError) throw attendanceError;
+
+        const totalPresentRecords = attendanceData?.length || 0;
+        const totalPossibleAttendance = totalClasses * totalStudents;
+        const averageAttendance = totalPossibleAttendance > 0 
+          ? (totalPresentRecords / totalPossibleAttendance) * 100 
+          : 0;
+
+        // Eng yaxshi o'quvchini topish (ball reytingi bo'yicha)
+        const { data: topStudentData, error: topStudentError } = await supabase
+          .from('student_scores')
+          .select('student_id, total_score, students!inner(name)')
+          .eq('teacher_id', teacherId)
+          .order('total_score', { ascending: false })
+          .limit(1);
+
+        if (topStudentError) throw topStudentError;
+
+        const topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
+
+        setStats({
+          totalStudents,
+          totalClasses,
+          averageAttendance: Math.round(averageAttendance * 100) / 100,
+          topStudent
         });
-
-        setGroupStats(groupData);
       } else {
-        setGroupStats([]);
+        setStats({
+          totalStudents,
+          totalClasses: 0,
+          averageAttendance: 0,
+          topStudent: 'Ma\'lumot yo\'q'
+        });
       }
 
-      // Calculate time series data based on selected period
-      const timeSeriesData = [];
-      const periodDays = periodOptions.find(p => p.value === selectedPeriod)?.days || 30;
-      
-      if (selectedPeriod === '1day') {
-        // Hourly data for 1 day
-        for (let hour = 0; hour < 24; hour++) {
-          const hourRecords = attendanceRecords?.filter(record => {
-            const recordDate = new Date(record.date);
-            return recordDate.getHours() === hour;
-          }) || [];
-
-          const present = hourRecords.filter(r => r.status === 'present').length;
-          const total = hourRecords.length;
-          const percentage = total > 0 ? (present / total) * 100 : 0;
-
-          timeSeriesData.push({
-            period: `${hour}:00`,
-            attendance: Math.round(percentage * 100) / 100,
-            total: total,
-            present: present
-          });
-        }
-      } else if (selectedPeriod === '1week' || selectedPeriod === '2weeks') {
-        // Daily data for weeks
-        const days = selectedPeriod === '1week' ? 7 : 14;
-        for (let i = days - 1; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split('T')[0];
-          
-          const dayRecords = attendanceRecords?.filter(record => record.date === dateStr) || [];
-          const present = dayRecords.filter(r => r.status === 'present').length;
-          const total = dayRecords.length;
-          const percentage = total > 0 ? (present / total) * 100 : 0;
-
-          timeSeriesData.push({
-            period: date.toLocaleDateString('uz-UZ', { weekday: 'short', day: 'numeric' }),
-            attendance: Math.round(percentage * 100) / 100,
-            total: total,
-            present: present
-          });
-        }
-      } else {
-        // Monthly data for longer periods
-        const months = Math.ceil(periodDays / 30);
-        for (let i = months - 1; i >= 0; i--) {
-          const date = new Date();
-          date.setMonth(date.getMonth() - i);
-          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-          
-          const monthRecords = attendanceRecords?.filter(record => {
-            const recordDate = new Date(record.date);
-            return recordDate >= monthStart && recordDate <= monthEnd;
-          }) || [];
-
-          const present = monthRecords.filter(r => r.status === 'present').length;
-          const total = monthRecords.length;
-          const percentage = total > 0 ? (present / total) * 100 : 0;
-
-          timeSeriesData.push({
-            period: date.toLocaleDateString('uz-UZ', { month: 'short', year: 'numeric' }),
-            attendance: Math.round(percentage * 100) / 100,
-            total: total,
-            present: present
-          });
-        }
-      }
-
-      setTimeSeriesData(timeSeriesData);
-
-      // Calculate summary statistics
-      const totalRecords = attendanceRecords?.length || 0;
-      const presentCount = attendanceRecords?.filter(r => r.status === 'present').length || 0;
-      const avgAttendance = totalRecords > 0 ? (presentCount / totalRecords) * 100 : 0;
-
-      // Get unique students count
-      const uniqueStudents = new Set(attendanceRecords?.map(r => r.students.name) || []).size;
-
-      // Find top performer
-      const studentStats = attendanceRecords?.reduce((acc, record) => {
-        const studentName = record.students.name;
-        if (!acc[studentName]) {
-          acc[studentName] = { present: 0, total: 0 };
-        }
-        acc[studentName].total += 1;
-        if (record.status === 'present') {
-          acc[studentName].present += 1;
-        }
-        return acc;
-      }, {} as Record<string, { present: number; total: number }>) || {};
-
-      let topPerformer = '';
-      let bestAttendance = 0;
-      Object.entries(studentStats).forEach(([name, stats]) => {
-        const percentage = stats.total > 0 ? (stats.present / stats.total) * 100 : 0;
-        if (percentage > bestAttendance && stats.total >= 3) {
-          bestAttendance = percentage;
-          topPerformer = name;
-        }
-      });
-
-      setSummaryStats({
-        totalStudents: uniqueStudents,
-        totalClasses: totalRecords,
-        averageAttendance: Math.round(avgAttendance * 100) / 100,
-        topPerformer: topPerformer || 'Ma\'lumot yo\'q'
-      });
+      // Oylik ma'lumotlarni olish
+      await fetchMonthlyData();
 
     } catch (error) {
       console.error('Error fetching statistics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMonthlyData = async () => {
+    try {
+      const monthsToFetch = selectedPeriod === '1oy' ? 1 : 12;
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - monthsToFetch);
+
+      const { data: monthlyAttendance, error } = await supabase
+        .from('attendance_records')
+        .select('date, status')
+        .eq('teacher_id', teacherId)
+        .gte('date', startDate.toISOString().split('T')[0]);
+
+      if (error) throw error;
+
+      // Oylik statistikani hisoblash
+      const monthlyStats: { [key: string]: { classes: Set<string>, present: number } } = {};
+
+      monthlyAttendance?.forEach(record => {
+        const month = new Date(record.date).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' });
+        
+        if (!monthlyStats[month]) {
+          monthlyStats[month] = { classes: new Set(), present: 0 };
+        }
+        
+        monthlyStats[month].classes.add(record.date);
+        if (record.status === 'present') {
+          monthlyStats[month].present++;
+        }
+      });
+
+      const formattedMonthlyData: MonthlyData[] = Object.entries(monthlyStats).map(([month, data]) => ({
+        month,
+        totalClasses: data.classes.size,
+        averageAttendance: data.classes.size > 0 ? (data.present / (data.classes.size * stats.totalStudents)) * 100 : 0,
+        totalStudents: stats.totalStudents
+      }));
+
+      setMonthlyData(formattedMonthlyData);
+    } catch (error) {
+      console.error('Error fetching monthly data:', error);
     }
   };
 
@@ -256,209 +179,90 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
           <p className="text-muted-foreground">Davomat tahlili va statistikalar</p>
         </div>
         <div className="flex gap-4">
-          <div className="w-full sm:w-48">
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-              <SelectTrigger>
-                <SelectValue placeholder="Davr tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                {periodOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-full sm:w-48">
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Guruhni tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Barcha guruhlar</SelectItem>
-                {groups.map(group => (
-                  <SelectItem key={group} value={group}>{group}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1oy">1 oy</SelectItem>
+              <SelectItem value="12oy">Barcha guruhlar</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Asosiy statistika kartalari */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="apple-card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-lg">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Users className="w-6 h-6 text-blue-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Jami o'quvchilar</p>
-              <p className="text-2xl font-bold">{summaryStats.totalStudents}</p>
+            <div>
+              <p className="text-2xl font-bold">{stats.totalStudents}</p>
+              <p className="text-sm text-muted-foreground">Jami o'quvchilar</p>
             </div>
           </div>
         </Card>
 
         <Card className="apple-card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-lg">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <Calendar className="w-6 h-6 text-green-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Jami darslar</p>
-              <p className="text-2xl font-bold">{summaryStats.totalClasses}</p>
+            <div>
+              <p className="text-2xl font-bold">{stats.totalClasses}</p>
+              <p className="text-sm text-muted-foreground">Jami darslar</p>
             </div>
           </div>
         </Card>
 
         <Card className="apple-card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-yellow-100 rounded-lg">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-6 h-6 text-yellow-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">O'rtacha davomat</p>
-              <p className="text-2xl font-bold">{summaryStats.averageAttendance}%</p>
+            <div>
+              <p className="text-2xl font-bold">{stats.averageAttendance.toFixed(1)}%</p>
+              <p className="text-sm text-muted-foreground">O'rtacha davomat</p>
             </div>
           </div>
         </Card>
 
         <Card className="apple-card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Award className="w-6 h-6 text-purple-600" />
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-purple-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">Eng yaxshi o'quvchi</p>
-              <p className="text-lg font-bold truncate">{summaryStats.topPerformer}</p>
+            <div>
+              <p className="text-lg font-bold truncate">{stats.topStudent}</p>
+              <p className="text-sm text-muted-foreground">Eng yaxshi o'quvchi</p>
             </div>
           </div>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Umumiy ko'rinish</TabsTrigger>
-          <TabsTrigger value="trends">Tendensiyalar</TabsTrigger>
-          <TabsTrigger value="details">Batafsil</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Attendance Distribution */}
-            <Card className="apple-card p-6">
-              <h3 className="text-lg font-semibold mb-4">Davomat taqsimoti</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={attendanceData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {attendanceData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* Group Comparison */}
-            {selectedGroup === 'all' && groupStats.length > 0 && (
-              <Card className="apple-card p-6">
-                <h3 className="text-lg font-semibold mb-4">Guruhlar bo'yicha taqqoslash</h3>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={groupStats}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
-                      <Legend />
-                      <Bar dataKey="attendance" fill="#22c55e" name="Davomat foizi" />
-                    </BarChart>
-                  </ResponsiveContainer>
+      {/* Oylik statistika */}
+      {monthlyData.length > 0 && (
+        <Card className="apple-card p-6">
+          <h3 className="text-lg font-semibold mb-4">Oylik tahlil</h3>
+          <div className="space-y-4">
+            {monthlyData.map((month, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium">{month.month}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {month.totalClasses} dars • {month.totalStudents} o'quvchi
+                  </p>
                 </div>
-              </Card>
-            )}
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  {month.averageAttendance.toFixed(1)}% davomat
+                </Badge>
+              </div>
+            ))}
           </div>
-        </TabsContent>
-
-        <TabsContent value="trends" className="space-y-6">
-          {/* Time Series Trend */}
-          <Card className="apple-card p-6">
-            <h3 className="text-lg font-semibold mb-4">
-              Davomat tendensiyasi ({periodOptions.find(p => p.value === selectedPeriod)?.label})
-            </h3>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={timeSeriesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="period" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any) => [`${value}%`, 'Davomat foizi']} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="attendance" 
-                    stroke="#22c55e" 
-                    strokeWidth={3}
-                    dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="details" className="space-y-6">
-          {/* Detailed Stats Table */}
-          <Card className="apple-card p-6">
-            <h3 className="text-lg font-semibold mb-4">
-              Batafsil statistika ({periodOptions.find(p => p.value === selectedPeriod)?.label})
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Davr</th>
-                    <th className="text-right p-2">Jami darslar</th>
-                    <th className="text-right p-2">Kelgan</th>
-                    <th className="text-right p-2">Davomat %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeSeriesData.map((period, index) => (
-                    <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="p-2 font-medium">{period.period}</td>
-                      <td className="p-2 text-right">{period.total}</td>
-                      <td className="p-2 text-right">{period.present}</td>
-                      <td className="p-2 text-right">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          period.attendance >= 90 ? 'bg-green-100 text-green-800' :
-                          period.attendance >= 80 ? 'bg-blue-100 text-blue-800' :
-                          period.attendance >= 70 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {period.attendance}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </Card>
+      )}
     </div>
   );
 };
