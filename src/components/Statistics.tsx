@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -44,7 +43,7 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
     try {
       setLoading(true);
 
-      // Umumiy o'quvchilar sonini olish
+      // Faqat faol o'quvchilar sonini olish
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id')
@@ -55,24 +54,32 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
 
       const totalStudents = studentsData?.length || 0;
 
-      // Jami darslar sonini to'g'ri hisoblash - kunlik davomat belgilangan sanalar soni
+      // Faqat faol o'quvchilarning davomat yozuvlari bo'yicha jami darslar sonini hisoblash
       const { data: classesData, error: classesError } = await supabase
         .from('attendance_records')
-        .select('date')
-        .eq('teacher_id', teacherId);
+        .select(`
+          date,
+          students!inner(is_active)
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('students.is_active', true);
 
       if (classesError) throw classesError;
 
-      // Noyob sanalarni topish (har bir sana = 1 ta dars)
+      // Noyob sanalarni topish (faqat faol o'quvchilar uchun)
       const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
       const totalClasses = uniqueDates.length;
 
-      // O'rtacha davomatni hisoblash
+      // O'rtacha davomatni hisoblash (faqat faol o'quvchilar uchun)
       if (totalClasses > 0 && totalStudents > 0) {
         const { data: attendanceData, error: attendanceError } = await supabase
           .from('attendance_records')
-          .select('status')
+          .select(`
+            status,
+            students!inner(is_active)
+          `)
           .eq('teacher_id', teacherId)
+          .eq('students.is_active', true)
           .eq('status', 'present');
 
         if (attendanceError) throw attendanceError;
@@ -83,11 +90,16 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
           ? (totalPresentRecords / totalPossibleAttendance) * 100 
           : 0;
 
-        // Eng yaxshi o'quvchini topish (ball reytingi bo'yicha)
+        // Eng yaxshi o'quvchini topish (faqat faol o'quvchilar orasidan)
         const { data: topStudentData, error: topStudentError } = await supabase
           .from('student_scores')
-          .select('student_id, total_score, students!inner(name)')
+          .select(`
+            student_id, 
+            total_score, 
+            students!inner(name, is_active)
+          `)
           .eq('teacher_id', teacherId)
+          .eq('students.is_active', true)
           .order('total_score', { ascending: false })
           .limit(1);
 
@@ -126,10 +138,16 @@ const Statistics: React.FC<StatisticsProps> = ({ teacherId }) => {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - monthsToFetch);
 
+      // Faqat faol o'quvchilarning oylik davomat ma'lumotlarini olish
       const { data: monthlyAttendance, error } = await supabase
         .from('attendance_records')
-        .select('date, status')
+        .select(`
+          date, 
+          status,
+          students!inner(is_active)
+        `)
         .eq('teacher_id', teacherId)
+        .eq('students.is_active', true)
         .gte('date', startDate.toISOString().split('T')[0]);
 
       if (error) throw error;

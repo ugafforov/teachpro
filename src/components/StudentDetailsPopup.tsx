@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,7 +75,23 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchStudentData = async () => {
     try {
-      // Ball reytingi bo'yicha reyting olish
+      // Faqat faol o'quvchilar orasidan ball reytingi va o'rinni hisoblash
+      const { data: allActiveScores, error: allScoresError } = await supabase
+        .from('student_scores')
+        .select(`
+          student_id,
+          total_score,
+          students!inner(is_active)
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('students.is_active', true)
+        .order('total_score', { ascending: false });
+
+      if (allScoresError) {
+        console.error('Error fetching all scores:', allScoresError);
+      }
+
+      // Joriy o'quvchining ball ma'lumotlarini olish
       const { data: scoreData, error: scoreError } = await supabase
         .from('student_scores')
         .select('*')
@@ -86,8 +101,14 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
       if (scoreError && scoreError.code !== 'PGRST116') {
         console.error('Error fetching student scores:', scoreError);
-      } else if (scoreData) {
-        setStudentScore(scoreData);
+      } else if (scoreData && allActiveScores) {
+        // Faqat faol o'quvchilar orasidan haqiqiy o'rinni hisoblash
+        const actualRank = allActiveScores.findIndex(s => s.student_id === student.id) + 1;
+        
+        setStudentScore({
+          ...scoreData,
+          class_rank: actualRank > 0 ? actualRank : scoreData.class_rank
+        });
       }
 
       // Oxirgi davomat ma'lumotlarini olish
