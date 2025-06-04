@@ -116,7 +116,7 @@ const Index = () => {
     );
   }
 
-  return <Dashboard teacherId={teacher.id} onLogout={handleLogout} />;
+  return <Dashboard teacher={teacher} onLogout={handleLogout} />;
 };
 
 export default Index;
