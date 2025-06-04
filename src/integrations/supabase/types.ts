@@ -159,6 +159,85 @@ export type Database = {
           },
         ]
       }
+      deleted_groups: {
+        Row: {
+          deleted_at: string
+          description: string | null
+          id: string
+          name: string
+          original_group_id: string
+          teacher_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          original_group_id: string
+          teacher_id: string
+        }
+        Update: {
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          original_group_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deleted_students: {
+        Row: {
+          deleted_at: string
+          email: string | null
+          group_name: string
+          id: string
+          name: string
+          original_student_id: string
+          phone: string | null
+          student_id: string | null
+          teacher_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          email?: string | null
+          group_name: string
+          id?: string
+          name: string
+          original_student_id: string
+          phone?: string | null
+          student_id?: string | null
+          teacher_id: string
+        }
+        Update: {
+          deleted_at?: string
+          email?: string | null
+          group_name?: string
+          id?: string
+          name?: string
+          original_student_id?: string
+          phone?: string | null
+          student_id?: string | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
           created_at: string

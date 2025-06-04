@@ -17,6 +17,7 @@ interface DeletedStudent {
   email?: string;
   phone?: string;
   deleted_at: string;
+  teacher_id: string;
 }
 
 interface DeletedGroup {
@@ -25,6 +26,7 @@ interface DeletedGroup {
   name: string;
   description?: string;
   deleted_at: string;
+  teacher_id: string;
 }
 
 interface TrashManagerProps {
@@ -56,8 +58,8 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         .eq('teacher_id', teacherId)
         .order('deleted_at', { ascending: false });
 
-      if (studentsError && studentsError.code !== 'PGRST116') {
-        console.log('deleted_students table not found, creating mock data');
+      if (studentsError) {
+        console.error('Error fetching deleted students:', studentsError);
         setDeletedStudents([]);
       } else {
         setDeletedStudents(students || []);
@@ -70,8 +72,8 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         .eq('teacher_id', teacherId)
         .order('deleted_at', { ascending: false });
 
-      if (groupsError && groupsError.code !== 'PGRST116') {
-        console.log('deleted_groups table not found, creating mock data');
+      if (groupsError) {
+        console.error('Error fetching deleted groups:', groupsError);
         setDeletedGroups([]);
       } else {
         setDeletedGroups(groups || []);
