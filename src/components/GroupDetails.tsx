@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -222,11 +223,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
 
       await onStatsUpdate();
-      
-      toast({
-        title: "Davomat yangilandi",
-        description: "Davomat ma'lumotlari muvaffaqiyatli yangilandi",
-      });
     } catch (error) {
       console.error('Error marking attendance:', error);
       toast({
@@ -338,12 +334,23 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const getStatusColor = (status: AttendanceStatus | undefined) => {
-    switch (status) {
-      case 'present': return 'text-green-600 bg-green-50';
-      case 'late': return 'text-yellow-600 bg-yellow-50';
-      case 'absent': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
+  const getButtonStyle = (status: AttendanceStatus | undefined, currentStatus: AttendanceStatus) => {
+    const isActive = attendance[currentStatus] === status;
+    switch (currentStatus) {
+      case 'present':
+        return isActive 
+          ? 'bg-green-500 hover:bg-green-600 text-white border-green-500' 
+          : 'bg-white hover:bg-green-50 text-green-600 border-green-300 border';
+      case 'late':
+        return isActive 
+          ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' 
+          : 'bg-white hover:bg-yellow-50 text-yellow-600 border-yellow-300 border';
+      case 'absent':
+        return isActive 
+          ? 'bg-red-500 hover:bg-red-600 text-white border-red-500' 
+          : 'bg-white hover:bg-red-50 text-red-600 border-red-300 border';
+      default:
+        return 'bg-white hover:bg-gray-50 text-gray-600 border-gray-300 border';
     }
   };
 
@@ -512,30 +519,24 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 <div className="flex items-center space-x-2">
                   <Button
                     size="sm"
-                    variant={attendance[student.id] === 'present' ? 'default' : 'outline'}
                     onClick={() => markAttendance(student.id, 'present')}
-                    className="flex items-center gap-1"
+                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'present')}`}
                   >
-                    <CheckCircle className="w-3 h-3" />
-                    Keldi
+                    <CheckCircle className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
-                    variant={attendance[student.id] === 'late' ? 'default' : 'outline'}
                     onClick={() => markAttendance(student.id, 'late')}
-                    className="flex items-center gap-1"
+                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'late')}`}
                   >
-                    <Clock className="w-3 h-3" />
-                    Kechikdi
+                    <Clock className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
-                    variant={attendance[student.id] === 'absent' ? 'default' : 'outline'}
                     onClick={() => markAttendance(student.id, 'absent')}
-                    className="flex items-center gap-1"
+                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'absent')}`}
                   >
-                    <XCircle className="w-3 h-3" />
-                    Yo'q
+                    <XCircle className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
