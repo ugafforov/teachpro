@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -268,10 +267,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setAttendance({});
       await onStatsUpdate();
       
-      toast({
-        title: "Belgilar tozalandi",
-        description: "Barcha davomat belgilari olib tashlandi",
-      });
+      // Removed the "Belgilar tozalandi" notification as requested
     } catch (error) {
       console.error('Error clearing attendance:', error);
       toast({
@@ -334,23 +330,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const getButtonStyle = (status: AttendanceStatus | undefined, currentStatus: AttendanceStatus) => {
-    const isActive = attendance[currentStatus] === status;
-    switch (currentStatus) {
+  // Updated button style function - only the active button gets colored
+  const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
+    const currentStatus = attendance[studentId];
+    const isActive = currentStatus === targetStatus;
+    
+    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
+    
+    if (!isActive) {
+      // Default white background for inactive buttons
+      return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+    }
+    
+    // Active button styling
+    switch (targetStatus) {
       case 'present':
-        return isActive 
-          ? 'bg-green-500 hover:bg-green-600 text-white border-green-500' 
-          : 'bg-white hover:bg-green-50 text-green-600 border-green-300 border';
+        return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
       case 'late':
-        return isActive 
-          ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' 
-          : 'bg-white hover:bg-yellow-50 text-yellow-600 border-yellow-300 border';
+        return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
       case 'absent':
-        return isActive 
-          ? 'bg-red-500 hover:bg-red-600 text-white border-red-500' 
-          : 'bg-white hover:bg-red-50 text-red-600 border-red-300 border';
+        return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
       default:
-        return 'bg-white hover:bg-gray-50 text-gray-600 border-gray-300 border';
+        return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
     }
   };
 
@@ -520,21 +521,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                   <Button
                     size="sm"
                     onClick={() => markAttendance(student.id, 'present')}
-                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'present')}`}
+                    className={getButtonStyle(student.id, 'present')}
                   >
                     <CheckCircle className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => markAttendance(student.id, 'late')}
-                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'late')}`}
+                    className={getButtonStyle(student.id, 'late')}
                   >
                     <Clock className="w-4 h-4" />
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => markAttendance(student.id, 'absent')}
-                    className={`w-10 h-10 p-0 ${getButtonStyle(attendance[student.id], 'absent')}`}
+                    className={getButtonStyle(student.id, 'absent')}
                   >
                     <XCircle className="w-4 h-4" />
                   </Button>
