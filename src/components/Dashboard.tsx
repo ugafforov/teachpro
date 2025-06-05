@@ -3,16 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp, Trophy, Settings, Archive, BarChart3 } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
 import Statistics from './Statistics';
 import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
+import TrashManager from './TrashManager';
 
 interface DashboardProps {
   teacherId: string;
+  teacherName?: string;
   onLogout: () => void;
 }
 
@@ -23,7 +25,7 @@ interface Stats {
   topStudent: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ teacherId, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState<Stats>({
     totalStudents: 0,
@@ -118,6 +120,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, onLogout }) => {
     { id: 'rankings', label: 'Reyting', icon: Trophy },
     { id: 'statistics', label: 'Statistika', icon: BarChart3 },
     { id: 'archive', label: 'Arxiv', icon: Archive },
+    { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
   ];
 
   const renderContent = () => {
@@ -132,6 +135,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, onLogout }) => {
         return <Statistics teacherId={teacherId} />;
       case 'archive':
         return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'trash':
+        return <TrashManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
       default:
         return (
           <div className="space-y-6">
@@ -234,12 +239,15 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, onLogout }) => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg">
+        <div className="w-64 bg-white shadow-lg h-screen relative">
           <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-800">Davomat Tizimi</h1>
+            <h1 className="text-xl font-bold text-gray-800">EduManager</h1>
+            {teacherName && (
+              <p className="text-sm text-gray-600 mt-1">{teacherName}</p>
+            )}
           </div>
           
-          <nav className="mt-6">
+          <nav className="mt-6 pb-20">
             {menuItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -261,7 +269,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, onLogout }) => {
 
           <div className="absolute bottom-6 left-6 right-6">
             <Button onClick={onLogout} variant="outline" className="w-full">
-              <Settings className="w-4 h-4 mr-2" />
+              <LogOut className="w-4 h-4 mr-2" />
               Chiqish
             </Button>
           </div>
