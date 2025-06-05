@@ -24,6 +24,7 @@ const StatisticsContainer: React.FC<StatisticsProps> = ({ teacherId }) => {
 
   const fetchGroups = async () => {
     try {
+      // Only fetch active groups (not deleted or archived)
       const { data, error } = await supabase
         .from('groups')
         .select('id, name')
@@ -37,6 +38,21 @@ const StatisticsContainer: React.FC<StatisticsProps> = ({ teacherId }) => {
       console.error('Error fetching groups:', error);
     }
   };
+
+  const periodOptions = [
+    { value: '1kun', label: '1 kun' },
+    { value: '1hafta', label: '1 hafta' },
+    { value: '1oy', label: '1 oy' },
+    { value: '2oy', label: '2 oy' },
+    { value: '3oy', label: '3 oy' },
+    { value: '4oy', label: '4 oy' },
+    { value: '5oy', label: '5 oy' },
+    { value: '6oy', label: '6 oy' },
+    { value: '7oy', label: '7 oy' },
+    { value: '8oy', label: '8 oy' },
+    { value: '9oy', label: '9 oy' },
+    { value: '10oy', label: '10 oy' }
+  ];
 
   if (loading) {
     return (
@@ -72,8 +88,11 @@ const StatisticsContainer: React.FC<StatisticsProps> = ({ teacherId }) => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1oy">1 oy</SelectItem>
-              <SelectItem value="12oy">12 oy</SelectItem>
+              {periodOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

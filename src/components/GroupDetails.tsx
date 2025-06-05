@@ -322,7 +322,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const getRewardDisplay = (points: number) => {
     if (points === 0) return null;
     return (
-      <span className={`text-sm font-medium ${points > 0 ? 'text-green-600' : 'text-red-600'}`}>
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        points > 0 
+          ? 'bg-green-100 text-green-800 border border-green-200' 
+          : 'bg-red-100 text-red-800 border border-red-200'
+      }`}>
         {points > 0 ? '+' : ''}{points}
       </span>
     );
@@ -582,6 +586,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 <Button
                   onClick={() => addReward(showRewardDialog)}
                   className="flex-1"
+                  disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}
                 >
                   Saqlash
                 </Button>

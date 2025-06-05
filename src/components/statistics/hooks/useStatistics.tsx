@@ -17,11 +17,59 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     fetchStatistics();
   }, [teacherId, selectedPeriod, selectedGroup]);
 
+  const getPeriodStartDate = (period: string) => {
+    const now = new Date();
+    const startDate = new Date();
+    
+    switch (period) {
+      case '1kun':
+        startDate.setDate(now.getDate() - 1);
+        break;
+      case '1hafta':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '1oy':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case '2oy':
+        startDate.setMonth(now.getMonth() - 2);
+        break;
+      case '3oy':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case '4oy':
+        startDate.setMonth(now.getMonth() - 4);
+        break;
+      case '5oy':
+        startDate.setMonth(now.getMonth() - 5);
+        break;
+      case '6oy':
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case '7oy':
+        startDate.setMonth(now.getMonth() - 7);
+        break;
+      case '8oy':
+        startDate.setMonth(now.getMonth() - 8);
+        break;
+      case '9oy':
+        startDate.setMonth(now.getMonth() - 9);
+        break;
+      case '10oy':
+        startDate.setMonth(now.getMonth() - 10);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+    
+    return startDate.toISOString().split('T')[0];
+  };
+
   const fetchStatistics = async () => {
     try {
       setLoading(true);
 
-      // Build query for students based on group filter
+      // Build query for active students only (not deleted or archived)
       let studentsQuery = supabase
         .from('students')
         .select('id')
@@ -37,8 +85,9 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
       if (studentsError) throw studentsError;
 
       const totalStudents = studentsData?.length || 0;
+      const startDate = getPeriodStartDate(selectedPeriod);
 
-      // Build query for attendance based on group filter
+      // Build query for attendance based on group filter and date range, only for active students
       let attendanceQuery = supabase
         .from('attendance_records')
         .select(`
@@ -46,7 +95,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           students!inner(is_active, group_name)
         `)
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true);
+        .eq('students.is_active', true)
+        .gte('date', startDate);
 
       if (selectedGroup !== 'all') {
         attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
@@ -56,11 +106,11 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
       if (classesError) throw classesError;
 
-      // Noyob sanalarni topish
+      // Get unique dates for total classes
       const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
       const totalClasses = uniqueDates.length;
 
-      // O'rtacha davomatni hisoblash
+      // Calculate average attendance
       if (totalClasses > 0 && totalStudents > 0) {
         let presentQuery = supabase
           .from('attendance_records')
@@ -70,7 +120,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           `)
           .eq('teacher_id', teacherId)
           .eq('students.is_active', true)
-          .eq('status', 'present');
+          .eq('status', 'present')
+          .gte('date', startDate);
 
         if (selectedGroup !== 'all') {
           presentQuery = presentQuery.eq('students.group_name', selectedGroup);
@@ -86,7 +137,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           ? (totalPresentRecords / totalPossibleAttendance) * 100 
           : 0;
 
-        // Eng yaxshi o'quvchini topish
+        // Find top student from active students only
         let topStudentQuery = supabase
           .from('student_scores')
           .select(`
@@ -124,7 +175,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         });
       }
 
-      // Oylik ma'lumotlarni olish
+      // Fetch monthly data
       await fetchMonthlyData();
 
     } catch (error) {
@@ -136,9 +187,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
   const fetchMonthlyData = async () => {
     try {
-      const monthsToFetch = selectedPeriod === '1oy' ? 1 : 12;
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - monthsToFetch);
+      const startDate = getPeriodStartDate(selectedPeriod);
 
       let monthlyQuery = supabase
         .from('attendance_records')
@@ -149,7 +198,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         `)
         .eq('teacher_id', teacherId)
         .eq('students.is_active', true)
-        .gte('date', startDate.toISOString().split('T')[0]);
+        .gte('date', startDate);
 
       if (selectedGroup !== 'all') {
         monthlyQuery = monthlyQuery.eq('students.group_name', selectedGroup);
@@ -159,7 +208,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
       if (error) throw error;
 
-      // Oylik statistikani hisoblash
+      // Calculate monthly statistics
       const monthlyStats: { [key: string]: { classes: Set<string>, present: number } } = {};
 
       monthlyAttendance?.forEach(record => {
