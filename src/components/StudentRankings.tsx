@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -518,13 +517,10 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       {selectedStudent && (
         <StudentDetailsPopup
-          student={selectedStudent}
-          teacherId={teacherId}
+          studentId={selectedStudent.id}
+          isOpen={!!selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          onUpdate={() => {
-            fetchAttendanceRankings();
-            fetchScoreRankings();
-          }}
+          teacherId={teacherId}
         />
       )}
     </div>

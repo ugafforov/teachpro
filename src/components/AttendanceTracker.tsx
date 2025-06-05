@@ -534,10 +534,10 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       {selectedStudent && (
         <StudentDetailsPopup
-          student={selectedStudent}
-          teacherId={teacherId}
+          studentId={selectedStudent.id}
+          isOpen={!!selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          onUpdate={onStatsUpdate}
+          teacherId={teacherId}
         />
       )}
     </div>

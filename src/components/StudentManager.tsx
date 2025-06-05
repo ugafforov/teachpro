@@ -791,10 +791,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       {/* Student Details Popup */}
       {selectedStudent && (
         <StudentDetailsPopup
-          student={selectedStudent}
-          teacherId={teacherId}
+          studentId={selectedStudent.id}
+          isOpen={!!selectedStudent}
           onClose={() => setSelectedStudent(null)}
-          onUpdate={fetchStudents}
+          teacherId={teacherId}
         />
       )}
     </div>
