@@ -1,10 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, RotateCcw, Users, Layers, AlertTriangle } from 'lucide-react';
+import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -43,13 +44,14 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     item: any,
     itemType: 'student' | 'group'
   } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchDeletedData();
+    fetchTrashData();
   }, [teacherId]);
 
-  const fetchDeletedData = async () => {
+  const fetchTrashData = async () => {
     try {
       // O'chirilgan o'quvchilarni olish
       const { data: students, error: studentsError } = await supabase
@@ -87,6 +89,35 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearAllTrash = async () => {
+    if (!confirm('Rostdan ham chiqindi qutisidagi barcha ma\'lumotlarni butunlay o\'chirmoqchimisiz? Bu amal bekor qilib bo\'lmaydi!')) {
+      return;
+    }
+
+    try {
+      // Permanently delete all deleted students
+      const { error: studentsError } = await supabase
+        .from('deleted_students')
+        .delete()
+        .eq('teacher_id', teacherId);
+
+      if (studentsError) throw studentsError;
+
+      // Permanently delete all deleted groups
+      const { error: groupsError } = await supabase
+        .from('deleted_groups')
+        .delete()
+        .eq('teacher_id', teacherId);
+
+      if (groupsError) throw groupsError;
+
+      await fetchTrashData();
+      if (onStatsUpdate) await onStatsUpdate();
+    } catch (error) {
+      console.error('Error clearing all trash:', error);
     }
   };
 
@@ -138,7 +169,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (deleteError) throw deleteError;
 
-      await fetchDeletedData();
+      await fetchTrashData();
       await onStatsUpdate();
 
       toast({
@@ -173,7 +204,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (deleteError) throw deleteError;
 
-      await fetchDeletedData();
+      await fetchTrashData();
       await onStatsUpdate();
 
       toast({
@@ -200,7 +231,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (deleteError) throw deleteError;
 
-      await fetchDeletedData();
+      await fetchTrashData();
       await onStatsUpdate();
 
       toast({
@@ -227,7 +258,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (deleteError) throw deleteError;
 
-      await fetchDeletedData();
+      await fetchTrashData();
       await onStatsUpdate();
 
       toast({
@@ -254,10 +285,34 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Chiqindilar qutisi</h2>
-        <p className="text-muted-foreground">O'chirilgan ma'lumotlarni tiklash yoki butunlay o'chirish</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Chiqindilar qutisi</h2>
+          <p className="text-muted-foreground">O'chirilgan ma'lumotlarni boshqaring</p>
+        </div>
+        <Button
+          onClick={clearAllTrash}
+          variant="destructive"
+          className="flex items-center space-x-2"
+          disabled={deletedStudents.length === 0 && deletedGroups.length === 0}
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>Chiqindini tozalash</span>
+        </Button>
       </div>
+
+      {/* Search */}
+      <Card className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="Qidirish..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </Card>
 
       <Tabs defaultValue="students" className="w-full">
         <TabsList className="grid w-full grid-cols-2">

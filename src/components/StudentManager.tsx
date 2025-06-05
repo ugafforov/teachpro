@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
@@ -235,18 +235,41 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
-      
-      toast({
-        title: "O'quvchi arxivlandi",
-        description: `"${studentName}" arxivga ko'chirildi`,
-      });
     } catch (error) {
       console.error('Error archiving student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchini arxivlashda xatolik yuz berdi",
-        variant: "destructive",
-      });
+    }
+  };
+
+  const deleteStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
+    try {
+      const student = students.find(s => s.id === studentId);
+      if (!student) return;
+
+      await supabase
+        .from('deleted_students')
+        .insert({
+          original_student_id: studentId,
+          teacher_id: teacherId,
+          name: student.name,
+          student_id: student.student_id,
+          group_name: student.group_name,
+          email: student.email,
+          phone: student.phone
+        });
+
+      await supabase
+        .from('students')
+        .update({ is_active: false })
+        .eq('id', studentId);
+
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+    } catch (error) {
+      console.error('Error deleting student:', error);
     }
   };
 
@@ -363,6 +386,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               >
                 <Archive className="w-4 h-4" />
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => deleteStudent(student.id, student.name)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         ))}
@@ -435,6 +466,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                   className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                 >
                   <Archive className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => deleteStudent(student.id, student.name)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
             </div>

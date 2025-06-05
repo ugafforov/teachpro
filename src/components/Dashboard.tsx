@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -239,53 +238,56 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="flex">
-        {/* Mobile menu toggle */}
-        <div className="lg:hidden fixed top-4 left-4 z-50">
+      {/* Top Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="bg-white"
+            className="lg:hidden"
           >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            <Menu className="w-5 h-5" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden lg:flex"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">TeachPro</h1>
+              {teacherName && (
+                <p className="text-sm text-gray-600">Xush kelibsiz, {teacherName}</p>
+              )}
+            </div>
+          </div>
         </div>
+        
+        <Button 
+          onClick={onLogout} 
+          variant="ghost"
+          className="flex items-center space-x-2"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Chiqish</span>
+        </Button>
+      </div>
 
+      <div className="flex">
         {/* Sidebar */}
         <div className={`
           ${sidebarCollapsed ? 'w-16' : 'w-64'} 
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           bg-white shadow-lg h-screen fixed lg:relative z-40 transition-all duration-300 ease-in-out
+          ${sidebarCollapsed ? '' : 'top-[73px]'} lg:top-0
         `}>
-          {/* Desktop collapse toggle */}
-          <div className="hidden lg:block absolute -right-3 top-6 z-50">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="bg-white rounded-full p-2 shadow-md"
-            >
-              {sidebarCollapsed ? <Menu className="w-3 h-3" /> : <X className="w-3 h-3" />}
-            </Button>
-          </div>
-
-          <div className="p-6 border-b border-gray-200">
-            {!sidebarCollapsed && (
-              <>
-                <h1 className="text-xl font-bold text-gray-800">EduManager</h1>
-                {teacherName && (
-                  <p className="text-sm text-gray-600 mt-1 truncate">{teacherName}</p>
-                )}
-              </>
-            )}
-            {sidebarCollapsed && (
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 font-bold text-sm">E</span>
-              </div>
-            )}
-          </div>
-          
           <nav className="mt-6 pb-20 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -309,18 +311,6 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
               );
             })}
           </nav>
-
-          <div className="absolute bottom-6 left-6 right-6">
-            <Button 
-              onClick={onLogout} 
-              variant="outline" 
-              className={`w-full ${sidebarCollapsed ? 'px-2' : ''}`}
-              title={sidebarCollapsed ? 'Chiqish' : ''}
-            >
-              <LogOut className="w-4 h-4 flex-shrink-0" />
-              {!sidebarCollapsed && <span className="ml-2">Chiqish</span>}
-            </Button>
-          </div>
         </div>
 
         {/* Mobile overlay */}
@@ -333,7 +323,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
 
         {/* Main Content */}
         <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-0'}`}>
-          <div className="p-4 lg:p-8 pt-16 lg:pt-8 bg-white min-h-screen">
+          <div className="p-4 lg:p-8 bg-white min-h-screen">
             {renderContent()}
           </div>
         </div>

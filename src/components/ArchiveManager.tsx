@@ -1,461 +1,412 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { Archive, RotateCcw, Trash2, Users, Layers } from 'lucide-react';
+import { Users, BookOpen, Search, RotateCcw, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ArchivedStudent {
   id: string;
   original_student_id: string;
+  teacher_id: string;
   name: string;
   student_id?: string;
   group_name: string;
   email?: string;
   phone?: string;
   archived_at: string;
-  can_restore: boolean;
 }
 
 interface ArchivedGroup {
   id: string;
   original_group_id: string;
+  teacher_id: string;
   name: string;
   description?: string;
   archived_at: string;
-  can_restore: boolean;
 }
 
 interface ArchiveManagerProps {
   teacherId: string;
-  onStatsUpdate: () => Promise<void>;
+  onStatsUpdate?: () => Promise<void>;
 }
 
 const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [archivedStudents, setArchivedStudents] = useState<ArchivedStudent[]>([]);
   const [archivedGroups, setArchivedGroups] = useState<ArchivedGroup[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<ArchivedStudent[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<ArchivedGroup[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('students');
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
     fetchArchivedData();
   }, [teacherId]);
 
+  useEffect(() => {
+    filterData();
+  }, [archivedStudents, archivedGroups, searchTerm, activeTab]);
+
   const fetchArchivedData = async () => {
     try {
-      // Arxivlangan o'quvchilarni olish
-      const { data: students, error: studentsError } = await supabase
+      setLoading(true);
+
+      const { data: studentsData, error: studentsError } = await supabase
         .from('archived_students')
         .select('*')
         .eq('teacher_id', teacherId)
         .order('archived_at', { ascending: false });
 
       if (studentsError) throw studentsError;
+      setArchivedStudents(studentsData || []);
 
-      // Arxivlangan guruhlarni olish
-      const { data: groups, error: groupsError } = await supabase
+      const { data: groupsData, error: groupsError } = await supabase
         .from('archived_groups')
         .select('*')
         .eq('teacher_id', teacherId)
         .order('archived_at', { ascending: false });
 
       if (groupsError) throw groupsError;
-
-      setArchivedStudents(students || []);
-      setArchivedGroups(groups || []);
+      setArchivedGroups(groupsData || []);
     } catch (error) {
       console.error('Error fetching archived data:', error);
-      toast({
-        title: "Xatolik",
-        description: "Arxiv ma'lumotlarini yuklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  const restoreStudent = async (archivedStudent: ArchivedStudent) => {
+  const filterData = () => {
+    const term = searchTerm.toLowerCase();
+
+    if (activeTab === 'students') {
+      const filtered = archivedStudents.filter(student =>
+        student.name.toLowerCase().includes(term) ||
+        (student.student_id && student.student_id.toLowerCase().includes(term)) ||
+        student.group_name.toLowerCase().includes(term)
+      );
+      setFilteredStudents(filtered);
+    } else {
+      const filtered = archivedGroups.filter(group =>
+        group.name.toLowerCase().includes(term) ||
+        (group.description && group.description.toLowerCase().includes(term))
+      );
+      setFilteredGroups(filtered);
+    }
+  };
+
+  const restoreStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni qayta tiklamoqchimisiz?`)) {
+      return;
+    }
+
     try {
-      // O'quvchini tiklash
-      const { error: restoreError } = await supabase
+      const archivedStudent = archivedStudents.find(s => s.id === studentId);
+      if (!archivedStudent) return;
+
+      // Restore to students table
+      await supabase
         .from('students')
-        .update({ is_active: true })
-        .eq('id', archivedStudent.original_student_id);
+        .insert({
+          teacher_id: teacherId,
+          name: archivedStudent.name,
+          student_id: archivedStudent.student_id,
+          group_name: archivedStudent.group_name,
+          email: archivedStudent.email,
+          phone: archivedStudent.phone,
+          is_active: true
+        });
 
-      if (restoreError) throw restoreError;
-
-      // Arxivdan o'chirish
-      const { error: deleteError } = await supabase
+      // Remove from archived_students
+      await supabase
         .from('archived_students')
         .delete()
-        .eq('id', archivedStudent.id);
-
-      if (deleteError) throw deleteError;
+        .eq('id', studentId);
 
       await fetchArchivedData();
-      await onStatsUpdate();
-
-      toast({
-        title: "O'quvchi tiklandi",
-        description: `${archivedStudent.name} muvaffaqiyatli tiklandi`,
-      });
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
       console.error('Error restoring student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchini tiklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
-  const restoreGroup = async (archivedGroup: ArchivedGroup) => {
+  const restoreGroup = async (groupId: string, groupName: string) => {
+    if (!confirm(`Rostdan ham "${groupName}" guruhini qayta tiklamoqchimisiz?`)) {
+      return;
+    }
+
     try {
-      // Guruhni tiklash
-      const { error: restoreError } = await supabase
+      const archivedGroup = archivedGroups.find(g => g.id === groupId);
+      if (!archivedGroup) return;
+
+      // Restore to groups table
+      await supabase
         .from('groups')
-        .update({ is_active: true })
-        .eq('id', archivedGroup.original_group_id);
+        .insert({
+          teacher_id: teacherId,
+          name: archivedGroup.name,
+          description: archivedGroup.description,
+          is_active: true
+        });
 
-      if (restoreError) throw restoreError;
-
-      // Guruhdagi o'quvchilarni tiklash
-      const { error: studentsError } = await supabase
-        .from('students')
-        .update({ is_active: true })
-        .eq('teacher_id', teacherId)
-        .eq('group_name', archivedGroup.name);
-
-      if (studentsError) throw studentsError;
-
-      // Arxivdan o'chirish
-      const { error: deleteGroupError } = await supabase
+      // Remove from archived_groups
+      await supabase
         .from('archived_groups')
         .delete()
-        .eq('id', archivedGroup.id);
-
-      if (deleteGroupError) throw deleteGroupError;
-
-      // Guruhdagi o'quvchilarni arxivdan o'chirish
-      const { error: deleteStudentsError } = await supabase
-        .from('archived_students')
-        .delete()
-        .eq('teacher_id', teacherId)
-        .eq('group_name', archivedGroup.name);
-
-      if (deleteStudentsError) throw deleteStudentsError;
+        .eq('id', groupId);
 
       await fetchArchivedData();
-      await onStatsUpdate();
-
-      toast({
-        title: "Guruh tiklandi",
-        description: `${archivedGroup.name} guruhi va barcha o'quvchilari tiklandi`,
-      });
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
       console.error('Error restoring group:', error);
-      toast({
-        title: "Xatolik",
-        description: "Guruhni tiklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
-  const permanentDeleteStudent = async (archivedStudent: ArchivedStudent) => {
+  const deleteArchivedStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni butunlay o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
     try {
-      // Avval barcha bog'liq ma'lumotlarni o'chirish
+      const archivedStudent = archivedStudents.find(s => s.id === studentId);
+      if (!archivedStudent) return;
+
+      // Move to deleted_students table
       await supabase
-        .from('attendance_records')
-        .delete()
-        .eq('student_id', archivedStudent.original_student_id);
+        .from('deleted_students')
+        .insert({
+          original_student_id: archivedStudent.original_student_id,
+          teacher_id: teacherId,
+          name: archivedStudent.name,
+          student_id: archivedStudent.student_id,
+          group_name: archivedStudent.group_name,
+          email: archivedStudent.email,
+          phone: archivedStudent.phone
+        });
 
+      // Remove from archived_students
       await supabase
-        .from('reward_penalty_history')
-        .delete()
-        .eq('student_id', archivedStudent.original_student_id);
-
-      await supabase
-        .from('student_scores')
-        .delete()
-        .eq('student_id', archivedStudent.original_student_id);
-
-      await supabase
-        .from('student_rankings')
-        .delete()
-        .eq('student_id', archivedStudent.original_student_id);
-
-      // O'quvchini butunlay o'chirish
-      const { error: deleteStudentError } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', archivedStudent.original_student_id);
-
-      if (deleteStudentError) throw deleteStudentError;
-
-      // Arxivdan o'chirish
-      const { error: deleteArchiveError } = await supabase
         .from('archived_students')
         .delete()
-        .eq('id', archivedStudent.id);
-
-      if (deleteArchiveError) throw deleteArchiveError;
+        .eq('id', studentId);
 
       await fetchArchivedData();
-      await onStatsUpdate();
-
-      toast({
-        title: "O'quvchi o'chirildi",
-        description: `${archivedStudent.name} butunlay o'chirildi`,
-      });
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error permanently deleting student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchini o'chirishda xatolik yuz berdi",
-        variant: "destructive",
-      });
+      console.error('Error moving archived student to trash:', error);
     }
   };
 
-  const permanentDeleteGroup = async (archivedGroup: ArchivedGroup) => {
+  const deleteArchivedGroup = async (groupId: string, groupName: string) => {
+    if (!confirm(`Rostdan ham "${groupName}" guruhini butunlay o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
     try {
-      // Guruhdagi barcha o'quvchilarni topish
-      const { data: groupStudents, error: studentsError } = await supabase
-        .from('students')
-        .select('id')
-        .eq('teacher_id', teacherId)
-        .eq('group_name', archivedGroup.name);
+      const archivedGroup = archivedGroups.find(g => g.id === groupId);
+      if (!archivedGroup) return;
 
-      if (studentsError) throw studentsError;
+      // Move to deleted_groups table
+      await supabase
+        .from('deleted_groups')
+        .insert({
+          original_group_id: archivedGroup.original_group_id,
+          teacher_id: teacherId,
+          name: archivedGroup.name,
+          description: archivedGroup.description
+        });
 
-      if (groupStudents && groupStudents.length > 0) {
-        const studentIds = groupStudents.map(s => s.id);
-
-        // Har bir o'quvchi uchun bog'liq ma'lumotlarni o'chirish
-        await supabase
-          .from('attendance_records')
-          .delete()
-          .in('student_id', studentIds);
-
-        await supabase
-          .from('reward_penalty_history')
-          .delete()
-          .in('student_id', studentIds);
-
-        await supabase
-          .from('student_scores')
-          .delete()
-          .in('student_id', studentIds);
-
-        await supabase
-          .from('student_rankings')
-          .delete()
-          .in('student_id', studentIds);
-
-        // Guruhdagi barcha o'quvchilarni o'chirish
-        await supabase
-          .from('students')
-          .delete()
-          .eq('teacher_id', teacherId)
-          .eq('group_name', archivedGroup.name);
-      }
-
-      // Guruhni butunlay o'chirish
-      const { error: deleteGroupError } = await supabase
-        .from('groups')
-        .delete()
-        .eq('id', archivedGroup.original_group_id);
-
-      if (deleteGroupError) throw deleteGroupError;
-
-      // Arxivdan o'chirish
-      const { error: deleteArchiveError } = await supabase
+      // Remove from archived_groups
+      await supabase
         .from('archived_groups')
         .delete()
-        .eq('id', archivedGroup.id);
-
-      if (deleteArchiveError) throw deleteArchiveError;
-
-      // Guruhdagi o'quvchilarni arxivdan o'chirish
-      const { error: deleteArchivedStudentsError } = await supabase
-        .from('archived_students')
-        .delete()
-        .eq('teacher_id', teacherId)
-        .eq('group_name', archivedGroup.name);
-
-      if (deleteArchivedStudentsError) throw deleteArchivedStudentsError;
+        .eq('id', groupId);
 
       await fetchArchivedData();
-      await onStatsUpdate();
-
-      toast({
-        title: "Guruh o'chirildi",
-        description: `${archivedGroup.name} guruhi va barcha o'quvchilari butunlay o'chirildi`,
-      });
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error permanently deleting group:', error);
-      toast({
-        title: "Xatolik",
-        description: "Guruhni o'chirishda xatolik yuz berdi",
-        variant: "destructive",
-      });
+      console.error('Error moving archived group to trash:', error);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const renderStudentsTab = () => (
+    <div className="space-y-4">
+      {filteredStudents.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Arxivlangan o'quvchilar topilmadi</h3>
+          <p className="text-muted-foreground">
+            {searchTerm ? "Qidiruv bo'yicha arxivlangan o'quvchilar topilmadi" : "Hozircha arxivlangan o'quvchilar yo'q"}
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredStudents.map(student => (
+            <Card key={student.id} className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
+                    <span className="text-lg font-medium">
+                      {student.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{student.name}</h3>
+                    {student.student_id && (
+                      <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
+                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      {student.group_name}
+                    </Badge>
+                  </div>
+                </div>
+
+                {(student.email || student.phone) && (
+                  <div className="space-y-1">
+                    {student.email && (
+                      <p className="text-sm text-muted-foreground">{student.email}</p>
+                    )}
+                    {student.phone && (
+                      <p className="text-sm text-muted-foreground">{student.phone}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(student.archived_at).toLocaleDateString('uz-UZ')}
+                  </span>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => restoreStudent(student.id, student.name)}
+                      title="Qayta tiklash"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteArchivedStudent(student.id, student.name)}
+                      title="Chiqindi qutisiga o'tkazish"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderGroupsTab = () => (
+    <div className="space-y-4">
+      {filteredGroups.length === 0 ? (
+        <Card className="p-12 text-center">
+          <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Arxivlangan guruhlar topilmadi</h3>
+          <p className="text-muted-foreground">
+            {searchTerm ? "Qidiruv bo'yicha arxivlangan guruhlar topilmadi" : "Hozircha arxivlangan guruhlar yo'q"}
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredGroups.map(group => (
+            <Card key={group.id} className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{group.name}</h3>
+                    {group.description && (
+                      <p className="text-sm text-muted-foreground">{group.description}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(group.archived_at).toLocaleDateString('uz-UZ')}
+                  </span>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => restoreGroup(group.id, group.name)}
+                      title="Qayta tiklash"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteArchivedGroup(group.id, group.name)}
+                      title="Chiqindi qutisiga o'tkazish"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Arxiv boshqaruvi</h2>
-        <p className="text-muted-foreground">O'chirilgan ma'lumotlarni tiklash yoki butunlay o'chirish</p>
+        <h2 className="text-2xl font-bold">Arxiv</h2>
+        <p className="text-muted-foreground">Arxivlangan guruhlar va o'quvchilar</p>
       </div>
 
-      <Tabs defaultValue="students" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="students" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            O'quvchilar ({archivedStudents.length})
-          </TabsTrigger>
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <Layers className="w-4 h-4" />
-            Guruhlar ({archivedGroups.length})
-          </TabsTrigger>
-        </TabsList>
+      <Card className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="Qidirish..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </Card>
 
-        <TabsContent value="students" className="mt-6">
-          {archivedStudents.length === 0 ? (
-            <Card className="apple-card p-12 text-center">
-              <Archive className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">Arxivlangan o'quvchilar yo'q</h3>
-              <p className="text-muted-foreground">
-                Hali hech qanday o'quvchi arxivlanmagan
-              </p>
-            </Card>
+      <Tabs defaultValue="students" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="students" onClick={() => setActiveTab('students')}>O'quvchilar</TabsTrigger>
+          <TabsTrigger value="groups" onClick={() => setActiveTab('groups')}>Guruhlar</TabsTrigger>
+        </TabsList>
+        <TabsContent value="students">
+          {loading ? (
+            <div className="flex items-center justify-center p-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
           ) : (
-            <Card className="apple-card">
-              <div className="p-6 border-b border-border/50">
-                <h3 className="text-lg font-semibold">Arxivlangan o'quvchilar</h3>
-                <p className="text-sm text-muted-foreground">
-                  {archivedStudents.length} arxivlangan o'quvchi
-                </p>
-              </div>
-              <div className="divide-y divide-border/50">
-                {archivedStudents.map((student) => (
-                  <div key={student.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium">
-                          {student.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{student.name}</p>
-                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                          <span>{student.group_name}</span>
-                          {student.student_id && <span>ID: {student.student_id}</span>}
-                          <span>Arxivlangan: {new Date(student.archived_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      {student.can_restore && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => restoreStudent(student)}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <RotateCcw className="w-4 h-4 mr-1" />
-                          Tiklash
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => permanentDeleteStudent(student)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        O'chirish
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            renderStudentsTab()
           )}
         </TabsContent>
-
-        <TabsContent value="groups" className="mt-6">
-          {archivedGroups.length === 0 ? (
-            <Card className="apple-card p-12 text-center">
-              <Archive className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">Arxivlangan guruhlar yo'q</h3>
-              <p className="text-muted-foreground">
-                Hali hech qanday guruh arxivlanmagan
-              </p>
-            </Card>
+        <TabsContent value="groups">
+          {loading ? (
+            <div className="flex items-center justify-center p-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
           ) : (
-            <Card className="apple-card">
-              <div className="p-6 border-b border-border/50">
-                <h3 className="text-lg font-semibold">Arxivlangan guruhlar</h3>
-                <p className="text-sm text-muted-foreground">
-                  {archivedGroups.length} arxivlangan guruh
-                </p>
-              </div>
-              <div className="divide-y divide-border/50">
-                {archivedGroups.map((group) => (
-                  <div key={group.id} className="p-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <Layers className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{group.name}</p>
-                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                          {group.description && <span>{group.description}</span>}
-                          <span>Arxivlangan: {new Date(group.archived_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      {group.can_restore && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => restoreGroup(group)}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <RotateCcw className="w-4 h-4 mr-1" />
-                          Tiklash
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => permanentDeleteGroup(group)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        O'chirish
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+            renderGroupsTab()
           )}
         </TabsContent>
       </Tabs>
