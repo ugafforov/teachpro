@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Plus, Edit2, Trash2, Archive, BarChart3 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
 
@@ -37,6 +37,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
     name: '',
     description: ''
   });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    type: 'archive' | 'delete',
+    group: Group | null
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -188,7 +192,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
 
   const archiveGroup = async (groupId: string, groupName: string) => {
     try {
-      // Guruhni arxivga ko'chirish
       const group = groups.find(g => g.id === groupId);
       if (!group) return;
 
@@ -202,13 +205,11 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
           archived_by: teacherId
         });
 
-      // Guruhni faolsizlashtirish
       await supabase
         .from('groups')
         .update({ is_active: false })
         .eq('id', groupId);
 
-      // Guruhdagi o'quvchilarni arxivga ko'chirish
       const { data: students } = await supabase
         .from('students')
         .select('*')
@@ -232,7 +233,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
           .from('archived_students')
           .insert(archivedStudents);
 
-        // O'quvchilarni faolsizlashtirish
         await supabase
           .from('students')
           .update({ is_active: false })
@@ -257,6 +257,86 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
+  const deleteGroup = async (groupId: string, groupName: string) => {
+    try {
+      const group = groups.find(g => g.id === groupId);
+      if (!group) return;
+
+      // Move group to deleted_groups
+      await supabase
+        .from('deleted_groups')
+        .insert({
+          original_group_id: groupId,
+          teacher_id: teacherId,
+          name: group.name,
+          description: group.description
+        });
+
+      // Deactivate group
+      await supabase
+        .from('groups')
+        .update({ is_active: false })
+        .eq('id', groupId);
+
+      // Move students to deleted_students
+      const { data: students } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .eq('group_name', groupName)
+        .eq('is_active', true);
+
+      if (students && students.length > 0) {
+        const deletedStudents = students.map(student => ({
+          original_student_id: student.id,
+          teacher_id: teacherId,
+          name: student.name,
+          student_id: student.student_id,
+          group_name: student.group_name,
+          email: student.email,
+          phone: student.phone
+        }));
+
+        await supabase
+          .from('deleted_students')
+          .insert(deletedStudents);
+
+        await supabase
+          .from('students')
+          .update({ is_active: false })
+          .eq('teacher_id', teacherId)
+          .eq('group_name', groupName);
+      }
+
+      await fetchGroups();
+      await onStatsUpdate();
+      
+      toast({
+        title: "Guruh o'chirildi",
+        description: `"${groupName}" guruhi va barcha o'quvchilari chiqindilar qutisiga ko'chirildi`,
+      });
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      toast({
+        title: "Xatolik",
+        description: "Guruhni o'chirishda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmAction = async () => {
+    if (!confirmDialog?.group) return;
+
+    if (confirmDialog.type === 'archive') {
+      await archiveGroup(confirmDialog.group.id, confirmDialog.group.name);
+    } else {
+      await deleteGroup(confirmDialog.group.id, confirmDialog.group.name);
+    }
+    
+    setConfirmDialog(null);
+  };
+
   if (selectedGroup) {
     return (
       <GroupDetails
@@ -277,7 +357,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white min-h-screen">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Guruhlar boshqaruvi</h2>
@@ -285,12 +365,12 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="apple-button">
+            <Button className="bg-black hover:bg-gray-800 text-white">
               <Plus className="w-4 h-4 mr-2" />
               Yangi guruh
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md bg-white">
             <DialogHeader>
               <DialogTitle>Yangi guruh yaratish</DialogTitle>
             </DialogHeader>
@@ -328,13 +408,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
       </div>
 
       {groups.length === 0 ? (
-        <Card className="apple-card p-12 text-center">
+        <Card className="p-12 text-center bg-white shadow-sm border border-gray-200">
           <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
-          <p className="text-muted-foreground mb-4">
+          <p className="text-muted-foreground mb-4 max-w-md mx-auto">
             Birinchi guruhingizni yarating va o'quvchilarni qo'shishni boshlang
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black hover:bg-gray-800 text-white">
             <Plus className="w-4 h-4 mr-2" />
             Birinchi guruhni yaratish
           </Button>
@@ -344,7 +424,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
           {groups.map(group => (
             <Card 
               key={group.id} 
-              className="apple-card p-6 cursor-pointer hover:shadow-lg transition-shadow"
+              className="p-6 cursor-pointer hover:shadow-lg transition-shadow bg-white shadow-sm border border-gray-200"
               onClick={() => setSelectedGroup(group.name)}
             >
               <div className="space-y-4">
@@ -390,10 +470,18 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => archiveGroup(group.id, group.name)}
+                      onClick={() => setConfirmDialog({ type: 'archive', group })}
                       className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                     >
                       <Archive className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setConfirmDialog({ type: 'delete', group })}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -401,6 +489,42 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmDialog && (
+        <Dialog open={true} onOpenChange={() => setConfirmDialog(null)}>
+          <DialogContent className="bg-white">
+            <DialogHeader>
+              <DialogTitle>
+                {confirmDialog.type === 'archive' ? 'Guruhni arxivlash' : 'Guruhni o\'chirish'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                {confirmDialog.type === 'archive' 
+                  ? `"${confirmDialog.group?.name}" guruhini arxivlashni xohlaysizmi? Bu guruh va uning barcha o'quvchilari arxivga ko'chiriladi.`
+                  : `"${confirmDialog.group?.name}" guruhini o'chirishni xohlaysizmi? Bu guruh va uning barcha o'quvchilari chiqindilar qutisiga ko'chiriladi.`
+                }
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmDialog(null)}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                onClick={confirmAction}
+                variant={confirmDialog.type === 'delete' ? 'destructive' : 'default'}
+                className={confirmDialog.type === 'archive' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+              >
+                {confirmDialog.type === 'archive' ? 'Arxivlash' : 'O\'chirish'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Tahrirlash dialogi */}

@@ -74,7 +74,7 @@
 @layer components {
   /* Clean, minimal black and white design components */
   .clean-card {
-    @apply bg-white border border-gray-300 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
+    @apply bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 rounded-xl;
   }
   
   .clean-button {
@@ -152,6 +152,15 @@
     .mobile-stack {
       @apply flex-col;
     }
+
+    /* Fix overflow issues on mobile */
+    .mobile-container {
+      @apply max-w-full overflow-hidden;
+    }
+
+    .mobile-text {
+      @apply text-sm leading-relaxed;
+    }
   }
 
   /* Tablet responsiveness */
@@ -159,6 +168,24 @@
     .tablet-grid {
       @apply grid-cols-2;
     }
+  }
+
+  /* Fix overflow issues */
+  .overflow-container {
+    @apply max-w-full overflow-hidden;
+  }
+
+  .text-container {
+    @apply break-words hyphens-auto;
+  }
+
+  /* No data message styling */
+  .no-data-container {
+    @apply w-full max-w-full px-4 py-8 text-center;
+  }
+
+  .no-data-text {
+    @apply text-base leading-relaxed max-w-md mx-auto break-words;
   }
 }
 
@@ -187,4 +214,18 @@
 
 .fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Responsive text overflow fixes */
+.responsive-text {
+  @apply break-words hyphens-auto;
+}
+
+/* Mobile specific fixes */
+@media (max-width: 640px) {
+  .mobile-fix {
+    max-width: calc(100vw - 2rem);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
 }

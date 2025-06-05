@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2 } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
@@ -27,6 +27,8 @@ interface Stats {
 
 const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState<Stats>({
     totalStudents: 0,
     totalGroups: 0,
@@ -201,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
               </div>
             )}
 
-            <Card className="apple-card p-6">
+            <Card className="p-6 bg-white shadow-sm border border-gray-200">
               <h3 className="text-lg font-semibold mb-4">Tezkor harakatlar</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button
@@ -236,48 +238,104 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-white">
       <div className="flex">
+        {/* Mobile menu toggle */}
+        <div className="lg:hidden fixed top-4 left-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="bg-white"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </Button>
+        </div>
+
         {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg h-screen relative">
+        <div className={`
+          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          bg-white shadow-lg h-screen fixed lg:relative z-40 transition-all duration-300 ease-in-out
+        `}>
+          {/* Desktop collapse toggle */}
+          <div className="hidden lg:block absolute -right-3 top-6 z-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="bg-white rounded-full p-2 shadow-md"
+            >
+              {sidebarCollapsed ? <Menu className="w-3 h-3" /> : <X className="w-3 h-3" />}
+            </Button>
+          </div>
+
           <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-800">EduManager</h1>
-            {teacherName && (
-              <p className="text-sm text-gray-600 mt-1">{teacherName}</p>
+            {!sidebarCollapsed && (
+              <>
+                <h1 className="text-xl font-bold text-gray-800">EduManager</h1>
+                {teacherName && (
+                  <p className="text-sm text-gray-600 mt-1 truncate">{teacherName}</p>
+                )}
+              </>
+            )}
+            {sidebarCollapsed && (
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span className="text-blue-600 font-bold text-sm">E</span>
+              </div>
             )}
           </div>
           
-          <nav className="mt-6 pb-20">
+          <nav className="mt-6 pb-20 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
                   className={`w-full flex items-center px-6 py-3 text-left transition-colors ${
                     activeTab === item.id
                       ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
                       : 'text-gray-600 hover:bg-gray-50'
-                  }`}
+                  } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                  title={sidebarCollapsed ? item.label : ''}
                 >
-                  <Icon className="w-5 h-5 mr-3" />
-                  {item.label}
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!sidebarCollapsed && <span className="ml-3">{item.label}</span>}
                 </button>
               );
             })}
           </nav>
 
           <div className="absolute bottom-6 left-6 right-6">
-            <Button onClick={onLogout} variant="outline" className="w-full">
-              <LogOut className="w-4 h-4 mr-2" />
-              Chiqish
+            <Button 
+              onClick={onLogout} 
+              variant="outline" 
+              className={`w-full ${sidebarCollapsed ? 'px-2' : ''}`}
+              title={sidebarCollapsed ? 'Chiqish' : ''}
+            >
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              {!sidebarCollapsed && <span className="ml-2">Chiqish</span>}
             </Button>
           </div>
         </div>
 
+        {/* Mobile overlay */}
+        {mobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Main Content */}
-        <div className="flex-1 p-8">
-          {renderContent()}
+        <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-0'}`}>
+          <div className="p-4 lg:p-8 pt-16 lg:pt-8 bg-white min-h-screen">
+            {renderContent()}
+          </div>
         </div>
       </div>
     </div>
