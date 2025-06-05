@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { StatsData, MonthlyData } from '../types';
 
-export const useStatistics = (teacherId: string, selectedPeriod: string) => {
+export const useStatistics = (teacherId: string, selectedPeriod: string, selectedGroup: string = 'all') => {
   const [stats, setStats] = useState<StatsData>({
     totalStudents: 0,
     totalClasses: 0,
@@ -15,50 +15,68 @@ export const useStatistics = (teacherId: string, selectedPeriod: string) => {
 
   useEffect(() => {
     fetchStatistics();
-  }, [teacherId, selectedPeriod]);
+  }, [teacherId, selectedPeriod, selectedGroup]);
 
   const fetchStatistics = async () => {
     try {
       setLoading(true);
 
-      // Faqat faol o'quvchilar sonini olish
-      const { data: studentsData, error: studentsError } = await supabase
+      // Build query for students based on group filter
+      let studentsQuery = supabase
         .from('students')
         .select('id')
         .eq('teacher_id', teacherId)
         .eq('is_active', true);
 
+      if (selectedGroup !== 'all') {
+        studentsQuery = studentsQuery.eq('group_name', selectedGroup);
+      }
+
+      const { data: studentsData, error: studentsError } = await studentsQuery;
+
       if (studentsError) throw studentsError;
 
       const totalStudents = studentsData?.length || 0;
 
-      // Faqat faol o'quvchilarning davomat yozuvlari bo'yicha jami darslar sonini hisoblash
-      const { data: classesData, error: classesError } = await supabase
+      // Build query for attendance based on group filter
+      let attendanceQuery = supabase
         .from('attendance_records')
         .select(`
           date,
-          students!inner(is_active)
+          students!inner(is_active, group_name)
         `)
         .eq('teacher_id', teacherId)
         .eq('students.is_active', true);
 
+      if (selectedGroup !== 'all') {
+        attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
+      }
+
+      const { data: classesData, error: classesError } = await attendanceQuery;
+
       if (classesError) throw classesError;
 
-      // Noyob sanalarni topish (faqat faol o'quvchilar uchun)
+      // Noyob sanalarni topish
       const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
       const totalClasses = uniqueDates.length;
 
-      // O'rtacha davomatni hisoblash (faqat faol o'quvchilar uchun)
+      // O'rtacha davomatni hisoblash
       if (totalClasses > 0 && totalStudents > 0) {
-        const { data: attendanceData, error: attendanceError } = await supabase
+        let presentQuery = supabase
           .from('attendance_records')
           .select(`
             status,
-            students!inner(is_active)
+            students!inner(is_active, group_name)
           `)
           .eq('teacher_id', teacherId)
           .eq('students.is_active', true)
           .eq('status', 'present');
+
+        if (selectedGroup !== 'all') {
+          presentQuery = presentQuery.eq('students.group_name', selectedGroup);
+        }
+
+        const { data: attendanceData, error: attendanceError } = await presentQuery;
 
         if (attendanceError) throw attendanceError;
 
@@ -68,18 +86,24 @@ export const useStatistics = (teacherId: string, selectedPeriod: string) => {
           ? (totalPresentRecords / totalPossibleAttendance) * 100 
           : 0;
 
-        // Eng yaxshi o'quvchini topish (faqat faol o'quvchilar orasidan)
-        const { data: topStudentData, error: topStudentError } = await supabase
+        // Eng yaxshi o'quvchini topish
+        let topStudentQuery = supabase
           .from('student_scores')
           .select(`
             student_id, 
             total_score, 
-            students!inner(name, is_active)
+            students!inner(name, is_active, group_name)
           `)
           .eq('teacher_id', teacherId)
           .eq('students.is_active', true)
           .order('total_score', { ascending: false })
           .limit(1);
+
+        if (selectedGroup !== 'all') {
+          topStudentQuery = topStudentQuery.eq('students.group_name', selectedGroup);
+        }
+
+        const { data: topStudentData, error: topStudentError } = await topStudentQuery;
 
         if (topStudentError) throw topStudentError;
 
@@ -116,17 +140,22 @@ export const useStatistics = (teacherId: string, selectedPeriod: string) => {
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - monthsToFetch);
 
-      // Faqat faol o'quvchilarning oylik davomat ma'lumotlarini olish
-      const { data: monthlyAttendance, error } = await supabase
+      let monthlyQuery = supabase
         .from('attendance_records')
         .select(`
           date, 
           status,
-          students!inner(is_active)
+          students!inner(is_active, group_name)
         `)
         .eq('teacher_id', teacherId)
         .eq('students.is_active', true)
         .gte('date', startDate.toISOString().split('T')[0]);
+
+      if (selectedGroup !== 'all') {
+        monthlyQuery = monthlyQuery.eq('students.group_name', selectedGroup);
+      }
+
+      const { data: monthlyAttendance, error } = await monthlyQuery;
 
       if (error) throw error;
 

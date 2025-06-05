@@ -9,6 +9,7 @@ import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, Ro
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
+import StudentDetailsPopup from './StudentDetailsPopup';
 
 interface Student {
   id: string;
@@ -19,6 +20,7 @@ interface Student {
   group_name: string;
   teacher_id: string;
   created_at: string;
+  rewardPenaltyPoints?: number;
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late';
@@ -54,6 +56,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -69,7 +73,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
         .eq('teacher_id', teacherId)
@@ -77,15 +81,31 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         .eq('is_active', true)
         .order('name');
 
-      if (error) throw error;
-      setStudents(data || []);
+      if (studentsError) throw studentsError;
+
+      // Fetch reward/penalty points for each student
+      const studentIds = studentsData?.map(s => s.id) || [];
+      if (studentIds.length > 0) {
+        const { data: scoresData, error: scoresError } = await supabase
+          .from('student_scores')
+          .select('student_id, reward_penalty_points')
+          .in('student_id', studentIds)
+          .eq('teacher_id', teacherId);
+
+        if (scoresError) throw scoresError;
+
+        // Merge reward points with student data
+        const studentsWithRewards = studentsData?.map(student => ({
+          ...student,
+          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0
+        })) || [];
+
+        setStudents(studentsWithRewards);
+      } else {
+        setStudents(studentsData || []);
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchilarni yuklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -110,21 +130,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setAttendance(attendanceMap);
     } catch (error) {
       console.error('Error fetching attendance:', error);
-      toast({
-        title: "Xatolik",
-        description: "Davomatni yuklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
   const addStudent = async () => {
     if (!newStudent.name.trim()) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "O'quvchi nomini kiriting",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -147,18 +157,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       
       setNewStudent({ name: '', student_id: '', email: '', phone: '' });
       setIsAddDialogOpen(false);
-      
-      toast({
-        title: "O'quvchi qo'shildi",
-        description: `"${newStudent.name}" muvaffaqiyatli qo'shildi`,
-      });
     } catch (error) {
       console.error('Error adding student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchi qo'shishda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
@@ -173,7 +173,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         .maybeSingle();
 
       if (existingRecord) {
-        // Agar belgi bir xil bo'lsa, belgilanmagan holatga qaytarish
         if (existingRecord.status === status) {
           const { error } = await supabase
             .from('attendance_records')
@@ -182,14 +181,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
           if (error) throw error;
 
-          // State'dan o'chirish
           setAttendance(prevAttendance => {
             const newAttendance = { ...prevAttendance };
             delete newAttendance[studentId];
             return newAttendance;
           });
         } else {
-          // Mavjud yozuvni yangilash
           const { error } = await supabase
             .from('attendance_records')
             .update({ status: status })
@@ -203,7 +200,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           }));
         }
       } else {
-        // Yangi yozuv yaratish
         const { error } = await supabase
           .from('attendance_records')
           .insert({
@@ -224,11 +220,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       await onStatsUpdate();
     } catch (error) {
       console.error('Error marking attendance:', error);
-      toast({
-        title: "Xatolik",
-        description: "Davomatni belgilashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
@@ -239,18 +230,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       );
       
       await Promise.all(attendancePromises);
-      
-      toast({
-        title: "Barchasi belgilandi",
-        description: "Barcha o'quvchilar kelgan deb belgilandi",
-      });
     } catch (error) {
       console.error('Error marking all as present:', error);
-      toast({
-        title: "Xatolik",
-        description: "Barchasini belgilashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
@@ -266,35 +247,26 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       setAttendance({});
       await onStatsUpdate();
-      
-      // Removed the "Belgilar tozalandi" notification as requested
     } catch (error) {
       console.error('Error clearing attendance:', error);
-      toast({
-        title: "Xatolik",
-        description: "Belgilarni tozalashda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
   const addReward = async (studentId: string) => {
     if (!rewardPoints) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "Ball miqdorini kiriting",
-        variant: "destructive",
-      });
       return;
     }
 
     const points = parseFloat(rewardPoints);
     if (isNaN(points)) {
-      toast({
-        title: "Noto'g'ri format",
-        description: "Ball sonli qiymat bo'lishi kerak",
-        variant: "destructive",
-      });
+      return;
+    }
+
+    // Validate point limits
+    if (rewardType === 'reward' && points > 5) {
+      return;
+    }
+    if (rewardType === 'penalty' && Math.abs(points) > 5) {
       return;
     }
 
@@ -313,24 +285,18 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       setShowRewardDialog(null);
       setRewardPoints('');
+      await fetchStudents(); // Refresh to show updated reward points
       if (onStatsUpdate) await onStatsUpdate();
-      
-      const studentName = students.find(s => s.id === studentId)?.name || '';
-      toast({
-        title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
-        description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
-      });
     } catch (error) {
       console.error('Error adding reward/penalty:', error);
-      toast({
-        title: "Xatolik",
-        description: "Ball qo'shishda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
-  // Updated button style function - only the active button gets colored
+  const handleStudentClick = (studentId: string) => {
+    setSelectedStudentId(studentId);
+    setIsStudentPopupOpen(true);
+  };
+
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
     const currentStatus = attendance[studentId];
     const isActive = currentStatus === targetStatus;
@@ -338,11 +304,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
     
     if (!isActive) {
-      // Default white background for inactive buttons
       return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
     }
     
-    // Active button styling
     switch (targetStatus) {
       case 'present':
         return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
@@ -353,6 +317,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       default:
         return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
     }
+  };
+
+  const getRewardDisplay = (points: number) => {
+    if (points === 0) return null;
+    return (
+      <span className={`text-sm font-medium ${points > 0 ? 'text-green-600' : 'text-red-600'}`}>
+        {points > 0 ? '+' : ''}{points}
+      </span>
+    );
   };
 
   if (loading) {
@@ -505,17 +478,25 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             {students.map(student => (
               <div key={student.id} className="p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium">
-                      {student.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{student.name}</h3>
-                    {student.student_id && (
-                      <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleStudentClick(student.id)}
+                    className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium">
+                        {student.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{student.name}</h3>
+                        {student.rewardPenaltyPoints !== undefined && getRewardDisplay(student.rewardPenaltyPoints)}
+                      </div>
+                      {student.student_id && (
+                        <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
+                      )}
+                    </div>
+                  </button>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Button
@@ -579,13 +560,22 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 </Button>
               </div>
               <div>
-                <label className="text-sm font-medium">Ball miqdori</label>
+                <label className="text-sm font-medium">
+                  Ball miqdori (maksimum {rewardType === 'reward' ? '+5' : '-5'})
+                </label>
                 <Input
                   type="number"
                   step="0.1"
+                  min="0.1"
+                  max="5"
                   value={rewardPoints}
-                  onChange={(e) => setRewardPoints(e.target.value)}
-                  placeholder="Masalan: 5"
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (value <= 5) {
+                      setRewardPoints(e.target.value);
+                    }
+                  }}
+                  placeholder="Masalan: 3"
                 />
               </div>
               <div className="flex space-x-2">
@@ -610,6 +600,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           </div>
         </div>
       )}
+
+      {/* Student Details Popup */}
+      <StudentDetailsPopup
+        studentId={selectedStudentId}
+        isOpen={isStudentPopupOpen}
+        onClose={() => {
+          setIsStudentPopupOpen(false);
+          setSelectedStudentId(null);
+        }}
+        teacherId={teacherId}
+      />
     </div>
   );
 };
