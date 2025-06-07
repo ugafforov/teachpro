@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +31,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [newGroup, setNewGroup] = useState({
     name: '',
     description: ''
@@ -205,10 +206,62 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     onGroupSelect(groupName);
   };
 
-  const handleEditGroup = (e: React.MouseEvent, groupName: string) => {
+  const handleEditGroup = async (e: React.MouseEvent, group: Group) => {
     e.stopPropagation();
-    console.log('Edit group:', groupName);
-    onGroupSelect(groupName);
+    console.log('Edit group:', group.name);
+    setEditingGroup(group);
+    setIsEditDialogOpen(true);
+  };
+
+  const updateGroup = async () => {
+    if (!editingGroup || !editingGroup.name.trim()) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "Guruh nomini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('groups')
+        .update({
+          name: editingGroup.name.trim(),
+          description: editingGroup.description?.trim() || null
+        })
+        .eq('id', editingGroup.id);
+
+      if (error) throw error;
+
+      // Update students table with new group name if needed
+      const originalGroup = groups.find(g => g.id === editingGroup.id);
+      if (originalGroup && originalGroup.name !== editingGroup.name.trim()) {
+        await supabase
+          .from('students')
+          .update({ group_name: editingGroup.name.trim() })
+          .eq('group_name', originalGroup.name)
+          .eq('teacher_id', teacherId);
+      }
+
+      await fetchGroups();
+      await onStatsUpdate();
+      
+      setEditingGroup(null);
+      setIsEditDialogOpen(false);
+      
+      toast({
+        title: "Guruh yangilandi",
+        description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
+      });
+    } catch (error) {
+      console.error('Error updating group:', error);
+      toast({
+        title: "Xatolik",
+        description: "Guruhni yangilashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleArchiveGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
@@ -508,7 +561,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                   <Button
-                    onClick={(e) => handleEditGroup(e, group.name)}
+                    onClick={(e) => handleEditGroup(e, group)}
                     variant="ghost"
                     size="sm"
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
@@ -540,6 +593,44 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           ))}
         </div>
       )}
+
+      {/* Tahrirlash dialogi */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Guruhni tahrirlash</DialogTitle>
+          </DialogHeader>
+          {editingGroup && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-groupName">Guruh nomi *</Label>
+                <Input
+                  id="edit-groupName"
+                  value={editingGroup.name}
+                  onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-groupDescription">Izoh</Label>
+                <Textarea
+                  id="edit-groupDescription"
+                  value={editingGroup.description || ''}
+                  onChange={(e) => setEditingGroup({ ...editingGroup, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button onClick={updateGroup} className="bg-black text-white hover:bg-gray-800 flex-1">
+                  Saqlash
+                </Button>
+                <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

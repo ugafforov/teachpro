@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -105,8 +104,9 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       // Kechikib kelgan ham davomat sifatida hisoblansin
       const attendancePercentage = totalClasses > 0 ? Math.round(((presentCount + lateCount) / totalClasses) * 100) : 0;
 
-      // Davomat ballari - kechikib kelgan ham ijobiy ball
-      const attendancePoints = presentCount * 1 + lateCount * 0.8 - absentCount * 1;
+      // Davomat ballari - to'g'ri hisoblash
+      // Present: +1, Late: -0.5, Absent: -1
+      const attendancePoints = presentCount * 1 + lateCount * (-0.5) + absentCount * (-1);
 
       setStats(prev => ({
         ...prev!,
@@ -149,7 +149,9 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
       const absentCount = attendanceData?.filter(a => a.status === 'absent').length || 0;
       
-      const attendancePoints = presentCount * 1 + lateCount * 0.8 - absentCount * 1;
+      // To'g'ri davomat ballari hisoblash
+      // Present: +1, Late: -0.5, Absent: -1
+      const attendancePoints = presentCount * 1 + lateCount * (-0.5) + absentCount * (-1);
 
       // Jami ball = davomat ballari + mukofot/jarima ballari
       const totalScore = attendancePoints + rewardPenaltyPoints;
@@ -184,7 +186,9 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             const sPresentCount = sAttendanceData?.filter(a => a.status === 'present').length || 0;
             const sLateCount = sAttendanceData?.filter(a => a.status === 'late').length || 0;
             const sAbsentCount = sAttendanceData?.filter(a => a.status === 'absent').length || 0;
-            const sAttendancePoints = sPresentCount * 1 + sLateCount * 0.8 - sAbsentCount * 1;
+            
+            // To'g'ri davomat ballari hisoblash
+            const sAttendancePoints = sPresentCount * 1 + sLateCount * (-0.5) + sAbsentCount * (-1);
             
             return {
               studentId: s.id,
