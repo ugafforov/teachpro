@@ -80,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         if (attendanceError) throw attendanceError;
 
         const totalRecords = attendanceData?.length || 0;
-        const presentRecords = attendanceData?.filter(a => a.status === 'present').length || 0;
+        const presentRecords = attendanceData?.filter(a => a.status === 'present' || a.status === 'late').length || 0;
         averageAttendance = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
       }
 
@@ -114,6 +114,12 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     }
   };
 
+  const handleGroupSelect = (groupName: string) => {
+    // For now, we can just log the selected group
+    // This could be extended to navigate to group details or perform other actions
+    console.log('Selected group:', groupName);
+  };
+
   const menuItems = [
     { id: 'overview', label: 'Umumiy ko\'rinish', icon: BookOpen },
     { id: 'groups', label: 'Guruhlar', icon: Users },
@@ -127,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   const renderContent = () => {
     switch (activeTab) {
       case 'groups':
-        return <GroupManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+        return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={fetchStats} />;
       case 'students':
         return <StudentManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
       case 'rankings':
