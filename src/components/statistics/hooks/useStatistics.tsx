@@ -110,7 +110,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
       const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
       const totalClasses = uniqueDates.length;
 
-      // Calculate average attendance
+      // Calculate average attendance - including late students as present
       if (totalClasses > 0 && totalStudents > 0) {
         let presentQuery = supabase
           .from('attendance_records')
@@ -120,7 +120,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           `)
           .eq('teacher_id', teacherId)
           .eq('students.is_active', true)
-          .eq('status', 'present')
+          .in('status', ['present', 'late']) // Include both present and late as attendance
           .gte('date', startDate);
 
         if (selectedGroup !== 'all') {
@@ -170,13 +170,13 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         setStats({
           totalStudents,
           totalClasses: 0,
-          averageAttendance: 0,
+          averageAttendance: totalStudents === 0 ? 0 : 100, // If no students, show 0, if students but no classes, show 100%
           topStudent: 'Ma\'lumot yo\'q'
         });
       }
 
       // Fetch monthly data
-      await fetchMonthlyData();
+      await fetchMonthlyData(totalStudents);
 
     } catch (error) {
       console.error('Error fetching statistics:', error);
@@ -185,7 +185,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     }
   };
 
-  const fetchMonthlyData = async () => {
+  const fetchMonthlyData = async (totalStudents: number) => {
     try {
       const startDate = getPeriodStartDate(selectedPeriod);
 
@@ -219,7 +219,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         }
         
         monthlyStats[month].classes.add(record.date);
-        if (record.status === 'present') {
+        // Count both present and late as attendance
+        if (record.status === 'present' || record.status === 'late') {
           monthlyStats[month].present++;
         }
       });
@@ -227,8 +228,10 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
       const formattedMonthlyData: MonthlyData[] = Object.entries(monthlyStats).map(([month, data]) => ({
         month,
         totalClasses: data.classes.size,
-        averageAttendance: data.classes.size > 0 ? (data.present / (data.classes.size * stats.totalStudents)) * 100 : 0,
-        totalStudents: stats.totalStudents
+        averageAttendance: data.classes.size > 0 && totalStudents > 0 
+          ? (data.present / (data.classes.size * totalStudents)) * 100 
+          : totalStudents === 0 ? 0 : 100,
+        totalStudents: totalStudents
       }));
 
       setMonthlyData(formattedMonthlyData);

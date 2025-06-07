@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
@@ -332,6 +333,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     );
   };
 
+  const getRewardIcon = (points: number) => {
+    if (points === 0) return null;
+    if (points > 0) return <Star className="w-4 h-4 text-yellow-500" />;
+    return <AlertTriangle className="w-4 h-4 text-red-500" />;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -486,10 +493,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     onClick={() => handleStudentClick(student.id)}
                     className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
                   >
-                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center relative">
                       <span className="text-sm font-medium">
                         {student.name.split(' ').map(n => n[0]).join('')}
                       </span>
+                      {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && (
+                        <div className="absolute -top-1 -right-1">
+                          {getRewardIcon(student.rewardPenaltyPoints)}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
