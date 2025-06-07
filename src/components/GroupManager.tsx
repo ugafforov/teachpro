@@ -200,7 +200,105 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const deleteGroup = async (groupId: string, groupName: string) => {
+  const handleGroupClick = (groupName: string) => {
+    console.log('Group clicked:', groupName);
+    onGroupSelect(groupName);
+  };
+
+  const handleEditGroup = (e: React.MouseEvent, groupName: string) => {
+    e.stopPropagation();
+    console.log('Edit group:', groupName);
+    onGroupSelect(groupName);
+  };
+
+  const handleArchiveGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+    e.stopPropagation();
+    
+    if (!confirm(`"${groupName}" guruhini arxivlashga ishonchingiz komilmi?`)) {
+      return;
+    }
+
+    try {
+      // Move group to archived_groups table
+      const group = groups.find(g => g.id === groupId);
+      if (group) {
+        const { error: archiveError } = await supabase
+          .from('archived_groups')
+          .insert({
+            original_group_id: group.id,
+            teacher_id: teacherId,
+            name: group.name,
+            description: group.description
+          });
+
+        if (archiveError) throw archiveError;
+      }
+
+      // Move students to archived_students table
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('group_name', groupName)
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
+
+      if (studentsError) throw studentsError;
+
+      if (students && students.length > 0) {
+        const studentsToArchive = students.map(student => ({
+          original_student_id: student.id,
+          teacher_id: teacherId,
+          name: student.name,
+          student_id: student.student_id,
+          email: student.email,
+          phone: student.phone,
+          group_name: student.group_name
+        }));
+
+        const { error: archiveStudentsError } = await supabase
+          .from('archived_students')
+          .insert(studentsToArchive);
+
+        if (archiveStudentsError) throw archiveStudentsError;
+
+        // Mark students as inactive
+        const { error: updateStudentsError } = await supabase
+          .from('students')
+          .update({ is_active: false })
+          .eq('group_name', groupName)
+          .eq('teacher_id', teacherId);
+
+        if (updateStudentsError) throw updateStudentsError;
+      }
+
+      // Mark group as inactive
+      const { error: updateError } = await supabase
+        .from('groups')
+        .update({ is_active: false })
+        .eq('id', groupId);
+
+      if (updateError) throw updateError;
+
+      await fetchGroups();
+      await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyat",
+        description: "Guruh muvaffaqiyatli arxivlandi",
+      });
+    } catch (error) {
+      console.error('Error archiving group:', error);
+      toast({
+        title: "Xatolik",
+        description: "Guruhni arxivlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+    e.stopPropagation();
+    
     if (!confirm(`"${groupName}" guruhini o'chirishga ishonchingiz komilmi?`)) {
       return;
     }
@@ -295,14 +393,14 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Guruhlar</h2>
-          <p className="text-muted-foreground">{groups.length} ta guruh</p>
+          <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>
+          <p className="text-gray-600">Sinflaringizni yarating va boshqaring</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="apple-button">
+            <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
               <Plus className="w-4 h-4 mr-2" />
-              Guruh qo'shish
+              Yangi guruh
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
@@ -339,7 +437,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               <div className="flex space-x-2">
                 <Button 
                   onClick={addGroup} 
-                  className="apple-button flex-1"
+                  className="bg-black text-white hover:bg-gray-800 flex-1"
                   disabled={!newGroup.name.trim() || !!nameError}
                 >
                   Yaratish
@@ -362,83 +460,80 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       </div>
 
       {groups.length === 0 ? (
-        <Card className="apple-card p-12 text-center">
-          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+        <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
+          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
-          <p className="text-muted-foreground mb-4">
+          <p className="text-gray-600 mb-4">
             Birinchi guruhingizni yarating va o'quvchilar qo'shishni boshlang
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
             <Plus className="w-4 h-4 mr-2" />
             Birinchi guruhni yaratish
           </Button>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => (
-            <Card key={group.id} className="apple-card">
-              <div className="p-4">
+            <Card 
+              key={group.id} 
+              className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleGroupClick(group.name)}
+            >
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
+                </div>
+                
                 <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h3 className="text-xl font-bold">{group.name}</h3>
-                    </div>
-                    
-                    <div className="flex items-center gap-8">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-blue-500" />
-                        <div>
-                          <span className="text-muted-foreground text-sm">O'quvchilar</span>
-                          <div className="text-2xl font-bold">{group.student_count}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-green-500" />
-                        <div>
-                          <span className="text-muted-foreground text-sm">Davomat</span>
-                          <div className="text-2xl font-bold text-green-600">{group.attendance_percentage}%</div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 text-sm text-muted-foreground">
-                      {new Date(group.created_at).toLocaleDateString('uz-UZ')}
-                    </div>
-                  </div>
-
                   <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => onGroupSelect(group.name)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      title="Boshqarish"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        // Archive functionality can be added here
-                        console.log('Archive group:', group.name);
-                      }}
-                      variant="ghost"
-                      size="sm"
-                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      title="Arxivlash"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      onClick={() => deleteGroup(group.id, group.name)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="O'chirish"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <Users className="w-5 h-5 text-blue-500" />
+                    <div>
+                      <span className="text-gray-600 text-sm">O'quvchilar</span>
+                      <div className="text-lg font-semibold">{group.student_count}</div>
+                    </div>
                   </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-green-500" />
+                    <div>
+                      <span className="text-gray-600 text-sm">Davomat</span>
+                      <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-500">
+                  {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <Button
+                    onClick={(e) => handleEditGroup(e, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                    title="Tahrirlash"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                    title="Arxivlash"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+                    title="O'chirish"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </Card>
