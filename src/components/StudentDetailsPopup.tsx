@@ -125,33 +125,78 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchScoreStats = async (studentData: StudentDetails) => {
     try {
-      // O'quvchi ballari
-      const { data: scoreData, error } = await supabase
-        .from('student_scores')
-        .select('*')
+      // Mukofot/jarima ballari
+      const { data: rewardData, error: rewardError } = await supabase
+        .from('reward_penalty_history')
+        .select('points')
         .eq('student_id', studentData.id)
+        .eq('teacher_id', teacherId);
+
+      if (rewardError) throw rewardError;
+
+      const rewardPenaltyPoints = rewardData?.reduce((sum, record) => sum + (record.points || 0), 0) || 0;
+
+      // Davomat ballari
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('attendance_records')
+        .select('status')
+        .eq('student_id', studentData.id)
+        .eq('teacher_id', teacherId);
+
+      if (attendanceError) throw attendanceError;
+
+      const presentCount = attendanceData?.filter(a => a.status === 'present').length || 0;
+      const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
+      const absentCount = attendanceData?.filter(a => a.status === 'absent').length || 0;
+      
+      const attendancePoints = presentCount * 1 + lateCount * 0.8 - absentCount * 1;
+
+      // Jami ball = davomat ballari + mukofot/jarima ballari
+      const totalScore = attendancePoints + rewardPenaltyPoints;
+
+      // Reyting pozitsiyasini hisoblash
+      const { data: allStudentsData, error: allStudentsError } = await supabase
+        .from('students')
+        .select('id')
         .eq('teacher_id', teacherId)
-        .maybeSingle();
+        .eq('is_active', true);
 
-      let totalScore = 0;
-      let rank = 0;
-      let rewardPenaltyPoints = 0;
+      if (allStudentsError) throw allStudentsError;
 
-      if (scoreData) {
-        totalScore = scoreData.total_score || 0;
-        rank = scoreData.class_rank || 0;
-        rewardPenaltyPoints = scoreData.reward_penalty_points || 0;
-      } else {
-        // Agar student_scores jadvalida ma'lumot bo'lmasa, reward_penalty_history jadvalidan hisoblaymiz
-        const { data: rewardData, error: rewardError } = await supabase
-          .from('reward_penalty_history')
-          .select('points')
-          .eq('student_id', studentData.id)
-          .eq('teacher_id', teacherId);
+      let rank = 1;
+      if (allStudentsData && allStudentsData.length > 1) {
+        // Barcha o'quvchilarning ballarini hisoblash
+        const studentScores = await Promise.all(
+          allStudentsData.map(async (s) => {
+            const { data: sRewardData } = await supabase
+              .from('reward_penalty_history')
+              .select('points')
+              .eq('student_id', s.id)
+              .eq('teacher_id', teacherId);
 
-        if (!rewardError && rewardData) {
-          rewardPenaltyPoints = rewardData.reduce((sum, record) => sum + (record.points || 0), 0);
-        }
+            const { data: sAttendanceData } = await supabase
+              .from('attendance_records')
+              .select('status')
+              .eq('student_id', s.id)
+              .eq('teacher_id', teacherId);
+
+            const sRewardPoints = sRewardData?.reduce((sum, record) => sum + (record.points || 0), 0) || 0;
+            const sPresentCount = sAttendanceData?.filter(a => a.status === 'present').length || 0;
+            const sLateCount = sAttendanceData?.filter(a => a.status === 'late').length || 0;
+            const sAbsentCount = sAttendanceData?.filter(a => a.status === 'absent').length || 0;
+            const sAttendancePoints = sPresentCount * 1 + sLateCount * 0.8 - sAbsentCount * 1;
+            
+            return {
+              studentId: s.id,
+              totalScore: sAttendancePoints + sRewardPoints
+            };
+          })
+        );
+
+        // Ballar bo'yicha tartiblash va reyting topish
+        studentScores.sort((a, b) => b.totalScore - a.totalScore);
+        const currentStudentIndex = studentScores.findIndex(s => s.studentId === studentData.id);
+        rank = currentStudentIndex + 1;
       }
 
       setStats(prev => ({
@@ -163,7 +208,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
     } catch (error) {
       console.error('Error fetching score stats:', error);
-      // Xatolik bo'lsa ham, nol qiymatlar bilan davom etish
       setStats(prev => ({
         ...prev!,
         totalScore: 0,
@@ -243,7 +287,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <Card className="p-4 text-center">
               <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-blue-600">{stats.totalScore}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalScore.toFixed(1)}</div>
               <div className="text-sm text-muted-foreground">Jami ball</div>
             </Card>
             <Card className="p-4 text-center">
@@ -252,6 +296,15 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
               <div className="text-sm text-muted-foreground">Davomat</div>
             </Card>
           </div>
+
+          {/* Reyting */}
+          {stats.rank > 0 && (
+            <Card className="p-4 text-center">
+              <Award className="w-8 h-8 text-purple-500 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-purple-600">{stats.rank}</div>
+              <div className="text-sm text-muted-foreground">Reyting pozitsiyasi</div>
+            </Card>
+          )}
 
           {/* Mukofot/Jarima ko'rsatkichlari */}
           {stats.rewardPenaltyPoints !== 0 && (

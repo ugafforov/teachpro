@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,6 +16,7 @@ interface Group {
   description?: string;
   created_at: string;
   student_count?: number;
+  attendance_percentage?: number;
 }
 
 interface GroupManagerProps {
@@ -54,9 +55,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       if (groupsError) throw groupsError;
 
-      // Get student counts for each group
-      const groupsWithCounts = await Promise.all(
+      // Get student counts and attendance for each group
+      const groupsWithStats = await Promise.all(
         (groupsData || []).map(async (group) => {
+          // Get student count
           const { count } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
@@ -64,14 +66,33 @@ const GroupManager: React.FC<GroupManagerProps> = ({
             .eq('teacher_id', teacherId)
             .eq('is_active', true);
 
+          // Get attendance percentage for this group
+          const { data: attendanceData, error: attendanceError } = await supabase
+            .from('attendance_records')
+            .select(`
+              status,
+              students!inner(group_name, is_active)
+            `)
+            .eq('teacher_id', teacherId)
+            .eq('students.group_name', group.name)
+            .eq('students.is_active', true);
+
+          let attendancePercentage = 0;
+          if (!attendanceError && attendanceData && attendanceData.length > 0) {
+            const totalRecords = attendanceData.length;
+            const presentRecords = attendanceData.filter(a => a.status === 'present' || a.status === 'late').length;
+            attendancePercentage = Math.round((presentRecords / totalRecords) * 100);
+          }
+
           return {
             ...group,
-            student_count: count || 0
+            student_count: count || 0,
+            attendance_percentage: attendancePercentage
           };
         })
       );
 
-      setGroups(groupsWithCounts);
+      setGroups(groupsWithStats);
     } catch (error) {
       console.error('Error fetching groups:', error);
     } finally {
@@ -353,52 +374,73 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           </Button>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-4">
           {groups.map(group => (
-            <Card key={group.id} className="apple-card p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                    <Users className="w-6 h-6 text-primary" />
+            <Card key={group.id} className="apple-card">
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-4 mb-4">
+                      <h3 className="text-xl font-bold">{group.name}</h3>
+                    </div>
+                    
+                    <div className="flex items-center gap-8">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-blue-500" />
+                        <div>
+                          <span className="text-muted-foreground text-sm">O'quvchilar</span>
+                          <div className="text-2xl font-bold">{group.student_count}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-green-500" />
+                        <div>
+                          <span className="text-muted-foreground text-sm">Davomat</span>
+                          <div className="text-2xl font-bold text-green-600">{group.attendance_percentage}%</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 text-sm text-muted-foreground">
+                      {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{group.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {group.student_count} o'quvchi
-                    </p>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => onGroupSelect(group.name)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      title="Boshqarish"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // Archive functionality can be added here
+                        console.log('Archive group:', group.name);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      title="Arxivlash"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={() => deleteGroup(group.id, group.name)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="O'chirish"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  onClick={() => deleteGroup(group.id, group.name)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
               </div>
-              
-              {group.description && (
-                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                  {group.description}
-                </p>
-              )}
-              
-              <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                <span className="flex items-center">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  {new Date(group.created_at).toLocaleDateString('uz-UZ')}
-                </span>
-              </div>
-              
-              <Button 
-                onClick={() => onGroupSelect(group.name)}
-                variant="outline" 
-                className="w-full"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Boshqarish
-              </Button>
             </Card>
           ))}
         </div>
