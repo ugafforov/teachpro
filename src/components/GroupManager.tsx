@@ -61,7 +61,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
       // Har bir guruh uchun o'quvchilar sonini va o'rtacha davomatni hisoblash
       const groupsWithStats = await Promise.all(
         (groupsData || []).map(async (group) => {
-          // O'quvchilar soni
+          // Faqat faol o'quvchilar soni
           const { count } = await supabase
             .from('students')
             .select('*', { count: 'exact', head: true })
@@ -69,16 +69,24 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
             .eq('group_name', group.name)
             .eq('is_active', true);
 
-          // O'rtacha davomat
-          const { data: attendanceData } = await supabase
-            .from('attendance_records')
-            .select('status, students!inner(group_name)')
-            .eq('teacher_id', teacherId)
-            .eq('students.group_name', group.name);
+          let averageAttendance = 0;
 
-          const totalRecords = attendanceData?.length || 0;
-          const presentRecords = attendanceData?.filter(a => a.status === 'present').length || 0;
-          const averageAttendance = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+          // Agar o'quvchilar mavjud bo'lsa, davomatni hisoblash
+          if (count && count > 0) {
+            const { data: attendanceData } = await supabase
+              .from('attendance_records')
+              .select(`
+                status, 
+                students!inner(group_name, is_active)
+              `)
+              .eq('teacher_id', teacherId)
+              .eq('students.group_name', group.name)
+              .eq('students.is_active', true);
+
+            const totalRecords = attendanceData?.length || 0;
+            const presentRecords = attendanceData?.filter(a => a.status === 'present').length || 0;
+            averageAttendance = totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0;
+          }
 
           return {
             ...group,
@@ -101,11 +109,61 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
+  const checkGroupNameExists = async (name: string, excludeId?: string) => {
+    try {
+      // Faol guruhlardan nom tekshirish
+      let query = supabase
+        .from('groups')
+        .select('id, name')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true)
+        .ilike('name', name.trim());
+
+      if (excludeId) {
+        query = query.neq('id', excludeId);
+      }
+
+      const { data: activeGroups } = await query;
+
+      // Arxivlangan guruhlardan nom tekshirish
+      const { data: archivedGroups } = await supabase
+        .from('archived_groups')
+        .select('name')
+        .eq('teacher_id', teacherId)
+        .ilike('name', name.trim());
+
+      // O'chirilgan guruhlardan nom tekshirish
+      const { data: deletedGroups } = await supabase
+        .from('deleted_groups')
+        .select('name')
+        .eq('teacher_id', teacherId)
+        .ilike('name', name.trim());
+
+      return (activeGroups && activeGroups.length > 0) || 
+             (archivedGroups && archivedGroups.length > 0) || 
+             (deletedGroups && deletedGroups.length > 0);
+    } catch (error) {
+      console.error('Error checking group name:', error);
+      return false;
+    }
+  };
+
   const addGroup = async () => {
     if (!newGroup.name.trim()) {
       toast({
         title: "Ma'lumot yetishmayapti",
         description: "Guruh nomini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Guruh nomi mavjudligini tekshirish
+    const nameExists = await checkGroupNameExists(newGroup.name);
+    if (nameExists) {
+      toast({
+        title: "Guruh nomi mavjud",
+        description: "Bu nom ostida guruh allaqachon mavjud yoki ishlatilgan. Boshqa nom tanlang.",
         variant: "destructive",
       });
       return;
@@ -152,7 +210,20 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
       return;
     }
 
+    // Guruh nomi mavjudligini tekshirish (tahrirlayotgan guruhdan tashqari)
+    const nameExists = await checkGroupNameExists(editingGroup.name, editingGroup.id);
+    if (nameExists) {
+      toast({
+        title: "Guruh nomi mavjud",
+        description: "Bu nom ostida guruh allaqachon mavjud yoki ishlatilgan. Boshqa nom tanlang.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      const oldGroupName = groups.find(g => g.id === editingGroup.id)?.name;
+
       const { error } = await supabase
         .from('groups')
         .update({
@@ -164,11 +235,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ teacherId, onStatsUpdate })
       if (error) throw error;
 
       // O'quvchilar jadvalida ham guruh nomini yangilash
-      await supabase
-        .from('students')
-        .update({ group_name: editingGroup.name.trim() })
-        .eq('teacher_id', teacherId)
-        .eq('group_name', groups.find(g => g.id === editingGroup.id)?.name);
+      if (oldGroupName && oldGroupName !== editingGroup.name.trim()) {
+        await supabase
+          .from('students')
+          .update({ group_name: editingGroup.name.trim() })
+          .eq('teacher_id', teacherId)
+          .eq('group_name', oldGroupName);
+      }
 
       await fetchGroups();
       await onStatsUpdate();
