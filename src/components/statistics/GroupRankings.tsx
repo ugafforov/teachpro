@@ -10,6 +10,7 @@ interface GroupRanking {
   totalStudents: number;
   attendancePercentage: number;
   latePercentage: number;
+  absentPercentage: number;
   totalClasses: number;
   efficiency: number;
   rank: number;
@@ -134,19 +135,23 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
           const lateRecords = attendanceData.filter(record => 
             record.status === 'late'
           ).length;
+          const absentRecords = attendanceData.filter(record => 
+            record.status === 'absent'
+          ).length;
 
           const attendancePercentage = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
           const latePercentage = totalRecords > 0 ? (lateRecords / totalRecords) * 100 : 0;
+          const absentPercentage = totalRecords > 0 ? (absentRecords / totalRecords) * 100 : 0;
 
-          // Calculate efficiency: High attendance with low lateness = high efficiency
-          // Formula: Attendance% - (Late% * 0.5) to penalize lateness but not as much as absence
-          const efficiency = Math.max(0, attendancePercentage - (latePercentage * 0.5));
+          // New efficiency formula: (Attendance% + (100% - Late%) + (100% - Absent%)) / 3
+          const efficiency = (attendancePercentage + (100 - latePercentage) + (100 - absentPercentage)) / 3;
 
           rankings.push({
             groupName: group.name,
             totalStudents: studentCount,
             attendancePercentage: Math.round(attendancePercentage * 100) / 100,
             latePercentage: Math.round(latePercentage * 100) / 100,
+            absentPercentage: Math.round(absentPercentage * 100) / 100,
             totalClasses,
             efficiency: Math.round(efficiency * 100) / 100,
             rank: 0 // Will be set after sorting
@@ -202,14 +207,13 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
     return 'bg-red-100 text-red-800 border-red-300';
   };
 
-  const getEfficiencyGrade = (efficiency: number) => {
-    if (efficiency >= 95) return 'A+';
-    if (efficiency >= 90) return 'A';
-    if (efficiency >= 80) return 'B+';
-    if (efficiency >= 70) return 'B';
-    if (efficiency >= 60) return 'C+';
-    if (efficiency >= 50) return 'C';
-    return 'D';
+  const getEfficiencyLevel = (efficiency: number) => {
+    if (efficiency >= 95) return 'Ajoyib';
+    if (efficiency >= 90) return 'Yaxshi';
+    if (efficiency >= 80) return 'O\'rtacha';
+    if (efficiency >= 70) return 'Qoniqarli';
+    if (efficiency >= 60) return 'Zaif';
+    return 'Juda zaif';
   };
 
   if (loading) {
@@ -281,9 +285,9 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
                   variant="secondary" 
                   className={`${getEfficiencyBadgeColor(group.efficiency)} border font-bold text-lg px-3 py-1`}
                 >
-                  {getEfficiencyGrade(group.efficiency)}
+                  {getEfficiencyLevel(group.efficiency)}
                 </Badge>
-                <p className="text-xs text-gray-500 mt-1">Samaradorlik darajasi</p>
+                <p className="text-xs text-gray-500 mt-1">{group.efficiency}% Samaradorlik</p>
               </div>
             </div>
 
@@ -311,6 +315,19 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
                   <div 
                     className="h-2 rounded-full bg-orange-500 transition-all duration-500"
                     style={{ width: `${group.latePercentage}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>Kelmagan</span>
+                  <span>{group.absentPercentage}%</span>
+                </div>
+                <div className="w-full bg-white/50 rounded-full h-2">
+                  <div 
+                    className="h-2 rounded-full bg-red-500 transition-all duration-500"
+                    style={{ width: `${group.absentPercentage}%` }}
                   ></div>
                 </div>
               </div>
@@ -354,10 +371,10 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <h4 className="font-semibold text-sm text-gray-700 mb-3">Samaradorlik hisoblash formulasi:</h4>
         <p className="text-xs text-gray-600 leading-relaxed">
-          <strong>Samaradorlik = Davomat% - (Kech qolish% × 0.5)</strong>
+          <strong>Samaradorlik = (Davomat% + (100% - Kech qolish%) + (100% - Kelmagan%)) / 3</strong>
           <br />
-          Bu formula davomat foizini asosiy ko'rsatkich sifatida oladi va kech qolishni yarim ball jarima sifatida hisobga oladi.
-          Yuqori davomat va kam kech qolish = yuqori samaradorlik
+          Bu formula davomat, kech qolmaslik va kelmay qolmaslik ko'rsatkichlarini teng darajada hisobga olib,
+          guruh samaradorligini aniqlaydi. Yuqori davomat, kam kech qolish va kam kelmay qolish = yuqori samaradorlik
         </p>
       </div>
     </Card>

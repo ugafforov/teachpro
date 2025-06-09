@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { Users, Calendar, TrendingUp, Trophy } from 'lucide-react';
+import { Users, Calendar } from 'lucide-react';
 import { StatsData } from './types';
 
 interface StatisticsCardsProps {
@@ -10,7 +10,7 @@ interface StatisticsCardsProps {
 
 const StatisticsCards: React.FC<StatisticsCardsProps> = ({ stats }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <Card className="apple-card p-6">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -31,30 +31,6 @@ const StatisticsCards: React.FC<StatisticsCardsProps> = ({ stats }) => {
           <div>
             <p className="text-2xl font-bold">{stats.totalClasses}</p>
             <p className="text-sm text-muted-foreground">Jami darslar</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="apple-card p-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-            <TrendingUp className="w-6 h-6 text-yellow-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{stats.averageAttendance.toFixed(1)}%</p>
-            <p className="text-sm text-muted-foreground">O'rtacha davomat</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="apple-card p-6">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            <Trophy className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-lg font-bold truncate">{stats.topStudent}</p>
-            <p className="text-sm text-muted-foreground">Eng yaxshi o'quvchi</p>
           </div>
         </div>
       </Card>
