@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useStatistics } from './hooks/useStatistics';
 import StatisticsCards from './StatisticsCards';
 import MonthlyAnalysis from './MonthlyAnalysis';
+import GroupRankings from './GroupRankings';
 import { StatisticsProps } from './types';
 
 interface Group {
@@ -99,7 +100,10 @@ const StatisticsContainer: React.FC<StatisticsProps> = ({ teacherId }) => {
       </div>
 
       <StatisticsCards stats={stats} />
-      <MonthlyAnalysis monthlyData={monthlyData} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MonthlyAnalysis monthlyData={monthlyData} />
+        <GroupRankings teacherId={teacherId} selectedPeriod={selectedPeriod} />
+      </div>
     </div>
   );
 };
