@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2, ArrowLeft } from 'lucide-react';
+import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import GroupDetails from './GroupDetails';
 
 interface Group {
   id: string;
@@ -449,33 +449,15 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     );
   }
 
-  // Show group details if a group is selected
+  // Show GroupDetails component if a group is selected
   if (selectedGroup) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            onClick={handleBackToGroups}
-            variant="ghost"
-            className="p-2"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{selectedGroup}</h2>
-            <p className="text-gray-600">Guruh tafsilotlari va davomat boshqaruvi</p>
-          </div>
-        </div>
-
-        {/* Group details content will be rendered here */}
-        <div className="bg-white rounded-lg border p-6">
-          <h3 className="text-lg font-semibold mb-4">Davomat</h3>
-          <p className="text-gray-600">
-            O'quvchilar davomatini boshqarish uchun ushbu bo'limdan foydalaning
-          </p>
-          {/* The actual attendance tracking component will be integrated here */}
-        </div>
-      </div>
+      <GroupDetails
+        groupName={selectedGroup}
+        teacherId={teacherId}
+        onBack={handleBackToGroups}
+        onStatsUpdate={onStatsUpdate}
+      />
     );
   }
 
