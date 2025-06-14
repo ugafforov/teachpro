@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -71,8 +70,23 @@ const StudentItem: React.FC<StudentItemProps> = ({
   };
 
   const getRewardButtonStyle = () => {
-    const baseStyle = 'w-10 h-10 p-0 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600';
-    return baseStyle;
+    const hasRewardPoints = student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0;
+    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
+    
+    if (hasRewardPoints) {
+      return `${baseStyle} bg-purple-500 hover:bg-purple-600 text-white border-purple-500`;
+    }
+    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+  };
+
+  const getReasonIconColor = () => {
+    const currentStatus = attendance?.status;
+    return currentStatus === 'absent_with_reason' ? 'text-white' : 'text-gray-600';
+  };
+
+  const getRewardIconColor = () => {
+    const hasRewardPoints = student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0;
+    return hasRewardPoints ? 'text-white' : 'text-gray-600';
   };
 
   const getRewardDisplay = (points: number) => {
@@ -166,7 +180,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
               onClick={() => onShowReason(student)}
               className={getReasonButtonStyle()}
             >
-              <ShieldQuestion className="w-4 h-4" />
+              <ShieldQuestion className={`w-4 h-4 ${getReasonIconColor()}`} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Sababli kelmagan</TooltipContent>
@@ -179,7 +193,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
               onClick={() => onShowReward(student.id)}
               className={getRewardButtonStyle()}
             >
-              <Gift className="w-4 h-4" />
+              <Gift className={`w-4 h-4 ${getRewardIconColor()}`} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Mukofot/Jarima berish</TooltipContent>
