@@ -382,7 +382,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                 size="sm"
                 variant="ghost"
                 onClick={() => setShowRewardDialog(student.id)}
-                title="Mukofot/Jarima berish"
               >
                 <Gift className="w-4 h-4" />
               </Button>
@@ -505,7 +504,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                       size="sm"
                       variant="ghost"
                       onClick={() => setShowRewardDialog(student.id)}
-                      title="Mukofot/Jarima berish"
                     >
                       <Gift className="w-4 h-4" />
                     </Button>
@@ -733,7 +731,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               onClick={() => setViewMode('grid')}
               size="sm"
-              title="Grid ko'rinishi"
             >
               <LayoutGrid className="w-4 h-4" />
             </Button>
@@ -741,7 +738,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               variant={viewMode === 'list' ? 'default' : 'outline'}
               onClick={() => setViewMode('list')}
               size="sm"
-              title="Ro'yxat ko'rinishi"
             >
               <List className="w-4 h-4" />
             </Button>

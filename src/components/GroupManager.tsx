@@ -569,7 +569,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 Birinchi guruhni yaratish
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Biror guruh yo‘q, yangi guruh yarating</TooltipContent>
+            <TooltipContent>Biror guruh yo'q, yangi guruh yarating</TooltipContent>
           </Tooltip>
         </Card>
       ) : (
@@ -624,7 +624,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                           variant="ghost"
                           size="sm"
                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
-                          title="Tahrirlash"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Button>
@@ -647,7 +646,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                               variant="ghost"
                               size="sm"
                               className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
-                              title="Arxivlash"
                             >
                               <Archive className="w-4 h-4" />
                             </Button>
@@ -655,7 +653,23 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                           <TooltipContent>Guruhni arxivlash</TooltipContent>
                         </Tooltip>
                       </AlertDialogTrigger>
-                      {/* ... keep existing code (Archive Dialog Overlay/Content) the same ... */}
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{group.name}" guruhini arxivlashga ishonchingiz komilmi? Arxivlangan guruhlarni keyinroq tiklash mumkin.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleArchiveGroup(group.id, group.name)}
+                            className="bg-orange-600 hover:bg-orange-700"
+                          >
+                            Arxivlash
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
                     </AlertDialog>
                     {/* O'chirish tugmasi va dialog */}
                     <AlertDialog
@@ -673,15 +687,30 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                               variant="ghost"
                               size="sm"
                               className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                              title="O'chirish"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Guruhni o‘chirish</TooltipContent>
+                          <TooltipContent>Guruhni o'chirish</TooltipContent>
                         </Tooltip>
                       </AlertDialogTrigger>
-                      {/* ... keep existing code (Delete Dialog Overlay/Content) the same ... */}
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{group.name}" guruhini o'chirishga ishonchingiz komilmi? O'chirilgan guruhlarni chiqindi qutisidan tiklash mumkin.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteGroup(group.id, group.name)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            O'chirish
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
                     </AlertDialog>
                   </div>
                 </div>
@@ -726,7 +755,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                       Saqlash
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>O‘zgartirishlarni saqlash</TooltipContent>
+                  <TooltipContent>O'zgartirishlarni saqlash</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
