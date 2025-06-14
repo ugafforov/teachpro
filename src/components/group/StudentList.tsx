@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Users, Plus } from 'lucide-react';
 import StudentItem from './StudentItem';
+import StudentImport from '../StudentImport';
 
 interface Student {
   id: string;
@@ -46,15 +46,22 @@ const StudentList: React.FC<StudentListProps> = ({
         <p className="text-muted-foreground mb-4">
           Guruhga o'quvchilarni qo'shing
         </p>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button onClick={onAddStudentClick} className="apple-button">
-              <Plus className="w-4 h-4 mr-2" />
-              O'quvchi qo'shish
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
-        </Tooltip>
+        <div className="flex gap-2 justify-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={onAddStudentClick} className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                O'quvchi qo'shish
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
+          </Tooltip>
+          <StudentImport
+            teacherId={students[0]?.teacher_id || ''}
+            groupName={students[0]?.group_name}
+            onImportComplete={() => {}} // optionally wire this up as needed
+          />
+        </div>
       </div>
     );
   }
@@ -77,4 +84,3 @@ const StudentList: React.FC<StudentListProps> = ({
 };
 
 export default StudentList;
-
