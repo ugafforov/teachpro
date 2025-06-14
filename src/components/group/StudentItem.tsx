@@ -113,10 +113,12 @@ const StudentItem: React.FC<StudentItemProps> = ({
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <RewardPenaltyButton
-              points={student.rewardPenaltyPoints}
-              onClick={() => onShowReward(student.id)}
-            />
+            <div>
+              <RewardPenaltyButton
+                points={student.rewardPenaltyPoints}
+                onClick={() => onShowReward(student.id)}
+              />
+            </div>
           </TooltipTrigger>
           <TooltipContent>Mukofot/Jarima berish</TooltipContent>
         </Tooltip>
