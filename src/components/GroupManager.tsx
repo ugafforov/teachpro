@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -479,15 +478,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Yangi guruh
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Yangi guruh qo'shish</TooltipContent>
-              </Tooltip>
+              <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
+                <Plus className="w-4 h-4 mr-2" />
+                Yangi guruh
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>

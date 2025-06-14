@@ -30,15 +30,10 @@ const AddStudentDialog: React.FC<AddStudentDialogProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button className="apple-button">
-              <Plus className="w-4 h-4 mr-2" />
-              O'quvchi qo'shish
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
-        </Tooltip>
+        <Button className="apple-button">
+          <Plus className="w-4 h-4 mr-2" />
+          O'quvchi qo'shish
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
