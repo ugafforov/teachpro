@@ -5,14 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogOverlay } from '@/components/ui/alert-dialog';
+import { Plus, Users, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import GroupCard from './group/GroupCard';
 
-interface Group {
+export interface Group {
   id: string;
   name: string;
   description?: string;
@@ -37,29 +37,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [newGroup, setNewGroup] = useState({
-    name: '',
-    description: ''
-  });
+  const [newGroup, setNewGroup] = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(true);
   const [nameError, setNameError] = useState('');
   const { toast } = useToast();
-
-  // Har bir guruh uchun arxiv va o‘chirish dialoglari ochiqmi yo‘qmi — shularni kuzatamiz
-  const [openArchiveDialogIds, setOpenArchiveDialogIds] = useState<string[]>([]);
-  const [openDeleteDialogIds, setOpenDeleteDialogIds] = useState<string[]>([]);
-
-  // Yordamchi: Dialog ochish
-  const handleArchiveDialogOpen = (groupId: string, open: boolean) => {
-    setOpenArchiveDialogIds((prev) =>
-      open ? [...prev, groupId] : prev.filter((id) => id !== groupId)
-    );
-  };
-  const handleDeleteDialogOpen = (groupId: string, open: boolean) => {
-    setOpenDeleteDialogIds((prev) =>
-      open ? [...prev, groupId] : prev.filter((id) => id !== groupId)
-    );
-  };
 
   useEffect(() => {
     fetchGroups();
@@ -231,7 +212,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     setSelectedGroup(null);
   };
 
-  const handleEditGroup = async (e: React.MouseEvent, group: Group) => {
+  const handleEditGroup = (e: React.MouseEvent, group: Group) => {
     e.stopPropagation();
     console.log('Edit group:', group.name);
     setEditingGroup(group);
@@ -574,149 +555,16 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map((group) => {
-            // Guruh uchun hozir arxiv yoki delete dialog ochiqmi — uni aniqlab olamiz
-            const isAnyDialogOpen =
-              openArchiveDialogIds.includes(group.id) ||
-              openDeleteDialogIds.includes(group.id);
-
-            return (
-              <Card
-                key={group.id}
-                className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                // faqat dialoglar yopiq bo'lsa onClick ishlaydi
-                onClick={() => {
-                  if (!isAnyDialogOpen) {
-                    handleGroupClick(group.name);
-                  }
-                }}
-              >
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-5 h-5 text-blue-500" />
-                      <div>
-                        <span className="text-gray-600 text-sm">O'quvchilar</span>
-                        <div className="text-lg font-semibold">{group.student_count}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-5 h-5 text-green-500" />
-                      <div>
-                        <span className="text-gray-600 text-sm">Davomat</span>
-                        <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(group.created_at).toLocaleDateString('uz-UZ')}
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                    {/* Tahrirlash tugmasi */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={(e) => handleEditGroup(e, group)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Guruhni tahrirlash</TooltipContent>
-                    </Tooltip>
-                    {/* Arxivlash tugmasi va dialog */}
-                    <AlertDialog
-                      open={openArchiveDialogIds.includes(group.id)}
-                      onOpenChange={(open) => handleArchiveDialogOpen(group.id, open)}
-                    >
-                      <AlertDialogTrigger asChild>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleArchiveDialogOpen(group.id, true);
-                              }}
-                              variant="ghost"
-                              size="sm"
-                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
-                            >
-                              <Archive className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Guruhni arxivlash</TooltipContent>
-                        </Tooltip>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            "{group.name}" guruhini arxivlashga ishonchingiz komilmi? Arxivlangan guruhlarni keyinroq tiklash mumkin.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleArchiveGroup(group.id, group.name)}
-                            className="bg-orange-600 hover:bg-orange-700"
-                          >
-                            Arxivlash
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                    {/* O'chirish tugmasi va dialog */}
-                    <AlertDialog
-                      open={openDeleteDialogIds.includes(group.id)}
-                      onOpenChange={(open) => handleDeleteDialogOpen(group.id, open)}
-                    >
-                      <AlertDialogTrigger asChild>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDialogOpen(group.id, true);
-                              }}
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Guruhni o'chirish</TooltipContent>
-                        </Tooltip>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            "{group.name}" guruhini o'chirishga ishonchingiz komilmi? O'chirilgan guruhlarni chiqindi qutisidan tiklash mumkin.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDeleteGroup(group.id, group.name)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            O'chirish
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+          {groups.map((group) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              onGroupClick={handleGroupClick}
+              onEdit={handleEditGroup}
+              onArchive={handleArchiveGroup}
+              onDelete={handleDeleteGroup}
+            />
+          ))}
         </div>
       )}
 

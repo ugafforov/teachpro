@@ -1,20 +1,19 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Trash2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Users, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import StudentListItem from './student/StudentListItem';
+import StudentGridItem from './student/StudentGridItem';
+import StudentFilters from './student/StudentFilters';
+import AddStudentDialog from './student/AddStudentDialog';
+import EditStudentDialog from './student/EditStudentDialog';
+import RewardDialog from './student/RewardDialog';
 
-interface Student {
+export interface Student {
   id: string;
   name: string;
   student_id?: string;
@@ -25,10 +24,18 @@ interface Student {
   created_at: string;
 }
 
-interface Group {
+export interface Group {
   id: string;
   name: string;
   description?: string;
+}
+
+export interface NewStudent {
+  name: string;
+  student_id: string;
+  email: string;
+  phone: string;
+  group_name: string;
 }
 
 interface StudentManagerProps {
@@ -42,22 +49,13 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [rewardingStudent, setRewardingStudent] = useState<Student | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
-  const [rewardPoints, setRewardPoints] = useState('');
-  const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
-  const [newStudent, setNewStudent] = useState({
-    name: '',
-    student_id: '',
-    email: '',
-    phone: '',
-    group_name: ''
-  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -125,7 +123,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     setFilteredStudents(filtered);
   };
 
-  const addStudent = async () => {
+  const addStudent = async (newStudent: NewStudent) => {
     if (!newStudent.name.trim() || !newStudent.group_name) {
       toast({
         title: "Ma'lumot yetishmayapti",
@@ -152,7 +150,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
       
-      setNewStudent({ name: '', student_id: '', email: '', phone: '', group_name: '' });
       setIsAddDialogOpen(false);
       
       toast({
@@ -169,8 +166,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const editStudent = async () => {
-    if (!editingStudent || !editingStudent.name.trim()) {
+  const editStudent = async (studentToUpdate: Student) => {
+    if (!studentToUpdate || !studentToUpdate.name.trim()) {
       toast({
         title: "Ma'lumot yetishmayapti",
         description: "O'quvchi nomini kiriting",
@@ -183,21 +180,21 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
       const { error } = await supabase
         .from('students')
         .update({
-          name: editingStudent.name.trim(),
-          student_id: editingStudent.student_id?.trim() || null,
-          email: editingStudent.email?.trim() || null,
-          phone: editingStudent.phone?.trim() || null,
-          group_name: editingStudent.group_name
+          name: studentToUpdate.name.trim(),
+          student_id: studentToUpdate.student_id?.trim() || null,
+          email: studentToUpdate.email?.trim() || null,
+          phone: studentToUpdate.phone?.trim() || null,
+          group_name: studentToUpdate.group_name
         })
-        .eq('id', editingStudent.id);
+        .eq('id', studentToUpdate.id);
 
       if (error) throw error;
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
       
-      setEditingStudent(null);
       setIsEditDialogOpen(false);
+      setEditingStudent(null);
       
       toast({
         title: "O'quvchi yangilandi",
@@ -292,47 +289,27 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const addReward = async (studentId: string) => {
-    if (!rewardPoints) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "Ball miqdorini kiriting",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const points = parseFloat(rewardPoints);
-    if (isNaN(points)) {
-      toast({
-        title: "Noto'g'ri format",
-        description: "Ball sonli qiymat bo'lishi kerak",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const addReward = async (studentId: string, points: number, type: 'reward' | 'penalty') => {
     try {
       const { error } = await supabase
         .from('reward_penalty_history')
         .insert({
           student_id: studentId,
           teacher_id: teacherId,
-          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          type: rewardType
+          points: type === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          reason: type === 'reward' ? 'Mukofot' : 'Jarima',
+          type: type
         });
 
       if (error) throw error;
 
-      setShowRewardDialog(null);
-      setRewardPoints('');
+      setRewardingStudent(null);
       if (onStatsUpdate) await onStatsUpdate();
       
       const studentName = students.find(s => s.id === studentId)?.name || '';
       toast({
-        title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
-        description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
+        title: type === 'reward' ? "Mukofot berildi" : "Jarima berildi",
+        description: `${studentName}ga ${Math.abs(points)} ball ${type === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
       });
     } catch (error) {
       console.error('Error adding reward/penalty:', error);
@@ -344,281 +321,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const renderStudentsList = () => (
-    <Card className="apple-card">
-      <div className="p-6 border-b border-border/50">
-        <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
-        <p className="text-sm text-muted-foreground">
-          {filteredStudents.length} o'quvchi topildi
-        </p>
-      </div>
-      <div className="divide-y divide-border/50">
-        {filteredStudents.map(student => (
-          <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium">
-                  {student.name.split(' ').map(n => n[0]).join('')}
-                </span>
-              </div>
-              <div>
-                <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
-                  {student.name}
-                </h3>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                  {student.student_id && <span>ID: {student.student_id}</span>}
-                  <span className="text-blue-600">{student.group_name}</span>
-                </div>
-                {(student.email || student.phone) && (
-                  <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-1">
-                    {student.email && <span>{student.email}</span>}
-                    {student.phone && <span>{student.phone}</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowRewardDialog(student.id)}
-                  >
-                    <Gift className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Mukofot/Jarima berish</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setEditingStudent(student);
-                      setIsEditDialogOpen(true);
-                    }}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Tahrirlash</TooltipContent>
-              </Tooltip>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Arxivlash</TooltipContent>
-                  </Tooltip>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      "{student.name}" ni arxivlashga ishonchingiz komilmi? Arxivlangan o'quvchilarni keyinroq tiklash mumkin.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => archiveStudent(student.id, student.name)}
-                      className="bg-orange-600 hover:bg-orange-700"
-                    >
-                      Arxivlash
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">O'chirish</TooltipContent>
-                  </Tooltip>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      "{student.name}" ni o'chirishga ishonchingiz komilmi? O'chirilgan o'quvchilarni chiqindi qutisidan tiklash mumkin.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => deleteStudent(student.id, student.name)}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      O'chirish
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-
-  const renderStudentsGrid = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredStudents.map(student => (
-        <Card key={student.id} className="apple-card p-6">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-                  <span className="text-lg font-medium">
-                    {student.name.split(' ').map(n => n[0]).join('')}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
-                    {student.name}
-                  </h3>
-                  {student.student_id && (
-                    <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
-                  )}
-                  <p className="text-sm text-blue-600">{student.group_name}</p>
-                </div>
-              </div>
-            </div>
-
-            {(student.email || student.phone) && (
-              <div className="space-y-1">
-                {student.email && (
-                  <p className="text-sm text-muted-foreground">{student.email}</p>
-                )}
-                {student.phone && (
-                  <p className="text-sm text-muted-foreground">{student.phone}</p>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-2 border-t">
-              <span className="text-xs text-muted-foreground">
-                {new Date(student.created_at).toLocaleDateString('uz-UZ')}
-              </span>
-              <div className="flex items-center space-x-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowRewardDialog(student.id)}
-                    >
-                      <Gift className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Mukofot/Jarima berish</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingStudent(student);
-                        setIsEditDialogOpen(true);
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Tahrirlash</TooltipContent>
-                </Tooltip>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                        >
-                          <Archive className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Arxivlash</TooltipContent>
-                    </Tooltip>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        "{student.name}" ni arxivlashga ishonchingiz komilmi? Arxivlangan o'quvchilarni keyinroq tiklash mumkin.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => archiveStudent(student.id, student.name)}
-                        className="bg-orange-600 hover:bg-orange-700"
-                      >
-                        Arxivlash
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">O'chirish</TooltipContent>
-                    </Tooltip>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        "{student.name}" ni o'chirishga ishonchingiz komilmi? O'chirilgan o'quvchilarni chiqindi qutisidan tiklash mumkin.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => deleteStudent(student.id, student.name)}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        O'chirish
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+  const handleEdit = (student: Student) => {
+    setEditingStudent(student);
+    setIsEditDialogOpen(true);
+  };
+  
+  const handleReward = (student: Student) => {
+    setRewardingStudent(student);
+  };
 
   if (loading) {
     return (
@@ -644,129 +354,23 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               if (onStatsUpdate) onStatsUpdate();
             }}
           />
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="apple-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Yangi o'quvchi
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="studentName">O'quvchi nomi *</Label>
-                  <Input
-                    id="studentName"
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                    placeholder="To'liq ism sharif"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="studentId">O'quvchi ID</Label>
-                  <Input
-                    id="studentId"
-                    value={newStudent.student_id}
-                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
-                    placeholder="Masalan: 2024001"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="studentGroup">Guruh *</Label>
-                  <Select value={newStudent.group_name} onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Guruhni tanlang" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map(group => (
-                        <SelectItem key={group.id} value={group.name}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="studentEmail">Email</Label>
-                  <Input
-                    id="studentEmail"
-                    type="email"
-                    value={newStudent.email}
-                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                    placeholder="student@example.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="studentPhone">Telefon</Label>
-                  <Input
-                    id="studentPhone"
-                    value={newStudent.phone}
-                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                    placeholder="+998 90 123 45 67"
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <Button onClick={addStudent} className="apple-button flex-1">
-                    Qo'shish
-                  </Button>
-                  <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
-                    Bekor qilish
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button className="apple-button" onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Yangi o'quvchi
+          </Button>
         </div>
       </div>
 
-      {/* Filter va qidiruv */}
-      <Card className="apple-card p-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="O'quvchi nomi yoki ID bo'yicha qidiring..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha guruhlar</SelectItem>
-              {groups.map(group => (
-                <SelectItem key={group.id} value={group.name}>
-                  {group.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'outline'}
-              onClick={() => setViewMode('grid')}
-              size="sm"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              onClick={() => setViewMode('list')}
-              size="sm"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* O'quvchilar ro'yxati */}
+      <StudentFilters
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        selectedGroup={selectedGroup}
+        onSelectedGroupChange={setSelectedGroup}
+        groups={groups}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
+      
       {filteredStudents.length === 0 ? (
         <Card className="apple-card p-12 text-center">
           <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -793,137 +397,64 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
             </div>
           )}
         </Card>
-      ) : (
-        viewMode === 'grid' ? renderStudentsGrid() : renderStudentsList()
-      )}
-
-      {/* Reward Dialog */}
-      {showRewardDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  onClick={() => setRewardType('reward')}
-                  variant={rewardType === 'reward' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <Gift className="w-4 h-4" />
-                  Mukofot
-                </Button>
-                <Button
-                  onClick={() => setRewardType('penalty')}
-                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Jarima
-                </Button>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Ball miqdori</label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={rewardPoints}
-                  onChange={(e) => setRewardPoints(e.target.value)}
-                  placeholder="Masalan: 5"
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => addReward(showRewardDialog)}
-                  className="flex-1"
-                >
-                  Saqlash
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowRewardDialog(null);
-                    setRewardPoints('');
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Bekor qilish
-                </Button>
-              </div>
-            </div>
+      ) : viewMode === 'list' ? (
+        <Card className="apple-card">
+          <div className="p-6 border-b border-border/50">
+            <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
+            <p className="text-sm text-muted-foreground">{filteredStudents.length} o'quvchi topildi</p>
           </div>
+          <div className="divide-y divide-border/50">
+            {filteredStudents.map(student => (
+              <StudentListItem 
+                key={student.id} 
+                student={student}
+                onSelectStudent={setSelectedStudent}
+                onEdit={handleEdit}
+                onArchive={archiveStudent}
+                onDelete={deleteStudent}
+                onReward={handleReward}
+              />
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredStudents.map(student => (
+            <StudentGridItem
+              key={student.id}
+              student={student}
+              onSelectStudent={setSelectedStudent}
+              onEdit={handleEdit}
+              onArchive={archiveStudent}
+              onDelete={deleteStudent}
+              onReward={handleReward}
+            />
+          ))}
         </div>
       )}
 
-      {/* Tahrirlash dialogi */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>O'quvchini tahrirlash</DialogTitle>
-          </DialogHeader>
-          {editingStudent && (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="edit-studentName">O'quvchi nomi *</Label>
-                <Input
-                  id="edit-studentName"
-                  value={editingStudent.name}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-studentId">O'quvchi ID</Label>
-                <Input
-                  id="edit-studentId"
-                  value={editingStudent.student_id || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, student_id: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-studentGroup">Guruh</Label>
-                <Select value={editingStudent.group_name} onValueChange={(value) => setEditingStudent({ ...editingStudent, group_name: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map(group => (
-                      <SelectItem key={group.id} value={group.name}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="edit-studentEmail">Email</Label>
-                <Input
-                  id="edit-studentEmail"
-                  type="email"
-                  value={editingStudent.email || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-studentPhone">Telefon</Label>
-                <Input
-                  id="edit-studentPhone"
-                  value={editingStudent.phone || ''}
-                  onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })}
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button onClick={editStudent} className="apple-button flex-1">
-                  Saqlash
-                </Button>
-                <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
-                  Bekor qilish
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <AddStudentDialog 
+        isOpen={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onAddStudent={addStudent}
+        groups={groups}
+      />
 
-      {/* Student Details Popup */}
+      <EditStudentDialog 
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        student={editingStudent}
+        onEditStudent={editStudent}
+        groups={groups}
+      />
+
+      <RewardDialog
+        isOpen={!!rewardingStudent}
+        onOpenChange={(isOpen) => !isOpen && setRewardingStudent(null)}
+        student={rewardingStudent}
+        onAddReward={addReward}
+      />
+      
       {selectedStudent && (
         <StudentDetailsPopup
           studentId={selectedStudent.id}
