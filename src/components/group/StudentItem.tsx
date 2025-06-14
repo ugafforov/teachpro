@@ -60,10 +60,10 @@ const StudentItem: React.FC<StudentItemProps> = ({
 
   const getReasonButtonStyle = () => {
     const currentStatus = attendance?.status;
-    const isActive = currentStatus === 'absent_with_reason';
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-    
-    if (isActive) {
+
+    // Faqat absent_with_reason holatida ko'k rang
+    if (currentStatus === 'absent_with_reason') {
       return `${baseStyle} bg-blue-500 hover:bg-blue-600 text-white border-blue-500`;
     }
     return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
@@ -72,14 +72,17 @@ const StudentItem: React.FC<StudentItemProps> = ({
   const getRewardButtonStyle = () => {
     const points = student.rewardPenaltyPoints;
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-    
-    if (points !== undefined && points !== 0) {
+
+    if (typeof points === 'number' && points !== 0) {
       if (points > 0) {
+        // Pozitiv ball ("Mukofot") - och yashil
         return `${baseStyle} bg-green-100 hover:bg-green-200 text-green-700 border-green-300`;
       } else {
+        // Negativ ball ("Jarima") - och qizil
         return `${baseStyle} bg-red-100 hover:bg-red-200 text-red-700 border-red-300`;
       }
     }
+    // Standart holat
     return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
   };
 
@@ -90,7 +93,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
 
   const getRewardIconColor = () => {
     const points = student.rewardPenaltyPoints;
-    if (points !== undefined && points !== 0) {
+    if (typeof points === 'number' && points !== 0) {
       return points > 0 ? 'text-green-700' : 'text-red-700';
     }
     return 'text-gray-600';
@@ -180,6 +183,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
           </TooltipTrigger>
           <TooltipContent>Kelmagan</TooltipContent>
         </Tooltip>
+        {/* YANGILANGAN: Sababli kelmagan tugmasi */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -192,6 +196,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
           </TooltipTrigger>
           <TooltipContent>Sababli kelmagan</TooltipContent>
         </Tooltip>
+        {/* YANGILANGAN: Mukofot/Jarima tugmasi */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
