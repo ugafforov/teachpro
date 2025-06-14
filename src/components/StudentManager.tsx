@@ -379,32 +379,47 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
             </div>
 
             <div className="flex items-center space-x-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowRewardDialog(student.id)}
-              >
-                <Gift className="w-4 h-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setEditingStudent(student);
-                  setIsEditDialogOpen(true);
-                }}
-              >
-                <Edit2 className="w-4 h-4" />
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    onClick={() => setShowRewardDialog(student.id)}
                   >
-                    <Archive className="w-4 h-4" />
+                    <Gift className="w-4 h-4" />
                   </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Mukofot/Jarima berish</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingStudent(student);
+                      setIsEditDialogOpen(true);
+                    }}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Tahrirlash</TooltipContent>
+              </Tooltip>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Arxivlash</TooltipContent>
+                  </Tooltip>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -426,13 +441,18 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               </AlertDialog>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">O'chirish</TooltipContent>
+                  </Tooltip>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
