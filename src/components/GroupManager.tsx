@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogOverlay } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
 
@@ -592,6 +593,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         <Archive className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
+                    <AlertDialogOverlay onClick={(e) => e.stopPropagation()} />
                     <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
@@ -625,6 +627,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
+                    <AlertDialogOverlay onClick={(e) => e.stopPropagation()} />
                     <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
