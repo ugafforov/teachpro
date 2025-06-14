@@ -26,23 +26,32 @@ interface Group {
 const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onImportComplete }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [importText, setImportText] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState(groupName || '');
+  const [selectedGroup, setSelectedGroup] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Guruhlarni har safar dialog ochilganda olib kelish
   useEffect(() => {
     if (isOpen) {
       fetchGroups();
     }
   }, [isOpen]);
 
+  // groupName va guruhlar o'zgarganda selectedGroup ni aniqlash
   useEffect(() => {
-    if (isOpen && groupName) {
-      setSelectedGroup(groupName);
+    if (isOpen && groups.length > 0) {
+      if (groupName && groups.some(g => g.name === groupName)) {
+        setSelectedGroup(groupName);
+      } else if (groups.length === 1) {
+        setSelectedGroup(groups[0].name);
+      } else {
+        setSelectedGroup('');
+      }
     }
-  }, [isOpen, groupName]);
+  }, [isOpen, groups, groupName]);
 
+  // Guruhlarni olib kelish funksiyasi
   const fetchGroups = async () => {
     try {
       const { data, error } = await supabase
@@ -54,16 +63,12 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
       if (error) throw error;
       setGroups(data || []);
-      if (groupName && data?.find((g) => g.name === groupName)) {
-        setSelectedGroup(groupName);
-      } else if (data && data.length > 0 && !selectedGroup) {
-        setSelectedGroup(data[0].name);
-      }
     } catch (error) {
       console.error('Error fetching groups:', error);
     }
   };
 
+  // Import qilish
   const handleImport = async () => {
     if (!importText.trim()) {
       toast({
@@ -73,7 +78,6 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
       });
       return;
     }
-
     if (!selectedGroup) {
       toast({
         title: "Guruh tanlanmagan",
@@ -82,16 +86,13 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
       });
       return;
     }
-
     setLoading(true);
 
     try {
       const lines = importText.split('\n').filter(line => line.trim());
       const students = [];
-
       for (const line of lines) {
         const name = line.trim();
-
         if (name) {
           const student = {
             teacher_id: teacherId,
@@ -101,7 +102,6 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
           students.push(student);
         }
       }
-
       if (students.length === 0) {
         toast({
           title: "Ma'lumot topilmadi",
@@ -138,7 +138,8 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
     }
   };
 
-  const isSelectDisabled = !!groupName && groups.some((g) => g.name === groupName) && groups.length === 1;
+  // Selectni disable qilish shartlari: faqat bitta guruh bo'lsa yoki groupName berilgan bo'lsa
+  const isSelectDisabled = (groups.length === 1 || !!groupName);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -193,3 +194,4 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 };
 
 export default StudentImport;
+
