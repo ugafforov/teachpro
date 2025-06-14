@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { StatsData, MonthlyData } from '../types';
@@ -12,10 +11,32 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
   });
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [extraStats, setExtraStats] = useState<{ totalMonths?: number; bestMonth?: { month: string; percent: number } }>({});
 
   useEffect(() => {
     fetchStatistics();
   }, [teacherId, selectedPeriod, selectedGroup]);
+
+  // Helper to localize and format Uzbek months
+  const formatMonthUz = (jsDate: Date) => {
+    const monthNames = [
+      'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+      'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
+    ];
+    return `${monthNames[jsDate.getMonth()]}, ${jsDate.getFullYear()}-yil`;
+  };
+
+  // Calculate the total number of months from the first lesson date to today
+  const getTotalMonthsSinceFirstLesson = (firstDateStr: string | null) => {
+    if (!firstDateStr) return 0;
+    const now = new Date();
+    const first = new Date(firstDateStr);
+    let months = (now.getFullYear() - first.getFullYear()) * 12 + (now.getMonth() - first.getMonth());
+    // Include current month for partial months or if first lesson is this month
+    if (now.getDate() >= first.getDate()) months += 1;
+    months = Math.max(months, 1); // Always at least 1
+    return months;
+  };
 
   const getPeriodStartDate = (period: string) => {
     const now = new Date();
@@ -86,6 +107,19 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
       const totalStudents = studentsData?.length || 0;
       const startDate = getPeriodStartDate(selectedPeriod);
+
+      // Fetch first lesson date for the teacher
+      const { data: firstClassRow, error: firstClassError } = await supabase
+        .from('attendance_records')
+        .select('date')
+        .eq('teacher_id', teacherId)
+        .order('date', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (firstClassError) throw firstClassError;
+      const firstClassDate = firstClassRow?.date || null;
+
+      const totalMonths = getTotalMonthsSinceFirstLesson(firstClassDate);
 
       // Build query for attendance based on group filter and date range, only for active students
       let attendanceQuery = supabase
@@ -175,9 +209,52 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         });
       }
 
-      // Fetch monthly data
-      await fetchMonthlyData(totalStudents);
+      // Fetch monthly data and use for "Eng yaxshi oy" calculation
+      const formattedMonthly = await fetchMonthlyData(totalStudents, true);
+      let bestMonth: { month: string; percent: number } | null = null;
+      if (formattedMonthly.length > 0) {
+        // Find the month with the highest attendance
+        const sorted = [...formattedMonthly].sort((a, b) => b.averageAttendance - a.averageAttendance);
+        const best = sorted[0];
+        // Parse to JS date
+        // Assume original month is like '2025-yil Sentabr' or 'Sentabr 2025' or localized
+        const [m, y] = best.month.match(/\d{4}/) 
+          ? [best.month.replace(/\d{4}.*/, ""), best.month.match(/\d{4}/)?.[0]]
+          : [best.month, now.getFullYear().toString()];
+        // Try reconstructing a JS date
+        const monthNum = (() => {
+          const names = [
+            'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
+          ];
+          return names.findIndex(n =>
+            best.month.toLowerCase().includes(n.toLowerCase())
+          );
+        })();
+        let jsMonthDate;
+        try {
+          jsMonthDate = new Date(Number(y), monthNum >= 0 ? monthNum : 0, 1);
+        } catch {
+          jsMonthDate = new Date();
+        }
+        const bestMonthStr = formatMonthUz(jsMonthDate);
+        bestMonth = {
+          month: bestMonthStr,
+          percent: best.averageAttendance,
+        };
+      }
 
+      setStats({
+        totalStudents,
+        totalClasses,
+        averageAttendance: Math.round((stats.averageAttendance ?? 0) * 100) / 100,
+        topStudent
+      });
+
+      // Save for cards
+      setExtraStats({
+        totalMonths,
+        bestMonth: bestMonth ?? undefined,
+      });
     } catch (error) {
       console.error('Error fetching statistics:', error);
     } finally {
@@ -185,7 +262,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     }
   };
 
-  const fetchMonthlyData = async (totalStudents: number) => {
+  // Modified to allow getting full monthly data for "Eng yaxshi oy"
+  const fetchMonthlyData = async (totalStudents: number, returnData = false) => {
     try {
       const startDate = getPeriodStartDate(selectedPeriod);
 
@@ -208,42 +286,55 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
       if (error) throw error;
 
-      // Calculate monthly statistics
       const monthlyStats: { [key: string]: { classes: Set<string>, present: number } } = {};
 
       monthlyAttendance?.forEach(record => {
-        const month = new Date(record.date).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' });
-        
-        if (!monthlyStats[month]) {
-          monthlyStats[month] = { classes: new Set(), present: 0 };
+        // Get 2025-09 or 2025 Sentabr
+        const date = new Date(record.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (!monthlyStats[monthKey]) {
+          monthlyStats[monthKey] = { classes: new Set(), present: 0 };
         }
-        
-        monthlyStats[month].classes.add(record.date);
-        // Count both present and late as attendance
+        monthlyStats[monthKey].classes.add(record.date);
+        // present or late
         if (record.status === 'present' || record.status === 'late') {
-          monthlyStats[month].present++;
+          monthlyStats[monthKey].present++;
         }
       });
 
-      const formattedMonthlyData: MonthlyData[] = Object.entries(monthlyStats).map(([month, data]) => ({
-        month,
-        totalClasses: data.classes.size,
-        averageAttendance: data.classes.size > 0 && totalStudents > 0 
-          ? (data.present / (data.classes.size * totalStudents)) * 100 
-          : totalStudents === 0 ? 0 : 100,
-        totalStudents: totalStudents
-      }));
+      // Now format as array with 'Sentabr, 2025'-style strings
+      const result: MonthlyData[] = Object.entries(monthlyStats).map(([monthKey, data]) => {
+        const [year, monthNum] = monthKey.split("-");
+        const jsDate = new Date(Number(year), Number(monthNum) - 1, 1);
+        return {
+          month: formatMonthUz(jsDate),
+          totalClasses: data.classes.size,
+          averageAttendance:
+            data.classes.size > 0 && totalStudents > 0
+              ? (data.present / (data.classes.size * totalStudents)) * 100
+              : totalStudents === 0
+                ? 0
+                : 100,
+          totalStudents: totalStudents,
+        };
+      });
 
-      setMonthlyData(formattedMonthlyData);
+      if (returnData) return result;
+      setMonthlyData(result);
+      return result;
     } catch (error) {
       console.error('Error fetching monthly data:', error);
+      if (returnData) return [];
     }
   };
 
   return {
-    stats,
+    stats: {
+      ...stats,
+      ...extraStats,
+    },
     monthlyData,
     loading,
-    refetch: fetchStatistics
+    refetch: fetchStatistics,
   };
 };
