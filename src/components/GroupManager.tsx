@@ -592,7 +592,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         <Archive className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -600,9 +600,12 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Bekor qilish</AlertDialogCancel>
                         <AlertDialogAction 
-                          onClick={() => handleArchiveGroup(group.id, group.name)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchiveGroup(group.id, group.name);
+                          }}
                           className="bg-orange-600 hover:bg-orange-700"
                         >
                           Arxivlash
@@ -622,7 +625,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -630,9 +633,12 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Bekor qilish</AlertDialogCancel>
                         <AlertDialogAction 
-                          onClick={() => handleDeleteGroup(group.id, group.name)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteGroup(group.id, group.name);
+                          }}
                           className="bg-red-600 hover:bg-red-700"
                         >
                           O'chirish
