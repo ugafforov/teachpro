@@ -30,16 +30,12 @@ const WeeklyTopStudents: React.FC<WeeklyTopStudentsProps> = ({ teacherId }) => {
     try {
       setLoading(true);
       
-      // Raw SQL query to get weekly top students
-      const { data, error } = await supabase.rpc('sql', {
-        query: `
-          SELECT id, student_name, group_name, weekly_score, attendance_rate, reward_points, rank_position
-          FROM weekly_top_students 
-          WHERE teacher_id = $1 
-          ORDER BY rank_position ASC
-        `,
-        params: [teacherId]
-      });
+      // Use direct table query with proper typing
+      const { data, error } = await supabase
+        .from('weekly_top_students' as any)
+        .select('id, student_name, group_name, weekly_score, attendance_rate, reward_points, rank_position')
+        .eq('teacher_id', teacherId)
+        .order('rank_position', { ascending: true });
 
       if (error) {
         console.error('Error fetching weekly top students:', error);
@@ -59,11 +55,8 @@ const WeeklyTopStudents: React.FC<WeeklyTopStudentsProps> = ({ teacherId }) => {
 
   const calculateWeeklyStats = async () => {
     try {
-      // Call the calculate function using raw SQL
-      const { error } = await supabase.rpc('sql', {
-        query: 'SELECT calculate_weekly_statistics()',
-        params: []
-      });
+      // Call the calculate function
+      const { error } = await supabase.rpc('calculate_weekly_statistics' as any);
       
       if (error) {
         console.error('Error calculating weekly statistics:', error);
