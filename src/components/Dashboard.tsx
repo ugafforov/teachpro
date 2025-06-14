@@ -115,8 +115,6 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   };
 
   const handleGroupSelect = (groupName: string) => {
-    // For now, we can just log the selected group
-    // This could be extended to navigate to group details or perform other actions
     console.log('Selected group:', groupName);
   };
 
@@ -316,6 +314,18 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                 </button>
               );
             })}
+            
+            {/* Chiqish tugmasi sidebarning oxirida */}
+            <button
+              onClick={onLogout}
+              className={`w-full flex items-center px-6 py-3 text-left transition-colors text-red-600 hover:bg-red-50 mt-4 border-t border-gray-200 ${
+                sidebarCollapsed ? 'justify-center px-4' : ''
+              }`}
+              title={sidebarCollapsed ? 'Chiqish' : ''}
+            >
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              {!sidebarCollapsed && <span className="ml-3">Chiqish</span>}
+            </button>
           </nav>
         </div>
 
