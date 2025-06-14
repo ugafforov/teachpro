@@ -70,11 +70,15 @@ const StudentItem: React.FC<StudentItemProps> = ({
   };
 
   const getRewardButtonStyle = () => {
-    const hasRewardPoints = student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0;
+    const points = student.rewardPenaltyPoints;
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
     
-    if (hasRewardPoints) {
-      return `${baseStyle} bg-purple-500 hover:bg-purple-600 text-white border-purple-500`;
+    if (points !== undefined && points !== 0) {
+      if (points > 0) {
+        return `${baseStyle} bg-green-100 hover:bg-green-200 text-green-700 border-green-300`;
+      } else {
+        return `${baseStyle} bg-red-100 hover:bg-red-200 text-red-700 border-red-300`;
+      }
     }
     return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
   };
@@ -85,8 +89,11 @@ const StudentItem: React.FC<StudentItemProps> = ({
   };
 
   const getRewardIconColor = () => {
-    const hasRewardPoints = student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0;
-    return hasRewardPoints ? 'text-white' : 'text-gray-600';
+    const points = student.rewardPenaltyPoints;
+    if (points !== undefined && points !== 0) {
+      return points > 0 ? 'text-green-700' : 'text-red-700';
+    }
+    return 'text-gray-600';
   };
 
   const getRewardDisplay = (points: number) => {
