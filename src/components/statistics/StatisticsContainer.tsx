@@ -1,10 +1,7 @@
 
 import React, { useState } from 'react';
-import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import StatisticsCards from './StatisticsCards';
-import MonthlyAnalysis from './MonthlyAnalysis';
-import GroupRankings from './GroupRankings';
 import { useStatistics } from './hooks/useStatistics';
 
 interface StatisticsContainerProps {
@@ -15,7 +12,7 @@ const StatisticsContainer: React.FC<StatisticsContainerProps> = ({ teacherId }) 
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('1oy');
   
-  const { stats, monthlyData, loading } = useStatistics(teacherId, selectedPeriod, selectedGroup);
+  const { stats, loading } = useStatistics(teacherId, selectedPeriod, selectedGroup);
 
   if (loading) {
     return (
@@ -64,18 +61,8 @@ const StatisticsContainer: React.FC<StatisticsContainerProps> = ({ teacherId }) 
         </div>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Statistics Cards - Only these 4 cards remain */}
       <StatisticsCards stats={stats} />
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <MonthlyAnalysis data={monthlyData} />
-        </Card>
-        <Card className="p-6">
-          <GroupRankings teacherId={teacherId} selectedGroup={selectedGroup} />
-        </Card>
-      </div>
     </div>
   );
 };
