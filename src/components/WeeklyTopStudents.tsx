@@ -30,19 +30,27 @@ const WeeklyTopStudents: React.FC<WeeklyTopStudentsProps> = ({ teacherId }) => {
     try {
       setLoading(true);
       
-      // Joriy haftaning eng yaxshi o'quvchilarni olish
-      const { data, error } = await supabase
-        .from('weekly_top_students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .order('rank_position');
+      // Raw SQL query to get weekly top students
+      const { data, error } = await supabase.rpc('sql', {
+        query: `
+          SELECT id, student_name, group_name, weekly_score, attendance_rate, reward_points, rank_position
+          FROM weekly_top_students 
+          WHERE teacher_id = $1 
+          ORDER BY rank_position ASC
+        `,
+        params: [teacherId]
+      });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching weekly top students:', error);
+        // If no data exists, try to calculate it
+        await calculateWeeklyStats();
+        return;
+      }
 
-      setTopStudents(data || []);
+      setTopStudents((data || []) as WeeklyTopStudent[]);
     } catch (error) {
       console.error('Error fetching weekly top students:', error);
-      // Agar haftalik ma'lumotlar yo'q bo'lsa, funksiyani chaqirib yangi ma'lumotlar yaratamiz
       await calculateWeeklyStats();
     } finally {
       setLoading(false);
@@ -51,10 +59,18 @@ const WeeklyTopStudents: React.FC<WeeklyTopStudentsProps> = ({ teacherId }) => {
 
   const calculateWeeklyStats = async () => {
     try {
-      const { error } = await supabase.rpc('calculate_weekly_statistics');
-      if (error) throw error;
+      // Call the calculate function using raw SQL
+      const { error } = await supabase.rpc('sql', {
+        query: 'SELECT calculate_weekly_statistics()',
+        params: []
+      });
       
-      // Qayta yuklash
+      if (error) {
+        console.error('Error calculating weekly statistics:', error);
+        return;
+      }
+      
+      // Retry fetching after calculation
       setTimeout(() => {
         fetchWeeklyTopStudents();
       }, 1000);

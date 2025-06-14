@@ -28,15 +28,26 @@ const WeeklyTopGroup: React.FC<WeeklyTopGroupProps> = ({ teacherId }) => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
-        .from('weekly_top_groups')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .single();
+      // Raw SQL query to get weekly top group
+      const { data, error } = await supabase.rpc('sql', {
+        query: `
+          SELECT id, group_name, average_attendance, total_students, active_students
+          FROM weekly_top_groups 
+          WHERE teacher_id = $1 
+          ORDER BY created_at DESC 
+          LIMIT 1
+        `,
+        params: [teacherId]
+      });
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) {
+        console.error('Error fetching weekly top group:', error);
+        return;
+      }
 
-      setTopGroup(data);
+      if (data && data.length > 0) {
+        setTopGroup(data[0] as WeeklyTopGroup);
+      }
     } catch (error) {
       console.error('Error fetching weekly top group:', error);
     } finally {
