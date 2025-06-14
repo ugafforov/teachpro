@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,31 +28,42 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   const [selectedGroup, setSelectedGroup] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const { toast } = useToast();
 
   // Guruhlarni har safar dialog ochilganda olib kelish
   useEffect(() => {
     if (isOpen) {
       fetchGroups();
+    } else {
+      // Dialog yopilganda barcha holatlarni tozalash
+      setSelectedGroup('');
+      setGroupsLoaded(false);
     }
   }, [isOpen]);
 
-  // groupName va guruhlar o'zgarganda selectedGroup ni aniqlash
+  // groupName va guruhlar yuklanib bo'lganda selectedGroup ni aniqlash
   useEffect(() => {
-    if (isOpen && groups.length > 0) {
-      if (groupName && groups.some(g => g.name === groupName)) {
-        setSelectedGroup(groupName);
+    if (groupsLoaded && groups.length > 0) {
+      if (groupName) {
+        // Agar groupName berilgan bo'lsa va u guruhlar ro'yxatida mavjud bo'lsa
+        const foundGroup = groups.find(g => g.name === groupName);
+        if (foundGroup) {
+          setSelectedGroup(groupName);
+        } else if (groups.length === 1) {
+          setSelectedGroup(groups[0].name);
+        }
       } else if (groups.length === 1) {
+        // Agar faqat bitta guruh bo'lsa, avtomatik tanlash
         setSelectedGroup(groups[0].name);
-      } else {
-        setSelectedGroup('');
       }
     }
-  }, [isOpen, groups, groupName]);
+  }, [groupsLoaded, groups, groupName]);
 
   // Guruhlarni olib kelish funksiyasi
   const fetchGroups = async () => {
     try {
+      setGroupsLoaded(false);
       const { data, error } = await supabase
         .from('groups')
         .select('*')
@@ -63,8 +73,10 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
       if (error) throw error;
       setGroups(data || []);
+      setGroupsLoaded(true);
     } catch (error) {
       console.error('Error fetching groups:', error);
+      setGroupsLoaded(true);
     }
   };
 
@@ -194,4 +206,3 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 };
 
 export default StudentImport;
-
