@@ -2,6 +2,10 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { CheckCircle, Clock, XCircle, Gift, Star, AlertTriangle, ShieldQuestion } from 'lucide-react';
+import StudentAvatar from './StudentAvatar';
+import AttendanceButton from './AttendanceButton';
+import ReasonButton from './ReasonButton';
+import RewardPenaltyButton from './RewardPenaltyButton';
 
 interface Student {
   id: string;
@@ -34,71 +38,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
   onShowReward,
   onShowReason
 }) => {
-  const getButtonStyle = (targetStatus: AttendanceStatus) => {
-    const currentStatus = attendance?.status;
-    const isActive = currentStatus === targetStatus;
-    
-    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-    
-    if (!isActive) {
-      return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
-    }
-    
-    switch (targetStatus) {
-      case 'present':
-        return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
-      case 'late':
-        return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
-      case 'absent':
-        return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
-      case 'absent_with_reason':
-        return `${baseStyle} bg-blue-500 hover:bg-blue-600 text-white border-blue-500`;
-      default:
-        return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
-    }
-  };
-
-  const getReasonButtonStyle = () => {
-    const currentStatus = attendance?.status;
-    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-
-    // Faqat absent_with_reason holatida ko'k rang
-    if (currentStatus === 'absent_with_reason') {
-      return `${baseStyle} bg-blue-500 hover:bg-blue-600 text-white border-blue-500`;
-    }
-    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
-  };
-
-  const getRewardButtonStyle = () => {
-    const points = student.rewardPenaltyPoints;
-    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-
-    if (typeof points === 'number' && points !== 0) {
-      if (points > 0) {
-        // Pozitiv ball ("Mukofot") - och yashil
-        return `${baseStyle} bg-green-100 hover:bg-green-200 text-green-700 border-green-300`;
-      } else {
-        // Negativ ball ("Jarima") - och qizil
-        return `${baseStyle} bg-red-100 hover:bg-red-200 text-red-700 border-red-300`;
-      }
-    }
-    // Standart holat
-    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
-  };
-
-  const getReasonIconColor = () => {
-    const currentStatus = attendance?.status;
-    return currentStatus === 'absent_with_reason' ? 'text-white' : 'text-gray-600';
-  };
-
-  const getRewardIconColor = () => {
-    const points = student.rewardPenaltyPoints;
-    if (typeof points === 'number' && points !== 0) {
-      return points > 0 ? 'text-green-700' : 'text-red-700';
-    }
-    return 'text-gray-600';
-  };
-
+  // Helper for displaying reward points as a badge
   const getRewardDisplay = (points: number) => {
     if (points === 0) return null;
     return (
@@ -112,12 +52,6 @@ const StudentItem: React.FC<StudentItemProps> = ({
     );
   };
 
-  const getRewardIcon = (points: number) => {
-    if (points === 0) return null;
-    if (points > 0) return <Star className="w-4 h-4 text-yellow-500" />;
-    return <AlertTriangle className="w-4 h-4 text-red-500" />;
-  };
-
   return (
     <div className="p-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
@@ -125,16 +59,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
           onClick={() => onStudentClick(student.id)}
           className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
         >
-          <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center relative">
-            <span className="text-sm font-medium">
-              {student.name.split(' ').map(n => n[0]).join('')}
-            </span>
-            {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && (
-              <div className="absolute -top-1 -right-1">
-                {getRewardIcon(student.rewardPenaltyPoints)}
-              </div>
-            )}
-          </div>
+          <StudentAvatar name={student.name} rewardPenaltyPoints={student.rewardPenaltyPoints} />
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">{student.name}</h3>
@@ -149,64 +74,52 @@ const StudentItem: React.FC<StudentItemProps> = ({
       <div className="flex items-center space-x-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="sm"
+            <AttendanceButton
+              isActive={attendance?.status === 'present'}
+              type="present"
               onClick={() => onMarkAttendance(student.id, 'present')}
-              className={getButtonStyle('present')}
-            >
-              <CheckCircle className="w-4 h-4" />
-            </Button>
+              icon={<CheckCircle className="w-4 h-4" />}
+            />
           </TooltipTrigger>
           <TooltipContent>Keldi</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="sm"
+            <AttendanceButton
+              isActive={attendance?.status === 'late'}
+              type="late"
               onClick={() => onMarkAttendance(student.id, 'late')}
-              className={getButtonStyle('late')}
-            >
-              <Clock className="w-4 h-4" />
-            </Button>
+              icon={<Clock className="w-4 h-4" />}
+            />
           </TooltipTrigger>
           <TooltipContent>Kechikdi</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="sm"
+            <AttendanceButton
+              isActive={attendance?.status === 'absent'}
+              type="absent"
               onClick={() => onMarkAttendance(student.id, 'absent')}
-              className={getButtonStyle('absent')}
-            >
-              <XCircle className="w-4 h-4" />
-            </Button>
+              icon={<XCircle className="w-4 h-4" />}
+            />
           </TooltipTrigger>
           <TooltipContent>Kelmagan</TooltipContent>
         </Tooltip>
-        {/* YANGILANGAN: Sababli kelmagan tugmasi */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="sm"
+            <ReasonButton
+              active={attendance?.status === 'absent_with_reason'}
               onClick={() => onShowReason(student)}
-              className={getReasonButtonStyle()}
-            >
-              <ShieldQuestion className={`w-4 h-4 ${getReasonIconColor()}`} />
-            </Button>
+            />
           </TooltipTrigger>
           <TooltipContent>Sababli kelmagan</TooltipContent>
         </Tooltip>
-        {/* YANGILANGAN: Mukofot/Jarima tugmasi */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="sm"
-              variant="ghost"
+            <RewardPenaltyButton
+              points={student.rewardPenaltyPoints}
               onClick={() => onShowReward(student.id)}
-              className={getRewardButtonStyle()}
-            >
-              <Gift className={`w-4 h-4 ${getRewardIconColor()}`} />
-            </Button>
+            />
           </TooltipTrigger>
           <TooltipContent>Mukofot/Jarima berish</TooltipContent>
         </Tooltip>
