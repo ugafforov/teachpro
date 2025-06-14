@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
 
@@ -271,13 +272,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleArchiveGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
-    e.stopPropagation();
-    
-    if (!confirm(`"${groupName}" guruhini arxivlashga ishonchingiz komilmi?`)) {
-      return;
-    }
-
+  const handleArchiveGroup = async (groupId: string, groupName: string) => {
     try {
       // Move group to archived_groups table
       const group = groups.find(g => g.id === groupId);
@@ -356,13 +351,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleDeleteGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
-    e.stopPropagation();
-    
-    if (!confirm(`"${groupName}" guruhini o'chirishga ishonchingiz komilmi?`)) {
-      return;
-    }
-
+  const handleDeleteGroup = async (groupId: string, groupName: string) => {
     try {
       // Move group to deleted_groups table
       const group = groups.find(g => g.id === groupId);
@@ -591,24 +580,66 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   >
                     <Edit2 className="w-4 h-4" />
                   </Button>
-                  <Button
-                    onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
-                    title="Arxivlash"
-                  >
-                    <Archive className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                    title="O'chirish"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        onClick={(e) => e.stopPropagation()}
+                        variant="ghost"
+                        size="sm"
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                        title="Arxivlash"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          "{group.name}" guruhini arxivlashga ishonchingiz komilmi? Arxivlangan guruhlarni keyinroq tiklash mumkin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handleArchiveGroup(group.id, group.name)}
+                          className="bg-orange-600 hover:bg-orange-700"
+                        >
+                          Arxivlash
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        onClick={(e) => e.stopPropagation()}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+                        title="O'chirish"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          "{group.name}" guruhini o'chirishga ishonchingiz komilmi? O'chirilgan guruhlarni chiqindi qutisidan tiklash mumkin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handleDeleteGroup(group.id, group.name)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          O'chirish
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </Card>

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
@@ -235,16 +236,22 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${studentName} muvaffaqiyatli arxivlandi`,
+      });
     } catch (error) {
       console.error('Error archiving student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini arxivlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
     }
   };
 
   const deleteStudent = async (studentId: string, studentName: string) => {
-    if (!confirm(`Rostdan ham "${studentName}" ni o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
-      return;
-    }
-
     try {
       const student = students.find(s => s.id === studentId);
       if (!student) return;
@@ -268,8 +275,18 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${studentName} muvaffaqiyatli o'chirildi`,
+      });
     } catch (error) {
       console.error('Error deleting student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini o'chirishda xatolik yuz berdi",
+        variant: "destructive",
+      });
     }
   };
 
@@ -378,22 +395,62 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
               >
                 <Edit2 className="w-4 h-4" />
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => archiveStudent(student.id, student.name)}
-                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-              >
-                <Archive className="w-4 h-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => deleteStudent(student.id, student.name)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      "{student.name}" ni arxivlashga ishonchingiz komilmi? Arxivlangan o'quvchilarni keyinroq tiklash mumkin.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => archiveStudent(student.id, student.name)}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      Arxivlash
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      "{student.name}" ni o'chirishga ishonchingiz komilmi? O'chirilgan o'quvchilarni chiqindi qutisidan tiklash mumkin.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => deleteStudent(student.id, student.name)}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      O'chirish
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ))}
@@ -459,22 +516,62 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
                 >
                   <Edit2 className="w-4 h-4" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => archiveStudent(student.id, student.name)}
-                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                >
-                  <Archive className="w-4 h-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => deleteStudent(student.id, student.name)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        "{student.name}" ni arxivlashga ishonchingiz komilmi? Arxivlangan o'quvchilarni keyinroq tiklash mumkin.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => archiveStudent(student.id, student.name)}
+                        className="bg-orange-600 hover:bg-orange-700"
+                      >
+                        Arxivlash
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        "{student.name}" ni o'chirishga ishonchingiz komilmi? O'chirilgan o'quvchilarni chiqindi qutisidan tiklash mumkin.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => deleteStudent(student.id, student.name)}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        O'chirish
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </div>
