@@ -119,13 +119,20 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, onAuthenticated }) => {
                   className="pr-10"
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Parolni {showPassword ? "yashirish" : "ko'rsatish"}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
 

@@ -142,7 +142,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
               O'quvchilarni import qilish
             </Button>
           </TooltipTrigger>
-          <TooltipContent>O'quvchilar ro'yxatini import qilish oynasini ochish</TooltipContent>
+          <TooltipContent>O'quvchilar ro'yxatini import qilish</TooltipContent>
         </Tooltip>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
@@ -200,8 +200,8 @@ Sardor Usmonov"
           <div className="flex space-x-2">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  onClick={handleImport} 
+                <Button
+                  onClick={handleImport}
                   disabled={loading || !selectedGroup}
                   className="flex-1"
                 >
@@ -214,9 +214,9 @@ Sardor Usmonov"
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  onClick={() => setIsOpen(false)} 
-                  variant="outline" 
+                <Button
+                  onClick={() => setIsOpen(false)}
+                  variant="outline"
                   className="flex-1"
                 >
                   Bekor qilish

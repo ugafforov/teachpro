@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface Student {
   id: string;
@@ -351,9 +351,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Button onClick={onBack} variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={onBack} variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ortga qaytish</TooltipContent>
+          </Tooltip>
           <div>
             <h2 className="text-2xl font-bold">{groupName}</h2>
             <p className="text-muted-foreground">{students.length} o'quvchi</p>
@@ -371,10 +376,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="apple-button">
-                <Plus className="w-4 h-4 mr-2" />
-                O'quvchi qo'shish
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button className="apple-button">
+                    <Plus className="w-4 h-4 mr-2" />
+                    O'quvchi qo'shish
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
+              </Tooltip>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -451,24 +461,34 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                   className="w-40"
                 />
               </div>
-              <Button
-                onClick={markAllAsPresent}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Barchani kelgan deb belgilash
-              </Button>
-              <Button
-                onClick={clearAllAttendance}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Belgilarni tozalash
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={markAllAsPresent}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Barchani kelgan deb belgilash
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Barcha o'quvchilarni “kelgan” sifatida belgilash</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={clearAllAttendance}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Belgilarni tozalash
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Barcha davomat statuslarini tozalash</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -479,10 +499,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             <p className="text-muted-foreground mb-4">
               Guruhga o'quvchilarni qo'shing
             </p>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
-              <Plus className="w-4 h-4 mr-2" />
-              Birinchi o'quvchini qo'shish
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Birinchi o'quvchini qo'shish
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
+            </Tooltip>
           </div>
         ) : (
           <div className="divide-y divide-border/50">
@@ -515,35 +540,55 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                   </button>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    onClick={() => markAttendance(student.id, 'present')}
-                    className={getButtonStyle(student.id, 'present')}
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => markAttendance(student.id, 'late')}
-                    className={getButtonStyle(student.id, 'late')}
-                  >
-                    <Clock className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => markAttendance(student.id, 'absent')}
-                    className={getButtonStyle(student.id, 'absent')}
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowRewardDialog(student.id)}
-                    title="Mukofot/Jarima berish"
-                  >
-                    <Gift className="w-4 h-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={() => markAttendance(student.id, 'present')}
+                        className={getButtonStyle(student.id, 'present')}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Keldi</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={() => markAttendance(student.id, 'late')}
+                        className={getButtonStyle(student.id, 'late')}
+                      >
+                        <Clock className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Kechikdi</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={() => markAttendance(student.id, 'absent')}
+                        className={getButtonStyle(student.id, 'absent')}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Kelmagan</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowRewardDialog(student.id)}
+                        title="Mukofot/Jarima berish"
+                      >
+                        <Gift className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Mukofot/Jarima berish</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             ))}
