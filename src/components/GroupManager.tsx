@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,10 +26,10 @@ interface GroupManagerProps {
   onStatsUpdate: () => Promise<void>;
 }
 
-const GroupManager: React.FC<GroupManagerProps> = ({ 
-  teacherId, 
-  onGroupSelect, 
-  onStatsUpdate 
+const GroupManager: React.FC<GroupManagerProps> = ({
+  teacherId,
+  onGroupSelect,
+  onStatsUpdate,
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -44,6 +43,22 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const [loading, setLoading] = useState(true);
   const [nameError, setNameError] = useState('');
   const { toast } = useToast();
+
+  // Har bir guruh uchun arxiv va o‘chirish dialoglari ochiqmi yo‘qmi — shularni kuzatamiz
+  const [openArchiveDialogIds, setOpenArchiveDialogIds] = useState<string[]>([]);
+  const [openDeleteDialogIds, setOpenDeleteDialogIds] = useState<string[]>([]);
+
+  // Yordamchi: Dialog ochish
+  const handleArchiveDialogOpen = (groupId: string, open: boolean) => {
+    setOpenArchiveDialogIds((prev) =>
+      open ? [...prev, groupId] : prev.filter((id) => id !== groupId)
+    );
+  };
+  const handleDeleteDialogOpen = (groupId: string, open: boolean) => {
+    setOpenDeleteDialogIds((prev) =>
+      open ? [...prev, groupId] : prev.filter((id) => id !== groupId)
+    );
+  };
 
   useEffect(() => {
     fetchGroups();
@@ -135,8 +150,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       if (deletedError) throw deletedError;
 
-      return (activeGroups?.length || 0) > 0 || 
-             (archivedGroups?.length || 0) > 0 || 
+      return (activeGroups?.length || 0) > 0 ||
+             (archivedGroups?.length || 0) > 0 ||
              (deletedGroups?.length || 0) > 0;
     } catch (error) {
       console.error('Error checking group name:', error);
@@ -186,7 +201,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       await fetchGroups();
       await onStatsUpdate();
-      
+
       setNewGroup({ name: '', description: '' });
       setNameError('');
       setIsAddDialogOpen(false);
@@ -255,10 +270,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       await fetchGroups();
       await onStatsUpdate();
-      
+
       setEditingGroup(null);
       setIsEditDialogOpen(false);
-      
+
       toast({
         title: "Guruh yangilandi",
         description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
@@ -500,20 +515,20 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 />
               </div>
               <div className="flex space-x-2">
-                <Button 
-                  onClick={addGroup} 
+                <Button
+                  onClick={addGroup}
                   className="bg-black text-white hover:bg-gray-800 flex-1"
                   disabled={!newGroup.name.trim() || !!nameError}
                 >
                   Yaratish
                 </Button>
-                <Button 
+                <Button
                   onClick={() => {
                     setIsAddDialogOpen(false);
                     setNewGroup({ name: '', description: '' });
                     setNameError('');
-                  }} 
-                  variant="outline" 
+                  }}
+                  variant="outline"
                   className="flex-1"
                 >
                   Bekor qilish
@@ -538,121 +553,174 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map(group => (
-            <Card 
-              key={group.id} 
-              className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => handleGroupClick(group.name)}
-            >
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
-                    <div>
-                      <span className="text-gray-600 text-sm">O'quvchilar</span>
-                      <div className="text-lg font-semibold">{group.student_count}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-green-500" />
-                    <div>
-                      <span className="text-gray-600 text-sm">Davomat</span>
-                      <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="text-sm text-gray-500">
-                  {new Date(group.created_at).toLocaleDateString('uz-UZ')}
-                </div>
+          {groups.map((group) => {
+            // Guruh uchun hozir arxiv yoki delete dialog ochiqmi — uni aniqlab olamiz
+            const isAnyDialogOpen =
+              openArchiveDialogIds.includes(group.id) ||
+              openDeleteDialogIds.includes(group.id);
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                  <Button
-                    onClick={(e) => handleEditGroup(e, group)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
-                    title="Tahrirlash"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="sm"
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
-                        title="Arxivlash"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogOverlay onClick={(e) => e.stopPropagation()} />
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          "{group.name}" guruhini arxivlashga ishonchingiz komilmi? Arxivlangan guruhlarni keyinroq tiklash mumkin.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Bekor qilish</AlertDialogCancel>
-                        <AlertDialogAction 
+            return (
+              <Card
+                key={group.id}
+                className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                // faqat dialoglar yopiq bo'lsa onClick ishlaydi
+                onClick={() => {
+                  if (!isAnyDialogOpen) {
+                    handleGroupClick(group.name);
+                  }
+                }}
+              >
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-blue-500" />
+                      <div>
+                        <span className="text-gray-600 text-sm">O'quvchilar</span>
+                        <div className="text-lg font-semibold">{group.student_count}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-green-500" />
+                      <div>
+                        <span className="text-gray-600 text-sm">Davomat</span>
+                        <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                    <Button
+                      onClick={(e) => handleEditGroup(e, group)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                      title="Tahrirlash"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    {/* Arxiv dialog */}
+                    <AlertDialog
+                      open={openArchiveDialogIds.includes(group.id)}
+                      onOpenChange={(open) => handleArchiveDialogOpen(group.id, open)}
+                    >
+                      <AlertDialogTrigger asChild>
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleArchiveGroup(group.id, group.name);
+                            handleArchiveDialogOpen(group.id, true);
                           }}
-                          className="bg-orange-600 hover:bg-orange-700"
+                          variant="ghost"
+                          size="sm"
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                          title="Arxivlash"
                         >
-                          Arxivlash
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
+                          <Archive className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogOverlay
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleArchiveDialogOpen(group.id, false);
+                        }}
+                      />
+                      <AlertDialogContent
                         onClick={(e) => e.stopPropagation()}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                        title="O'chirish"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogOverlay onClick={(e) => e.stopPropagation()} />
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          "{group.name}" guruhini o'chirishga ishonchingiz komilmi? O'chirilgan guruhlarni chiqindi qutisidan tiklash mumkin.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Bekor qilish</AlertDialogCancel>
-                        <AlertDialogAction 
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Guruhni arxivlash</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{group.name}" guruhini arxivlashga ishonchingiz komilmi? Arxivlangan guruhlarni keyinroq tiklash mumkin.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchiveDialogOpen(group.id, false);
+                            }}
+                          >
+                            Bekor qilish
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchiveDialogOpen(group.id, false);
+                              handleArchiveGroup(group.id, group.name);
+                            }}
+                            className="bg-orange-600 hover:bg-orange-700"
+                          >
+                            Arxivlash
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    {/* O‘chirish dialog */}
+                    <AlertDialog
+                      open={openDeleteDialogIds.includes(group.id)}
+                      onOpenChange={(open) => handleDeleteDialogOpen(group.id, open)}
+                    >
+                      <AlertDialogTrigger asChild>
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteGroup(group.id, group.name);
+                            handleDeleteDialogOpen(group.id, true);
                           }}
-                          className="bg-red-600 hover:bg-red-700"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+                          title="O'chirish"
                         >
-                          O'chirish
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogOverlay
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDialogOpen(group.id, false);
+                        }}
+                      />
+                      <AlertDialogContent
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{group.name}" guruhini o'chirishga ishonchingiz komilmi? O'chirilgan guruhlarni chiqindi qutisidan tiklash mumkin.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDialogOpen(group.id, false);
+                            }}
+                          >
+                            Bekor qilish
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDialogOpen(group.id, false);
+                              handleDeleteGroup(group.id, group.name);
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            O'chirish
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
