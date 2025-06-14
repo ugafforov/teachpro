@@ -74,34 +74,40 @@ const StudentItem: React.FC<StudentItemProps> = ({
       <div className="flex items-center space-x-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <AttendanceButton
-              isActive={attendance?.status === 'present'}
-              type="present"
-              onClick={() => onMarkAttendance(student.id, 'present')}
-              icon={<CheckCircle className="w-4 h-4" />}
-            />
+            <div>
+              <AttendanceButton
+                isActive={attendance?.status === 'present'}
+                type="present"
+                onClick={() => onMarkAttendance(student.id, 'present')}
+                icon={<CheckCircle className="w-4 h-4" />}
+              />
+            </div>
           </TooltipTrigger>
           <TooltipContent>Keldi</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <AttendanceButton
-              isActive={attendance?.status === 'late'}
-              type="late"
-              onClick={() => onMarkAttendance(student.id, 'late')}
-              icon={<Clock className="w-4 h-4" />}
-            />
+            <div>
+              <AttendanceButton
+                isActive={attendance?.status === 'late'}
+                type="late"
+                onClick={() => onMarkAttendance(student.id, 'late')}
+                icon={<Clock className="w-4 h-4" />}
+              />
+            </div>
           </TooltipTrigger>
           <TooltipContent>Kechikdi</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <AttendanceButton
-              isActive={attendance?.status === 'absent'}
-              type="absent"
-              onClick={() => onMarkAttendance(student.id, 'absent')}
-              icon={<XCircle className="w-4 h-4" />}
-            />
+            <div>
+              <AttendanceButton
+                isActive={attendance?.status === 'absent'}
+                type="absent"
+                onClick={() => onMarkAttendance(student.id, 'absent')}
+                icon={<XCircle className="w-4 h-4" />}
+              />
+            </div>
           </TooltipTrigger>
           <TooltipContent>Kelmagan</TooltipContent>
         </Tooltip>
