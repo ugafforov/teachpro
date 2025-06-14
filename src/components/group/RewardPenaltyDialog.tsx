@@ -66,6 +66,9 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
               }}
               placeholder="Masalan: 3"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              * Har kuni bitta o'quvchiga faqat bir marta mukofot/jarima berish mumkin
+            </p>
           </div>
           <div className="flex space-x-2">
             <Button

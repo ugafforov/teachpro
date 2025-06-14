@@ -17,6 +17,7 @@ interface Student {
   teacher_id: string;
   created_at: string;
   rewardPenaltyPoints?: number;
+  hasRewardToday?: boolean;
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'absent_with_reason';
@@ -59,11 +60,20 @@ const StudentItem: React.FC<StudentItemProps> = ({
           onClick={() => onStudentClick(student.id)}
           className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
         >
-          <StudentAvatar name={student.name} rewardPenaltyPoints={student.rewardPenaltyPoints} />
+          <StudentAvatar 
+            name={student.name} 
+            rewardPenaltyPoints={student.rewardPenaltyPoints} 
+            hasRewardToday={student.hasRewardToday}
+          />
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">{student.name}</h3>
               {student.rewardPenaltyPoints !== undefined && getRewardDisplay(student.rewardPenaltyPoints)}
+              {student.hasRewardToday && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  Bugun berildi
+                </span>
+              )}
             </div>
             {student.student_id && (
               <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
@@ -117,10 +127,16 @@ const StudentItem: React.FC<StudentItemProps> = ({
               <RewardPenaltyButton
                 points={student.rewardPenaltyPoints}
                 onClick={() => onShowReward(student.id)}
+                hasRewardToday={student.hasRewardToday}
               />
             </div>
           </TooltipTrigger>
-          <TooltipContent>Mukofot/Jarima berish</TooltipContent>
+          <TooltipContent>
+            {student.hasRewardToday 
+              ? "Bugun allaqachon mukofot/jarima berilgan" 
+              : "Mukofot/Jarima berish"
+            }
+          </TooltipContent>
         </Tooltip>
       </div>
     </div>

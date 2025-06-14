@@ -27,6 +27,7 @@ interface Student {
   teacher_id: string;
   created_at: string;
   rewardPenaltyPoints?: number;
+  hasRewardToday?: boolean;
 }
 
 type AttendanceStatus = 'present' | 'absent' | 'late' | 'absent_with_reason';
@@ -99,9 +100,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
         if (scoresError) throw scoresError;
 
+        // Bugungi sana uchun mukofot/jarima olganlarni tekshirish
+        const today = new Date().toISOString().split('T')[0];
+        const { data: todayRewards, error: rewardsError } = await supabase
+          .from('daily_reward_penalty_summary')
+          .select('student_id')
+          .in('student_id', studentIds)
+          .eq('teacher_id', teacherId)
+          .eq('date_given', today);
+
+        if (rewardsError) throw rewardsError;
+
         const studentsWithRewards = studentsData?.map(student => ({
           ...student,
-          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0
+          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0,
+          hasRewardToday: todayRewards?.some(r => r.student_id === student.id) || false
         })) || [];
 
         setStudents(studentsWithRewards);
@@ -270,9 +283,30 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
 
     if (rewardType === 'reward' && points > 5) {
+      toast({ 
+        title: "Cheklov", 
+        description: "Mukofot maksimum 5 ball bo'lishi mumkin", 
+        variant: "destructive" 
+      });
       return;
     }
     if (rewardType === 'penalty' && Math.abs(points) > 5) {
+      toast({ 
+        title: "Cheklov", 
+        description: "Jarima maksimum 5 ball bo'lishi mumkin", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Bugungi sana uchun allaqachon mukofot/jarima berilganligini tekshirish
+    const student = students.find(s => s.id === studentId);
+    if (student?.hasRewardToday) {
+      toast({ 
+        title: "Cheklov", 
+        description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan", 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -284,7 +318,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           teacher_id: teacherId,
           points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
           reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          type: rewardType
+          type: rewardType,
+          date_given: new Date().toISOString().split('T')[0]
         });
 
       if (error) throw error;
@@ -293,8 +328,20 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setRewardPoints('');
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
+      
+      toast({ 
+        title: "Muvaffaqiyat", 
+        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} berildi`, 
+      });
     } catch (error) {
       console.error('Error adding reward/penalty:', error);
+      if (error.message && error.message.includes('unique_daily_reward_penalty')) {
+        toast({ 
+          title: "Cheklov", 
+          description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan", 
+          variant: "destructive" 
+        });
+      }
     }
   };
 

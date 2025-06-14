@@ -162,6 +162,36 @@ export type Database = {
           },
         ]
       }
+      daily_reward_penalty_summary: {
+        Row: {
+          created_at: string
+          date_given: string
+          id: string
+          student_id: string
+          teacher_id: string
+          total_points: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_given?: string
+          id?: string
+          student_id: string
+          teacher_id: string
+          total_points?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_given?: string
+          id?: string
+          student_id?: string
+          teacher_id?: string
+          total_points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deleted_groups: {
         Row: {
           deleted_at: string
@@ -282,6 +312,7 @@ export type Database = {
       reward_penalty_history: {
         Row: {
           created_at: string
+          date_given: string | null
           id: string
           points: number
           reason: string
@@ -291,6 +322,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          date_given?: string | null
           id?: string
           points: number
           reason: string
@@ -300,6 +332,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          date_given?: string | null
           id?: string
           points?: number
           reason?: string

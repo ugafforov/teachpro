@@ -6,14 +6,19 @@ import { Gift } from 'lucide-react';
 interface RewardPenaltyButtonProps {
   points?: number;
   onClick: () => void;
+  hasRewardToday?: boolean;
 }
 
-const RewardPenaltyButton: React.FC<RewardPenaltyButtonProps> = ({ points, onClick }) => {
+const RewardPenaltyButton: React.FC<RewardPenaltyButtonProps> = ({ points, onClick, hasRewardToday }) => {
   const base = 'w-10 h-10 p-0 border border-gray-300';
   let className = `${base} bg-white hover:bg-gray-50 text-gray-600`;
   let iconColor = 'text-gray-600';
 
-  if (typeof points === 'number' && points !== 0) {
+  if (hasRewardToday) {
+    // Bugungi mukofot/jarima olgan o'quvchilar uchun boshqa rang
+    className = `${base} bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-300 cursor-not-allowed opacity-70`;
+    iconColor = 'text-blue-700';
+  } else if (typeof points === 'number' && points !== 0) {
     if (points > 0) {
       className = `${base} bg-green-100 hover:bg-green-200 text-green-700 border-green-300`;
       iconColor = 'text-green-700';
@@ -29,6 +34,7 @@ const RewardPenaltyButton: React.FC<RewardPenaltyButtonProps> = ({ points, onCli
       variant="ghost"
       onClick={onClick}
       className={className}
+      disabled={hasRewardToday}
     >
       <Gift className={`w-4 h-4 ${iconColor}`} />
     </Button>
