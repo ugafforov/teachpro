@@ -43,26 +43,39 @@ const StudentDialogs: React.FC<StudentDialogsProps> = ({
   isReasonDialogOpen, setReasonDialogOpen,
   reasonStudent, reasonText, setReasonText,
   onReasonSave,
-}) => (
-  <>
-    <RewardPenaltyDialog
-      isOpen={!!showRewardDialog}
-      onClose={() => { setShowRewardDialog(null); setRewardPoints(""); }}
-      rewardPoints={rewardPoints}
-      onRewardPointsChange={setRewardPoints}
-      rewardType={rewardType}
-      onRewardTypeChange={setRewardType}
-      onSave={() => showRewardDialog && onRewardSave(showRewardDialog)}
-    />
-    <AbsentReasonDialog
-      isOpen={isReasonDialogOpen}
-      onOpenChange={setReasonDialogOpen}
-      student={reasonStudent}
-      reasonText={reasonText}
-      onReasonTextChange={setReasonText}
-      onSave={onReasonSave}
-    />
-  </>
-);
+}) => {
+
+  const handleRewardSave = () => {
+    console.log('StudentDialogs handleRewardSave called, showRewardDialog:', showRewardDialog);
+    if (showRewardDialog) {
+      onRewardSave(showRewardDialog);
+    }
+  };
+
+  return (
+    <>
+      <RewardPenaltyDialog
+        isOpen={!!showRewardDialog}
+        onClose={() => { 
+          setShowRewardDialog(null); 
+          setRewardPoints(""); 
+        }}
+        rewardPoints={rewardPoints}
+        onRewardPointsChange={setRewardPoints}
+        rewardType={rewardType}
+        onRewardTypeChange={setRewardType}
+        onSave={handleRewardSave}
+      />
+      <AbsentReasonDialog
+        isOpen={isReasonDialogOpen}
+        onOpenChange={setReasonDialogOpen}
+        student={reasonStudent}
+        reasonText={reasonText}
+        onReasonTextChange={setReasonText}
+        onSave={onReasonSave}
+      />
+    </>
+  );
+};
 
 export default StudentDialogs;

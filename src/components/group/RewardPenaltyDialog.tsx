@@ -25,6 +25,13 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const handleSave = () => {
+    console.log('Save button clicked with points:', rewardPoints, 'type:', rewardType);
+    onSave();
+  };
+
+  const isValidPoints = rewardPoints && parseFloat(rewardPoints) > 0 && parseFloat(rewardPoints) <= 5;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -60,7 +67,7 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
               value={rewardPoints}
               onChange={(e) => {
                 const value = parseFloat(e.target.value);
-                if (value <= 5) {
+                if (isNaN(value) || value <= 5) {
                   onRewardPointsChange(e.target.value);
                 }
               }}
@@ -72,9 +79,9 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
           </div>
           <div className="flex space-x-2">
             <Button
-              onClick={onSave}
+              onClick={handleSave}
               className="flex-1"
-              disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}
+              disabled={!isValidPoints}
             >
               Saqlash
             </Button>

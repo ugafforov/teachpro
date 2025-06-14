@@ -273,12 +273,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   };
 
   const addReward = async (studentId: string) => {
-    if (!rewardPoints) {
+    console.log('addReward called with studentId:', studentId, 'points:', rewardPoints, 'type:', rewardType);
+    
+    if (!rewardPoints || !studentId) {
+      console.log('Missing rewardPoints or studentId');
       return;
     }
 
     const points = parseFloat(rewardPoints);
-    if (isNaN(points)) {
+    if (isNaN(points) || points <= 0) {
+      console.log('Invalid points:', points);
       return;
     }
 
@@ -311,6 +315,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
 
     try {
+      console.log('Inserting reward/penalty with points:', rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points));
+      
       const { error } = await supabase
         .from('reward_penalty_history')
         .insert({
@@ -322,16 +328,24 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           date_given: new Date().toISOString().split('T')[0]
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
+      console.log('Reward/penalty added successfully');
+      
+      // Dialog'ni yopish va ma'lumotlarni tozalash
       setShowRewardDialog(null);
       setRewardPoints('');
+      
+      // Ma'lumotlarni yangilash
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
       
       toast({ 
         title: "Muvaffaqiyat", 
-        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} berildi`, 
+        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi`, 
       });
     } catch (error) {
       console.error('Error adding reward/penalty:', error);
@@ -339,6 +353,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         toast({ 
           title: "Cheklov", 
           description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan", 
+          variant: "destructive" 
+        });
+      } else {
+        toast({ 
+          title: "Xatolik", 
+          description: "Mukofot/jarima berishda xatolik yuz berdi", 
           variant: "destructive" 
         });
       }
