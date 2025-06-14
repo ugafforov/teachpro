@@ -1,10 +1,10 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { CheckCircle, Clock, XCircle, Gift, Star, AlertTriangle, ShieldQuestion } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Gift, Star, AlertTriangle } from 'lucide-react';
 import StudentAvatar from './StudentAvatar';
 import AttendanceButton from './AttendanceButton';
-import ReasonButton from './ReasonButton';
 import RewardPenaltyButton from './RewardPenaltyButton';
 
 interface Student {
@@ -104,15 +104,6 @@ const StudentItem: React.FC<StudentItemProps> = ({
             />
           </TooltipTrigger>
           <TooltipContent>Kelmagan</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <ReasonButton
-              active={attendance?.status === 'absent_with_reason'}
-              onClick={() => onShowReason(student)}
-            />
-          </TooltipTrigger>
-          <TooltipContent>Sababli kelmagan</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
