@@ -274,8 +274,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   };
 
   const addReward = async (studentId: string) => {
-    console.log('addReward called with studentId:', studentId, 'points:', rewardPoints, 'type:', rewardType);
-    
     if (isSavingReward) return;
 
     if (!rewardPoints || !studentId) {
@@ -284,43 +282,29 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
 
     const points = parseFloat(rewardPoints);
-    if (isNaN(points) || points <= 0) {
-      console.log('Invalid points:', points);
-      return;
-    }
-
-    if (rewardType === 'reward' && points > 5) {
-      toast({ 
-        title: "Cheklov", 
-        description: "Mukofot maksimum 5 ball bo'lishi mumkin", 
-        variant: "destructive" 
-      });
-      return;
-    }
-    if (rewardType === 'penalty' && Math.abs(points) > 5) {
-      toast({ 
-        title: "Cheklov", 
-        description: "Jarima maksimum 5 ball bo'lishi mumkin", 
-        variant: "destructive" 
+    if (isNaN(points) || points <= 0 || points > 5) {
+      toast({
+        title: "Xatolik",
+        description: `Ball miqdori 0 dan katta va 5 gacha bo'lishi kerak.`,
+        variant: "destructive",
       });
       return;
     }
 
-    // Bugungi sana uchun allaqachon mukofot/jarima berilganligini tekshirish
     const student = students.find(s => s.id === studentId);
     if (student?.hasRewardToday) {
-      toast({ 
-        title: "Cheklov", 
-        description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan", 
-        variant: "destructive" 
+      toast({
+        title: "Cheklov",
+        description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan.",
+        variant: "destructive",
       });
+      setShowRewardDialog(null);
+      setRewardPoints('');
       return;
     }
 
     setIsSavingReward(true);
     try {
-      console.log('Inserting reward/penalty with points:', rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points));
-      
       const { error } = await supabase
         .from('reward_penalty_history')
         .insert({
@@ -333,41 +317,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         });
 
       if (error) {
-        console.error('Supabase error:', error);
         throw error;
       }
-
-      console.log('Reward/penalty added successfully');
       
-      // Dialog'ni yopish va ma'lumotlarni tozalash
-      setShowRewardDialog(null);
-      setRewardPoints('');
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi.`,
+      });
       
-      // Ma'lumotlarni yangilash
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
-      
-      toast({ 
-        title: "Muvaffaqiyat", 
-        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi`, 
-      });
+
     } catch (error) {
       console.error('Error adding reward/penalty:', error);
-      if (error.message && error.message.includes('unique_daily_reward_penalty')) {
-        toast({ 
-          title: "Cheklov", 
-          description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan", 
-          variant: "destructive" 
-        });
-      } else {
-        toast({ 
-          title: "Xatolik", 
-          description: "Mukofot/jarima berishda xatolik yuz berdi", 
-          variant: "destructive" 
-        });
-      }
+      toast({
+        title: "Xatolik",
+        description: "Mukofot/jarima berishda xatolik yuz berdi.",
+        variant: "destructive",
+      });
     } finally {
       setIsSavingReward(false);
+      setShowRewardDialog(null);
+      setRewardPoints('');
     }
   };
 
