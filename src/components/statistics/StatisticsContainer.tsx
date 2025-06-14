@@ -100,10 +100,8 @@ const StatisticsContainer: React.FC<StatisticsProps> = ({ teacherId }) => {
       </div>
 
       <StatisticsCards stats={stats} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MonthlyAnalysis monthlyData={monthlyData} />
-        <GroupRankings teacherId={teacherId} selectedPeriod={selectedPeriod} />
-      </div>
+      <MonthlyAnalysis monthlyData={monthlyData} />
+      <GroupRankings teacherId={teacherId} selectedPeriod={selectedPeriod} />
     </div>
   );
 };

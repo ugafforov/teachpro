@@ -10,7 +10,7 @@ interface StatisticsCardsProps {
 
 const StatisticsCards: React.FC<StatisticsCardsProps> = ({ stats }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
       <Card className="apple-card p-6">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
