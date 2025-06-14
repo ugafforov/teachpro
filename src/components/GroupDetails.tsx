@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,10 @@ import StudentList from './group/StudentList';
 import AddStudentDialog from './group/AddStudentDialog';
 import RewardPenaltyDialog from './group/RewardPenaltyDialog';
 import AbsentReasonDialog from './group/AbsentReasonDialog';
+import GroupDetailsHeader from "./group/GroupDetailsHeader";
+import AttendancePanel from "./group/AttendancePanel";
+import StudentTable from "./group/StudentTable";
+import StudentDialogs from "./group/StudentDialogs";
 
 interface Student {
   id: string;
@@ -35,11 +38,11 @@ interface GroupDetailsProps {
   onStatsUpdate: () => Promise<void>;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({ 
-  groupName, 
-  teacherId, 
-  onBack, 
-  onStatsUpdate 
+const GroupDetails: React.FC<GroupDetailsProps> = ({
+  groupName,
+  teacherId,
+  onBack,
+  onStatsUpdate
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, { status: AttendanceStatus; reason?: string | null }>>({});
@@ -61,6 +64,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     phone: ''
   });
   const { toast } = useToast();
+
+  // NEW: method to refresh students and attendance
+  const handleStudentImportComplete = () => {
+    fetchStudents();
+    fetchAttendanceForDate(selectedDate);
+    if (onStatsUpdate) onStatsUpdate();
+  };
 
   useEffect(() => {
     fetchStudents();
@@ -322,80 +332,50 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={onBack} variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Ortga qaytish</TooltipContent>
-          </Tooltip>
-          <div>
-            <h2 className="text-2xl font-bold">{groupName}</h2>
-            <p className="text-muted-foreground">{students.length} o'quvchi</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <StudentImport 
-            teacherId={teacherId} 
-            groupName={groupName}
-            onImportComplete={() => {
-              fetchStudents();
-              fetchAttendanceForDate(selectedDate);
-              if (onStatsUpdate) onStatsUpdate();
-            }}
-          />
-          <AddStudentDialog
-            isOpen={isAddDialogOpen}
-            onOpenChange={setIsAddDialogOpen}
-            newStudent={newStudent}
-            onStudentChange={setNewStudent}
-            onAddStudent={addStudent}
-          />
-        </div>
-      </div>
+      <GroupDetailsHeader
+        groupName={groupName}
+        studentCount={students.length}
+        onBack={onBack}
+        onStudentImport={handleStudentImportComplete}
+        isAddDialogOpen={isAddDialogOpen}
+        onAddDialogOpenChange={setIsAddDialogOpen}
+        newStudent={newStudent}
+        onStudentChange={setNewStudent}
+        onAddStudent={addStudent}
+        teacherId={teacherId}
+      />
 
-      <AttendanceSection
+      <AttendancePanel
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         onMarkAllPresent={markAllAsPresent}
         onClearAll={clearAllAttendance}
       />
 
-      <Card className="apple-card">
-        <StudentList
-          students={students}
-          attendance={attendance}
-          onStudentClick={handleStudentClick}
-          onMarkAttendance={markAttendance}
-          onShowReward={setShowRewardDialog}
-          onShowReason={handleReasonButtonClick}
-          onAddStudentClick={() => setIsAddDialogOpen(true)}
-        />
-      </Card>
-
-      <RewardPenaltyDialog
-        isOpen={!!showRewardDialog}
-        onClose={() => {
-          setShowRewardDialog(null);
-          setRewardPoints('');
-        }}
-        rewardPoints={rewardPoints}
-        onRewardPointsChange={setRewardPoints}
-        rewardType={rewardType}
-        onRewardTypeChange={setRewardType}
-        onSave={() => addReward(showRewardDialog!)}
+      <StudentTable
+        students={students}
+        attendance={attendance}
+        onStudentClick={handleStudentClick}
+        onMarkAttendance={markAttendance}
+        onShowReward={setShowRewardDialog}
+        onShowReason={handleReasonButtonClick}
+        onAddStudentClick={() => setIsAddDialogOpen(true)}
       />
 
-      <AbsentReasonDialog
-        isOpen={isReasonDialogOpen}
-        onOpenChange={setIsReasonDialogOpen}
-        student={reasonStudent}
+      <StudentDialogs
+        showRewardDialog={showRewardDialog}
+        setShowRewardDialog={setShowRewardDialog}
+        rewardPoints={rewardPoints}
+        setRewardPoints={setRewardPoints}
+        rewardType={rewardType}
+        setRewardType={setRewardType}
+        onRewardSave={addReward}
+        isReasonDialogOpen={isReasonDialogOpen}
+        setReasonDialogOpen={setIsReasonDialogOpen}
+        reasonStudent={reasonStudent}
         reasonText={reasonText}
-        onReasonTextChange={setReasonText}
-        onSave={handleSaveReason}
+        setReasonText={setReasonText}
+        onReasonSave={handleSaveReason}
       />
 
       <StudentDetailsPopup
