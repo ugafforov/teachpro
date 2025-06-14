@@ -50,6 +50,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
+  const [isSavingReward, setIsSavingReward] = useState(false);
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
@@ -275,6 +276,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const addReward = async (studentId: string) => {
     console.log('addReward called with studentId:', studentId, 'points:', rewardPoints, 'type:', rewardType);
     
+    if (isSavingReward) return;
+
     if (!rewardPoints || !studentId) {
       console.log('Missing rewardPoints or studentId');
       return;
@@ -314,6 +317,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return;
     }
 
+    setIsSavingReward(true);
     try {
       console.log('Inserting reward/penalty with points:', rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points));
       
@@ -362,6 +366,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           variant: "destructive" 
         });
       }
+    } finally {
+      setIsSavingReward(false);
     }
   };
 
@@ -437,6 +443,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         rewardType={rewardType}
         setRewardType={setRewardType}
         onRewardSave={addReward}
+        isSaving={isSavingReward}
         isReasonDialogOpen={isReasonDialogOpen}
         setReasonDialogOpen={setIsReasonDialogOpen}
         reasonStudent={reasonStudent}

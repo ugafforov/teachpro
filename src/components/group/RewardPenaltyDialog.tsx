@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Gift, XCircle } from 'lucide-react';
+import { Gift, XCircle, Loader2 } from 'lucide-react';
 
 interface RewardPenaltyDialogProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface RewardPenaltyDialogProps {
   rewardType: 'reward' | 'penalty';
   onRewardTypeChange: (type: 'reward' | 'penalty') => void;
   onSave: () => void;
+  isSaving: boolean;
 }
 
 const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
@@ -21,7 +22,8 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
   onRewardPointsChange,
   rewardType,
   onRewardTypeChange,
-  onSave
+  onSave,
+  isSaving
 }) => {
   if (!isOpen) return null;
 
@@ -37,6 +39,7 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
               onClick={() => onRewardTypeChange('reward')}
               variant={rewardType === 'reward' ? 'default' : 'outline'}
               className="flex items-center justify-center gap-2"
+              disabled={isSaving}
             >
               <Gift className="w-4 h-4" />
               Mukofot
@@ -45,6 +48,7 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
               onClick={() => onRewardTypeChange('penalty')}
               variant={rewardType === 'penalty' ? 'default' : 'outline'}
               className="flex items-center justify-center gap-2"
+              disabled={isSaving}
             >
               <XCircle className="w-4 h-4" />
               Jarima
@@ -67,6 +71,7 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
                 }
               }}
               placeholder="Masalan: 3"
+              disabled={isSaving}
             />
             <p className="text-xs text-gray-500 mt-1">
               * Har kuni bitta o'quvchiga faqat bir marta mukofot/jarima berish mumkin
@@ -76,14 +81,16 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
             <Button
               onClick={onSave}
               className="flex-1"
-              disabled={!isValidPoints}
+              disabled={!isValidPoints || isSaving}
             >
-              Saqlash
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSaving ? 'Saqlanmoqda...' : 'Saqlash'}
             </Button>
             <Button
               onClick={onClose}
               variant="outline"
               className="flex-1"
+              disabled={isSaving}
             >
               Bekor qilish
             </Button>

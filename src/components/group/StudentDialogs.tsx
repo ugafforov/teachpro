@@ -25,6 +25,7 @@ interface StudentDialogsProps {
   rewardType: RewardType;
   setRewardType: (type: RewardType) => void;
   onRewardSave: (sid: string) => void;
+  isSaving: boolean;
 
   isReasonDialogOpen: boolean;
   setReasonDialogOpen: (open: boolean) => void;
@@ -39,6 +40,7 @@ const StudentDialogs: React.FC<StudentDialogsProps> = ({
   rewardPoints, setRewardPoints,
   rewardType, setRewardType,
   onRewardSave,
+  isSaving,
   
   isReasonDialogOpen, setReasonDialogOpen,
   reasonStudent, reasonText, setReasonText,
@@ -57,6 +59,7 @@ const StudentDialogs: React.FC<StudentDialogsProps> = ({
       <RewardPenaltyDialog
         isOpen={!!showRewardDialog}
         onClose={() => { 
+          if (isSaving) return;
           setShowRewardDialog(null); 
           setRewardPoints(""); 
         }}
@@ -65,6 +68,7 @@ const StudentDialogs: React.FC<StudentDialogsProps> = ({
         rewardType={rewardType}
         onRewardTypeChange={setRewardType}
         onSave={handleRewardSave}
+        isSaving={isSaving}
       />
       <AbsentReasonDialog
         isOpen={isReasonDialogOpen}
