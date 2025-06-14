@@ -30,14 +30,6 @@ const StatisticsCards: React.FC<StatisticsCardsProps> = ({ stats }) => {
       valueClass: 'text-black',
     },
     {
-      label: "Jami oylar",
-      value: stats.totalMonths ?? 0,
-      icon: <Calendar className="w-7 h-7 text-blue-600" />,
-      container: 'bg-blue-50',
-      labelClass: 'text-blue-700',
-      valueClass: 'text-blue-900',
-    },
-    {
       label: "Eng yaxshi oy",
       value: stats.bestMonth?.month ?? "-",
       percent: stats.bestMonth?.percent ?? undefined,
@@ -57,7 +49,7 @@ const StatisticsCards: React.FC<StatisticsCardsProps> = ({ stats }) => {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
       {cardsList.map((card, idx) => (
         <div
           key={card.label}
