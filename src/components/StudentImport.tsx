@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowDown, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import StudentImportGroupSelect from './student-import/StudentImportGroupSelect';
+import StudentImportTextarea from './student-import/StudentImportTextarea';
+import StudentImportActions from './student-import/StudentImportActions';
 
 interface StudentImportProps {
   teacherId: string;
@@ -31,14 +31,12 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Fetch groups when dialog is open
   useEffect(() => {
     if (isOpen) {
       fetchGroups();
     }
   }, [isOpen]);
 
-  // When groupName prop changes or dialog reopens, set select value
   useEffect(() => {
     if (isOpen && groupName) {
       setSelectedGroup(groupName);
@@ -56,7 +54,6 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
       if (error) throw error;
       setGroups(data || []);
-      // If groupName is passed and group exists, set it as selected
       if (groupName && data?.find((g) => g.name === groupName)) {
         setSelectedGroup(groupName);
       } else if (data && data.length > 0 && !selectedGroup) {
@@ -94,7 +91,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
       for (const line of lines) {
         const name = line.trim();
-        
+
         if (name) {
           const student = {
             teacher_id: teacherId,
@@ -141,7 +138,6 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
     }
   };
 
-  // Select is disabled if only one group and it matches the prop groupName
   const isSelectDisabled = !!groupName && groups.some((g) => g.name === groupName) && groups.length === 1;
 
   return (
@@ -163,8 +159,8 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
               <div className="text-sm">
                 <p className="font-medium text-blue-900 mb-2">Format:</p>
                 <code className="block bg-white p-2 rounded text-xs border">
-                  Ali Valiyev<br/>
-                  Olima Karimova<br/>
+                  Ali Valiyev<br />
+                  Olima Karimova<br />
                   Sardor Usmonov
                 </code>
                 <p className="text-blue-700 mt-2">
@@ -174,52 +170,22 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
             </div>
           </Card>
 
-          <div>
-            <Label htmlFor="groupSelect">Guruh tanlang *</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup} disabled={isSelectDisabled}>
-              <SelectTrigger>
-                <SelectValue placeholder="Guruhni tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.name}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="importText">O'quvchilar nomi</Label>
-            <Textarea
-              id="importText"
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder={`Ali Valiyev
-Olima Karimova
-Sardor Usmonov`}
-              rows={10}
-              className="font-mono text-sm"
-            />
-          </div>
-
-          <div className="flex space-x-2">
-            <Button
-              onClick={handleImport}
-              disabled={loading || !selectedGroup}
-              className="flex-1"
-            >
-              {loading ? "Import qilinmoqda..." : "Import qilish"}
-            </Button>
-            <Button
-              onClick={() => setIsOpen(false)}
-              variant="outline"
-              className="flex-1"
-            >
-              Bekor qilish
-            </Button>
-          </div>
+          <StudentImportGroupSelect
+            groups={groups}
+            selectedGroup={selectedGroup}
+            onSelectGroup={setSelectedGroup}
+            disabled={isSelectDisabled}
+          />
+          <StudentImportTextarea
+            importText={importText}
+            setImportText={setImportText}
+          />
+          <StudentImportActions
+            onImport={handleImport}
+            onCancel={() => setIsOpen(false)}
+            loading={loading}
+            disabled={!selectedGroup}
+          />
         </div>
       </DialogContent>
     </Dialog>
@@ -227,4 +193,3 @@ Sardor Usmonov`}
 };
 
 export default StudentImport;
-
