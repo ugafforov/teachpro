@@ -119,6 +119,7 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          reason: string | null
           status: string
           student_id: string
           teacher_id: string
@@ -128,6 +129,7 @@ export type Database = {
           created_at?: string
           date: string
           id?: string
+          reason?: string | null
           status: string
           student_id: string
           teacher_id: string
@@ -137,6 +139,7 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          reason?: string | null
           status?: string
           student_id?: string
           teacher_id?: string

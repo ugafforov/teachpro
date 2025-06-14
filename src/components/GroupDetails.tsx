@@ -5,8 +5,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, ShieldQuestion } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
@@ -24,7 +24,7 @@ interface Student {
   rewardPenaltyPoints?: number;
 }
 
-type AttendanceStatus = 'present' | 'absent' | 'late';
+type AttendanceStatus = 'present' | 'absent' | 'late' | 'absent_with_reason';
 
 interface AttendanceRecord {
   id: string;
@@ -32,6 +32,7 @@ interface AttendanceRecord {
   teacher_id: string;
   date: string;
   status: AttendanceStatus;
+  reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +51,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   onStatsUpdate 
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
+  const [attendance, setAttendance] = useState<Record<string, { status: AttendanceStatus; reason?: string | null }>>({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
@@ -59,6 +60,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
+  const [isReasonDialogOpen, setIsReasonDialogOpen] = useState(false);
+  const [reasonStudent, setReasonStudent] = useState<Student | null>(null);
+  const [reasonText, setReasonText] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -66,6 +70,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     phone: ''
   });
   const { toast } = useToast();
+
+  const commonReasons = ["Kasallik", "Oilaviy sharoit", "Test/Imtihon", "Boshqa"];
 
   useEffect(() => {
     fetchStudents();
@@ -116,16 +122,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     try {
       const { data, error } = await supabase
         .from('attendance_records')
-        .select('student_id, status')
+        .select('student_id, status, reason')
         .eq('teacher_id', teacherId)
         .eq('date', date);
 
       if (error) throw error;
 
-      const attendanceMap: Record<string, AttendanceStatus> = {};
+      const attendanceMap: Record<string, { status: AttendanceStatus; reason?: string | null }> = {};
       if (data) {
         data.forEach((record: any) => {
-          attendanceMap[record.student_id] = record.status as AttendanceStatus;
+          attendanceMap[record.student_id] = { status: record.status as AttendanceStatus, reason: record.reason };
         });
       }
       setAttendance(attendanceMap);
@@ -163,7 +169,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const markAttendance = async (studentId: string, status: AttendanceStatus) => {
+  const markAttendance = async (studentId: string, status: AttendanceStatus, reason: string | null = null) => {
     try {
       const { data: existingRecord } = await supabase
         .from('attendance_records')
@@ -174,7 +180,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         .maybeSingle();
 
       if (existingRecord) {
-        if (existingRecord.status === status) {
+        if (existingRecord.status === status && status !== 'absent_with_reason') {
           const { error } = await supabase
             .from('attendance_records')
             .delete()
@@ -188,33 +194,36 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             return newAttendance;
           });
         } else {
+          const newReason = status === 'absent_with_reason' ? reason : null;
           const { error } = await supabase
             .from('attendance_records')
-            .update({ status: status })
+            .update({ status: status, reason: newReason })
             .eq('id', existingRecord.id);
 
           if (error) throw error;
 
           setAttendance(prevAttendance => ({
             ...prevAttendance,
-            [studentId]: status,
+            [studentId]: { status, reason: newReason },
           }));
         }
       } else {
+        const newReason = status === 'absent_with_reason' ? reason : null;
         const { error } = await supabase
           .from('attendance_records')
           .insert({
             teacher_id: teacherId,
             student_id: studentId,
             date: selectedDate,
-            status: status
+            status: status,
+            reason: newReason
           });
 
         if (error) throw error;
 
         setAttendance(prevAttendance => ({
           ...prevAttendance,
-          [studentId]: status,
+          [studentId]: { status, reason: newReason },
         }));
       }
 
@@ -298,8 +307,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     setIsStudentPopupOpen(true);
   };
 
+  const handleReasonButtonClick = (student: Student) => {
+    setReasonStudent(student);
+    const currentAttendance = attendance[student.id];
+    if (currentAttendance?.status === 'absent_with_reason') {
+        setReasonText(currentAttendance.reason || '');
+    } else {
+        setReasonText('');
+    }
+    setIsReasonDialogOpen(true);
+  };
+
+  const handleSaveReason = () => {
+    if (!reasonStudent) return;
+    markAttendance(reasonStudent.id, 'absent_with_reason', reasonText || null);
+    setIsReasonDialogOpen(false);
+    setReasonStudent(null);
+    setReasonText('');
+  };
+
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
-    const currentStatus = attendance[studentId];
+    const currentStatus = attendance[studentId]?.status;
     const isActive = currentStatus === targetStatus;
     
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
@@ -315,6 +343,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
       case 'absent':
         return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
+      case 'absent_with_reason':
+        return `${baseStyle} bg-blue-500 hover:bg-blue-600 text-white border-blue-500`;
       default:
         return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
     }
@@ -580,6 +610,18 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     <TooltipTrigger asChild>
                       <Button
                         size="sm"
+                        onClick={() => handleReasonButtonClick(student)}
+                        className={getButtonStyle(student.id, 'absent_with_reason')}
+                      >
+                        <ShieldQuestion className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Sababli kelmagan</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
                         variant="ghost"
                         onClick={() => setShowRewardDialog(student.id)}
                         title="Mukofot/Jarima berish"
@@ -662,6 +704,41 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           </div>
         </div>
       )}
+
+      {/* Reason Dialog */}
+      <Dialog open={isReasonDialogOpen} onOpenChange={setIsReasonDialogOpen}>
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                <DialogTitle>Sababli kelmaganini belgilash</DialogTitle>
+                <DialogDescription>
+                    {reasonStudent?.name} uchun dars qoldirish sababini tanlang yoki kiriting. Izoh qoldirish ixtiyoriy.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+                <div className="flex flex-wrap gap-2">
+                    {commonReasons.map(reason => (
+                        <Button key={reason} variant={reasonText === reason ? "default" : "outline"} onClick={() => setReasonText(reason)}>
+                            {reason}
+                        </Button>
+                    ))}
+                </div>
+                <div>
+                    <Label htmlFor="reason-text" className="sr-only">Izoh</Label>
+                    <Textarea
+                        id="reason-text"
+                        value={reasonText}
+                        onChange={(e) => setReasonText(e.target.value)}
+                        placeholder="Yoki o'zingiz sabab kiriting..."
+                        rows={3}
+                    />
+                </div>
+                <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => { setIsReasonDialogOpen(false); setReasonText(''); }}>Bekor qilish</Button>
+                    <Button onClick={handleSaveReason}>Saqlash</Button>
+                </div>
+            </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Student Details Popup */}
       <StudentDetailsPopup
