@@ -50,7 +50,7 @@ const StudentList: React.FC<StudentListProps> = ({
           <TooltipTrigger asChild>
             <Button onClick={onAddStudentClick} className="apple-button">
               <Plus className="w-4 h-4 mr-2" />
-              Birinchi o'quvchini qo'shish
+              O'quvchi qo'shish
             </Button>
           </TooltipTrigger>
           <TooltipContent>Guruhga yangi o'quvchi qo'shish</TooltipContent>
@@ -77,3 +77,4 @@ const StudentList: React.FC<StudentListProps> = ({
 };
 
 export default StudentList;
+
