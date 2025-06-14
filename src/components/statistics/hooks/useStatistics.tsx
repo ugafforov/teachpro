@@ -144,6 +144,9 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
       const uniqueDates = [...new Set(classesData?.map(record => record.date) || [])];
       const totalClasses = uniqueDates.length;
 
+      // Declare topStudent upfront to always have a value
+      let topStudent: string = 'Ma\'lumot yo\'q';
+
       // Calculate average attendance - including late students as present
       if (totalClasses > 0 && totalStudents > 0) {
         let presentQuery = supabase
@@ -192,7 +195,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
 
         if (topStudentError) throw topStudentError;
 
-        const topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
+        // Update topStudent only if found
+        topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
 
         setStats({
           totalStudents,
@@ -201,11 +205,12 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           topStudent
         });
       } else {
+        // No classes or students
         setStats({
           totalStudents,
           totalClasses: 0,
           averageAttendance: totalStudents === 0 ? 0 : 100, // If no students, show 0, if students but no classes, show 100%
-          topStudent: 'Ma\'lumot yo\'q'
+          topStudent // fixed - this will always be defined
         });
       }
 
@@ -216,12 +221,14 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         // Find the month with the highest attendance
         const sorted = [...formattedMonthly].sort((a, b) => b.averageAttendance - a.averageAttendance);
         const best = sorted[0];
+        // Use a now defined here
+        const now = new Date();
         // Parse to JS date
-        // Assume original month is like '2025-yil Sentabr' or 'Sentabr 2025' or localized
+        // Assume month string like 'Sentabr, 2025-yil'
         const [m, y] = best.month.match(/\d{4}/) 
           ? [best.month.replace(/\d{4}.*/, ""), best.month.match(/\d{4}/)?.[0]]
           : [best.month, now.getFullYear().toString()];
-        // Try reconstructing a JS date
+        // Map month name to number
         const monthNum = (() => {
           const names = [
             'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
@@ -243,14 +250,14 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         };
       }
 
+      // This is for summary/statistics cards: always include topStudent, etc.
       setStats({
         totalStudents,
         totalClasses,
         averageAttendance: Math.round((stats.averageAttendance ?? 0) * 100) / 100,
-        topStudent
+        topStudent // always defined now
       });
 
-      // Save for cards
       setExtraStats({
         totalMonths,
         bestMonth: bestMonth ?? undefined,
