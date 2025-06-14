@@ -25,11 +25,6 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    console.log('Save button clicked with points:', rewardPoints, 'type:', rewardType);
-    onSave();
-  };
-
   const isValidPoints = rewardPoints && parseFloat(rewardPoints) > 0 && parseFloat(rewardPoints) <= 5;
 
   return (
@@ -79,7 +74,7 @@ const RewardPenaltyDialog: React.FC<RewardPenaltyDialogProps> = ({
           </div>
           <div className="flex space-x-2">
             <Button
-              onClick={handleSave}
+              onClick={onSave}
               className="flex-1"
               disabled={!isValidPoints}
             >
