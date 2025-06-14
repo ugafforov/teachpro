@@ -10,6 +10,8 @@ import Statistics from './Statistics';
 import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
+import WeeklyTopStudents from './WeeklyTopStudents';
+import WeeklyTopGroup from './WeeklyTopGroup';
 
 interface DashboardProps {
   teacherId: string;
@@ -139,7 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
       case 'rankings':
         return <StudentRankings teacherId={teacherId} />;
       case 'statistics':
-        return <Statistics teacherId={teacherId} />;
+        return <WeeklyTopStudents teacherId={teacherId} />;
       case 'archive':
         return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
       case 'trash':
@@ -200,8 +202,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                       <Trophy className="w-6 h-6 text-purple-600" />
                     </div>
                     <div>
-                      <p className="text-lg font-bold truncate">{stats.topStudent}</p>
-                      <p className="text-sm text-muted-foreground">Eng yaxshi o'quvchi</p>
+                      <WeeklyTopGroup teacherId={teacherId} />
+                      <p className="text-xs text-muted-foreground mt-1">Haftaning eng yaxshi sinfi</p>
                     </div>
                   </div>
                 </Card>
@@ -233,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                   className="h-16 flex flex-col gap-2"
                 >
                   <BarChart3 className="w-5 h-5" />
-                  <span>Statistikani ko'rish</span>
+                  <span>Haftaning eng yaxshilari</span>
                 </Button>
               </div>
             </Card>
