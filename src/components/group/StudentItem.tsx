@@ -59,6 +59,22 @@ const StudentItem: React.FC<StudentItemProps> = ({
     }
   };
 
+  const getReasonButtonStyle = () => {
+    const currentStatus = attendance?.status;
+    const isActive = currentStatus === 'absent_with_reason';
+    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
+    
+    if (isActive) {
+      return `${baseStyle} bg-blue-500 hover:bg-blue-600 text-white border-blue-500`;
+    }
+    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+  };
+
+  const getRewardButtonStyle = () => {
+    const baseStyle = 'w-10 h-10 p-0 border border-gray-300 bg-white hover:bg-gray-50 text-gray-600';
+    return baseStyle;
+  };
+
   const getRewardDisplay = (points: number) => {
     if (points === 0) return null;
     return (
@@ -148,7 +164,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
             <Button
               size="sm"
               onClick={() => onShowReason(student)}
-              className={getButtonStyle('absent_with_reason')}
+              className={getReasonButtonStyle()}
             >
               <ShieldQuestion className="w-4 h-4" />
             </Button>
@@ -161,7 +177,7 @@ const StudentItem: React.FC<StudentItemProps> = ({
               size="sm"
               variant="ghost"
               onClick={() => onShowReward(student.id)}
-              title="Mukofot/Jarima berish"
+              className={getRewardButtonStyle()}
             >
               <Gift className="w-4 h-4" />
             </Button>
