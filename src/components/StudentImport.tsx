@@ -31,17 +31,19 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Fetch groups when dialog is open
   useEffect(() => {
     if (isOpen) {
       fetchGroups();
     }
   }, [isOpen]);
 
+  // When groupName prop changes or dialog reopens, set select value
   useEffect(() => {
-    if (groupName) {
+    if (isOpen && groupName) {
       setSelectedGroup(groupName);
     }
-  }, [groupName]);
+  }, [isOpen, groupName]);
 
   const fetchGroups = async () => {
     try {
@@ -54,6 +56,12 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
       if (error) throw error;
       setGroups(data || []);
+      // If groupName is passed and group exists, set it as selected
+      if (groupName && data?.find((g) => g.name === groupName)) {
+        setSelectedGroup(groupName);
+      } else if (data && data.length > 0 && !selectedGroup) {
+        setSelectedGroup(data[0].name);
+      }
     } catch (error) {
       console.error('Error fetching groups:', error);
     }
@@ -133,6 +141,9 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
     }
   };
 
+  // Select is disabled if only one group and it matches the prop groupName
+  const isSelectDisabled = !!groupName && groups.some((g) => g.name === groupName) && groups.length === 1;
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -165,7 +176,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
           <div>
             <Label htmlFor="groupSelect">Guruh tanlang *</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <Select value={selectedGroup} onValueChange={setSelectedGroup} disabled={isSelectDisabled}>
               <SelectTrigger>
                 <SelectValue placeholder="Guruhni tanlang" />
               </SelectTrigger>
@@ -185,9 +196,9 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
               id="importText"
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder="Ali Valiyev
+              placeholder={`Ali Valiyev
 Olima Karimova
-Sardor Usmonov"
+Sardor Usmonov`}
               rows={10}
               className="font-mono text-sm"
             />
@@ -216,3 +227,4 @@ Sardor Usmonov"
 };
 
 export default StudentImport;
+
