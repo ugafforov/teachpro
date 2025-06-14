@@ -34,16 +34,16 @@ const StudentActions: React.FC<StudentActionsProps> = ({ student, onEdit, onArch
         <TooltipContent side="top">Tahrirlash</TooltipContent>
       </Tooltip>
       <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Tooltip>
-            <TooltipTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
               <Button size="sm" variant="ghost" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                 <Archive className="w-4 h-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Arxivlash</TooltipContent>
-          </Tooltip>
-        </AlertDialogTrigger>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">Arxivlash</TooltipContent>
+        </Tooltip>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
@@ -60,16 +60,16 @@ const StudentActions: React.FC<StudentActionsProps> = ({ student, onEdit, onArch
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Tooltip>
-            <TooltipTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <AlertDialogTrigger asChild>
               <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50">
                 <Trash2 className="w-4 h-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">O'chirish</TooltipContent>
-          </Tooltip>
-        </AlertDialogTrigger>
+            </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">O'chirish</TooltipContent>
+        </Tooltip>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
