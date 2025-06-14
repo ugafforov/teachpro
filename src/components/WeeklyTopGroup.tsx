@@ -42,7 +42,7 @@ const WeeklyTopGroup: React.FC<WeeklyTopGroupProps> = ({ teacherId }) => {
       }
 
       if (data && data.length > 0) {
-        setTopGroup(data[0] as WeeklyTopGroup);
+        setTopGroup(data[0] as unknown as WeeklyTopGroup);
       }
     } catch (error) {
       console.error('Error fetching weekly top group:', error);

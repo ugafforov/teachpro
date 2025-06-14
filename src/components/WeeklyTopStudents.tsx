@@ -44,7 +44,7 @@ const WeeklyTopStudents: React.FC<WeeklyTopStudentsProps> = ({ teacherId }) => {
         return;
       }
 
-      setTopStudents((data || []) as WeeklyTopStudent[]);
+      setTopStudents((data || []) as unknown as WeeklyTopStudent[]);
     } catch (error) {
       console.error('Error fetching weekly top students:', error);
       await calculateWeeklyStats();
