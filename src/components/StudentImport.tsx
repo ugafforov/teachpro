@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { ArrowDown, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface StudentImportProps {
   teacherId: string;
@@ -135,10 +135,15 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2">
-          <ArrowDown className="w-4 h-4" />
-          O'quvchilarni import qilish
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              <ArrowDown className="w-4 h-4" />
+              O'quvchilarni import qilish
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>O'quvchilar ro'yxatini import qilish oynasini ochish</TooltipContent>
+        </Tooltip>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -193,20 +198,32 @@ Sardor Usmonov"
           </div>
 
           <div className="flex space-x-2">
-            <Button 
-              onClick={handleImport} 
-              disabled={loading || !selectedGroup}
-              className="flex-1"
-            >
-              {loading ? "Import qilinmoqda..." : "Import qilish"}
-            </Button>
-            <Button 
-              onClick={() => setIsOpen(false)} 
-              variant="outline" 
-              className="flex-1"
-            >
-              Bekor qilish
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  onClick={handleImport} 
+                  disabled={loading || !selectedGroup}
+                  className="flex-1"
+                >
+                  {loading ? "Import qilinmoqda..." : "Import qilish"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {loading ? "Import jarayoni..." : "O'quvchilarni tanlangan guruhga import qilish"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  onClick={() => setIsOpen(false)} 
+                  variant="outline" 
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Import oynasini yopish</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </DialogContent>

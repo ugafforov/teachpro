@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, User, School, Mail, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 const AuthPage: React.FC = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -115,26 +115,36 @@ const AuthPage: React.FC = () => {
         </div>
 
         <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
-          <button
-            onClick={() => setAuthMode('signin')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              authMode === 'signin'
-                ? 'bg-white text-black shadow-sm'
-                : 'text-gray-600 hover:text-black'
-            }`}
-          >
-            Kirish
-          </button>
-          <button
-            onClick={() => setAuthMode('signup')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              authMode === 'signup'
-                ? 'bg-white text-black shadow-sm'
-                : 'text-gray-600 hover:text-black'
-            }`}
-          >
-            Ro'yxatdan o'tish
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setAuthMode('signin')}
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  authMode === 'signin'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-600 hover:text-black'
+                }`}
+              >
+                Kirish
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Hisobga kirish sahifasi</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setAuthMode('signup')}
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  authMode === 'signup'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-600 hover:text-black'
+                }`}
+              >
+                Ro'yxatdan o'tish
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Yangi hisob ochish sahifasi</TooltipContent>
+          </Tooltip>
         </div>
 
         <form onSubmit={authMode === 'signin' ? handleSignIn : handleSignUp} className="space-y-4">
@@ -225,16 +235,23 @@ const AuthPage: React.FC = () => {
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full bg-black hover:bg-gray-800 text-white rounded-xl py-2.5">
-            {loading ? (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>{authMode === 'signin' ? 'Kirilmoqda...' : 'Hisob yaratilmoqda...'}</span>
-              </div>
-            ) : (
-              authMode === 'signin' ? 'Kirish' : 'Hisob yaratish'
-            )}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button type="submit" disabled={loading} className="w-full bg-black hover:bg-gray-800 text-white rounded-xl py-2.5">
+                {loading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>{authMode === 'signin' ? 'Kirilmoqda...' : 'Hisob yaratilmoqda...'}</span>
+                  </div>
+                ) : (
+                  authMode === 'signin' ? 'Kirish' : 'Hisob yaratish'
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {authMode === 'signin' ? "Tizimga kirish" : "Yangi hisob yaratish"}
+            </TooltipContent>
+          </Tooltip>
         </form>
       </Card>
     </div>

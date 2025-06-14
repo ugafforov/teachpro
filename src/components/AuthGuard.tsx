@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Shield, User, School, Mail, Phone } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface Teacher {
   name: string;
@@ -129,9 +129,14 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, onAuthenticated }) => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full apple-button">
-              Access Platform
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="submit" className="w-full apple-button">
+                  Access Platform
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Tizimga kirish</TooltipContent>
+            </Tooltip>
           </form>
         </Card>
       </div>
@@ -210,9 +215,14 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, onAuthenticated }) => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full apple-button">
-              Complete Registration
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="submit" className="w-full apple-button">
+                  Complete Registration
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ro'yxatdan o'tishni yakunlash</TooltipContent>
+            </Tooltip>
           </form>
         </Card>
       </div>
