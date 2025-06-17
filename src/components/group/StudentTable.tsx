@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Check, Clock, X } from 'lucide-react';
 import StudentAvatar from './StudentAvatar';
 import AttendanceButton from './AttendanceButton';
 import ReasonButton from './ReasonButton';
@@ -102,19 +102,22 @@ const StudentTable: React.FC<StudentTableProps> = ({
                   <td className="py-3 px-4">
                     <div className="flex justify-center gap-1">
                       <AttendanceButton
-                        status="present"
+                        type="present"
                         isActive={studentAttendance?.status === 'present'}
                         onClick={() => onMarkAttendance(student.id, 'present')}
+                        icon={<Check className="w-4 h-4" />}
                       />
                       <AttendanceButton
-                        status="late"
+                        type="late"
                         isActive={studentAttendance?.status === 'late'}
                         onClick={() => onMarkAttendance(student.id, 'late')}
+                        icon={<Clock className="w-4 h-4" />}
                       />
                       <AttendanceButton
-                        status="absent"
+                        type="absent"
                         isActive={studentAttendance?.status === 'absent'}
                         onClick={() => onMarkAttendance(student.id, 'absent')}
+                        icon={<X className="w-4 h-4" />}
                       />
                     </div>
                   </td>
@@ -131,9 +134,7 @@ const StudentTable: React.FC<StudentTableProps> = ({
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <ReasonButton
-                        student={student}
-                        attendanceStatus={studentAttendance?.status}
-                        reason={studentAttendance?.reason}
+                        active={!!studentAttendance?.reason}
                         onClick={() => onShowReason(student)}
                       />
                     </div>

@@ -309,6 +309,56 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
+  const handleSelectStudent = (student: Student) => {
+    // Handle student selection logic here
+    console.log('Selected student:', student);
+  };
+
+  const handleArchiveStudent = async (studentId: string, studentName: string) => {
+    try {
+      // First add to archived_students table
+      const student = students.find(s => s.id === studentId);
+      if (!student) return;
+
+      const { error: archiveError } = await supabase
+        .from('archived_students')
+        .insert({
+          original_student_id: studentId,
+          teacher_id: teacherId,
+          name: student.name,
+          student_id: student.student_id,
+          group_name: student.group_name,
+          email: student.email,
+          phone: student.phone
+        });
+
+      if (archiveError) throw archiveError;
+
+      // Then deactivate the student
+      const { error } = await supabase
+        .from('students')
+        .update({ is_active: false })
+        .eq('id', studentId);
+
+      if (error) throw error;
+
+      await fetchStudents();
+      await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${studentName} arxivlandi`,
+      });
+    } catch (error) {
+      console.error('Error archiving student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini arxivlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -363,12 +413,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
       <StudentFilters
         searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        onSearchTermChange={setSearchTerm}
         selectedGroup={selectedGroup}
-        onGroupChange={setSelectedGroup}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
+        onSelectedGroupChange={setSelectedGroup}
         groups={groups}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
       {filteredStudents.length === 0 ? (
@@ -397,10 +447,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({
             <StudentGridItem
               key={student.id}
               student={student}
+              onSelectStudent={handleSelectStudent}
               onEdit={(student) => {
                 setSelectedStudent(student);
                 setIsEditDialogOpen(true);
               }}
+              onArchive={handleArchiveStudent}
               onReward={(student) => {
                 setSelectedStudent(student);
                 setIsRewardDialogOpen(true);
@@ -415,10 +467,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({
             <StudentListItem
               key={student.id}
               student={student}
+              onSelectStudent={handleSelectStudent}
               onEdit={(student) => {
                 setSelectedStudent(student);
                 setIsEditDialogOpen(true);
               }}
+              onArchive={handleArchiveStudent}
               onReward={(student) => {
                 setSelectedStudent(student);
                 setIsRewardDialogOpen(true);
@@ -431,29 +485,29 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
       <AddStudentDialog
         isOpen={isAddDialogOpen}
-        onClose={() => setIsAddDialogOpen(false)}
-        onAdd={handleAddStudent}
+        onOpenChange={setIsAddDialogOpen}
+        onAddStudent={handleAddStudent}
         groups={groups}
       />
 
       <EditStudentDialog
         isOpen={isEditDialogOpen}
-        onClose={() => {
-          setIsEditDialogOpen(false);
-          setSelectedStudent(null);
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setSelectedStudent(null);
         }}
-        onEdit={handleEditStudent}
+        onEditStudent={handleEditStudent}
         student={selectedStudent}
         groups={groups}
       />
 
       <RewardDialog
         isOpen={isRewardDialogOpen}
-        onClose={() => {
-          setIsRewardDialogOpen(false);
-          setSelectedStudent(null);
+        onOpenChange={(open) => {
+          setIsRewardDialogOpen(open);
+          if (!open) setSelectedStudent(null);
         }}
-        onReward={handleReward}
+        onAddReward={handleReward}
         student={selectedStudent}
       />
     </div>
