@@ -56,7 +56,10 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
         .eq('group_name', groupName)
         .eq('teacher_id', teacherId);
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching schedule:', error);
+        return;
+      }
       
       if (data) {
         setSelectedDays(data.map(item => item.day_of_week));
@@ -75,7 +78,10 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
         .eq('teacher_id', teacherId)
         .order('exception_date', { ascending: false });
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching exceptions:', error);
+        return;
+      }
       
       setExceptions(data || []);
     } catch (error) {
@@ -92,7 +98,6 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
 
     try {
       if (selectedDays.includes(dayId)) {
-        // O'chirish
         const { error } = await supabase
           .from('group_schedule')
           .delete()
@@ -102,7 +107,6 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
 
         if (error) throw error;
       } else {
-        // Qo'shish
         const { error } = await supabase
           .from('group_schedule')
           .insert({
@@ -125,7 +129,6 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
         description: "Dars jadvalini yangilashda xatolik yuz berdi.",
         variant: "destructive",
       });
-      // Revert on error
       setSelectedDays(selectedDays);
     }
   };
@@ -197,124 +200,117 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ groupName, teacherId 
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-5 h-5" />
-        <h3 className="text-lg font-semibold">Dars jadvali</h3>
+    <div className="space-y-4">
+      <div>
+        <Label className="text-sm font-medium mb-3 block">Dars kunlari:</Label>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {weekDays.map((day) => (
+            <div key={day.id} className="flex items-center space-x-2">
+              <Checkbox
+                id={`day-${day.id}`}
+                checked={selectedDays.includes(day.id)}
+                onCheckedChange={() => handleDayToggle(day.id)}
+              />
+              <Label htmlFor={`day-${day.id}`} className="text-sm">
+                {day.name}
+              </Label>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <Label className="text-sm font-medium mb-3 block">Dars kunlari:</Label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {weekDays.map((day) => (
-              <div key={day.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`day-${day.id}`}
-                  checked={selectedDays.includes(day.id)}
-                  onCheckedChange={() => handleDayToggle(day.id)}
-                />
-                <Label htmlFor={`day-${day.id}`} className="text-sm">
-                  {day.name}
-                </Label>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <Label className="text-sm font-medium">Istisno kunlar:</Label>
+          <Dialog open={isExceptionDialogOpen} onOpenChange={setIsExceptionDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Plus className="w-4 h-4 mr-1" />
+                Istisno qo'shish
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Yangi istisno qo'shish</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="exception-date">Sana</Label>
+                  <Input
+                    id="exception-date"
+                    type="date"
+                    value={newException.date}
+                    onChange={(e) => setNewException({ ...newException, date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="exception-type">Turi</Label>
+                  <Select value={newException.type} onValueChange={(value) => setNewException({ ...newException, type: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Istisno turini tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {exceptionTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="exception-description">Izoh (ixtiyoriy)</Label>
+                  <Input
+                    id="exception-description"
+                    value={newException.description}
+                    onChange={(e) => setNewException({ ...newException, description: e.target.value })}
+                    placeholder="Izoh kiriting"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button onClick={addException} className="flex-1">
+                    Qo'shish
+                  </Button>
+                  <Button onClick={() => setIsExceptionDialogOpen(false)} variant="outline" className="flex-1">
+                    Bekor qilish
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {exceptions.length > 0 ? (
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {exceptions.map((exception) => (
+              <div key={exception.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                <div className="flex-1">
+                  <span className="text-sm font-medium">
+                    {new Date(exception.exception_date).toLocaleDateString('uz-UZ')}
+                  </span>
+                  <span className="text-sm text-gray-600 ml-2">
+                    ({exceptionTypes.find(t => t.value === exception.exception_type)?.label})
+                  </span>
+                  {exception.description && (
+                    <span className="text-sm text-gray-500 block">{exception.description}</span>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeException(exception.id)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
             ))}
           </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <Label className="text-sm font-medium">Istisno kunlar:</Label>
-            <Dialog open={isExceptionDialogOpen} onOpenChange={setIsExceptionDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Istisno qo'shish
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Yangi istisno qo'shish</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="exception-date">Sana</Label>
-                    <Input
-                      id="exception-date"
-                      type="date"
-                      value={newException.date}
-                      onChange={(e) => setNewException({ ...newException, date: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="exception-type">Turi</Label>
-                    <Select value={newException.type} onValueChange={(value) => setNewException({ ...newException, type: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Istisno turini tanlang" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {exceptionTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="exception-description">Izoh (ixtiyoriy)</Label>
-                    <Input
-                      id="exception-description"
-                      value={newException.description}
-                      onChange={(e) => setNewException({ ...newException, description: e.target.value })}
-                      placeholder="Izoh kiriting"
-                    />
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button onClick={addException} className="flex-1">
-                      Qo'shish
-                    </Button>
-                    <Button onClick={() => setIsExceptionDialogOpen(false)} variant="outline" className="flex-1">
-                      Bekor qilish
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {exceptions.length > 0 ? (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {exceptions.map((exception) => (
-                <div key={exception.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div className="flex-1">
-                    <span className="text-sm font-medium">
-                      {new Date(exception.exception_date).toLocaleDateString('uz-UZ')}
-                    </span>
-                    <span className="text-sm text-gray-600 ml-2">
-                      ({exceptionTypes.find(t => t.value === exception.exception_type)?.label})
-                    </span>
-                    {exception.description && (
-                      <span className="text-sm text-gray-500 block">{exception.description}</span>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => removeException(exception.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Hozircha istisno kunlar yo'q</p>
-          )}
-        </div>
+        ) : (
+          <p className="text-sm text-gray-500">Hozircha istisno kunlar yo'q</p>
+        )}
       </div>
-    </Card>
+    </div>
   );
 };
 

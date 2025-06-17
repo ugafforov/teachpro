@@ -44,6 +44,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     item: any,
     itemType: 'student' | 'group'
   } | null>(null);
+  const [clearAllDialog, setClearAllDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
@@ -92,13 +93,8 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
-  const clearAllTrash = async () => {
-    if (!confirm('Rostdan ham chiqindi qutisidagi barcha ma\'lumotlarni butunlay o\'chirmoqchimisiz? Bu amal bekor qilib bo\'lmaydi!')) {
-      return;
-    }
-
+  const confirmClearAllTrash = async () => {
     try {
-      // Permanently delete all deleted students
       const { error: studentsError } = await supabase
         .from('deleted_students')
         .delete()
@@ -106,7 +102,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (studentsError) throw studentsError;
 
-      // Permanently delete all deleted groups
       const { error: groupsError } = await supabase
         .from('deleted_groups')
         .delete()
@@ -116,8 +111,20 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       await fetchTrashData();
       if (onStatsUpdate) await onStatsUpdate();
+      
+      toast({
+        title: "Muvaffaqiyat",
+        description: "Chiqindilar qutisi tozalandi",
+      });
     } catch (error) {
       console.error('Error clearing all trash:', error);
+      toast({
+        title: "Xatolik",
+        description: "Chiqindilarni tozalashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    } finally {
+      setClearAllDialog(false);
     }
   };
 
@@ -153,7 +160,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreStudent = async (deletedStudent: DeletedStudent) => {
     try {
-      // O'quvchini tiklash
       const { error: restoreError } = await supabase
         .from('students')
         .update({ is_active: true })
@@ -161,7 +167,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (restoreError) throw restoreError;
 
-      // Trash dan o'chirish
       const { error: deleteError } = await supabase
         .from('deleted_students')
         .delete()
@@ -188,7 +193,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreGroup = async (deletedGroup: DeletedGroup) => {
     try {
-      // Guruhni tiklash
       const { error: restoreError } = await supabase
         .from('groups')
         .update({ is_active: true })
@@ -196,7 +200,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (restoreError) throw restoreError;
 
-      // Trash dan o'chirish
       const { error: deleteError } = await supabase
         .from('deleted_groups')
         .delete()
@@ -223,7 +226,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const permanentDeleteStudent = async (deletedStudent: DeletedStudent) => {
     try {
-      // Butunlay o'chirish
       const { error: deleteError } = await supabase
         .from('deleted_students')
         .delete()
@@ -250,7 +252,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const permanentDeleteGroup = async (deletedGroup: DeletedGroup) => {
     try {
-      // Butunlay o'chirish
       const { error: deleteError } = await supabase
         .from('deleted_groups')
         .delete()
@@ -284,14 +285,14 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full overflow-y-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Chiqindilar qutisi</h2>
           <p className="text-muted-foreground">O'chirilgan ma'lumotlarni boshqaring</p>
         </div>
         <Button
-          onClick={clearAllTrash}
+          onClick={() => setClearAllDialog(true)}
           variant="destructive"
           className="flex items-center space-x-2"
           disabled={deletedStudents.length === 0 && deletedGroups.length === 0}
@@ -449,6 +450,40 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Clear All Confirmation Dialog */}
+      {clearAllDialog && (
+        <Dialog open={true} onOpenChange={() => setClearAllDialog(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Chiqindilarni tozalash
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                Rostdan ham chiqindi qutisidagi barcha ma'lumotlarni butunlay o'chirmoqchimisiz? 
+                Bu amalni bekor qilib bo'lmaydi!
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setClearAllDialog(false)}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                onClick={confirmClearAllTrash}
+                variant="destructive"
+              >
+                Ha, barchasini o'chirish
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Confirmation Dialog */}
       {confirmDialog && (

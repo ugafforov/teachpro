@@ -19,18 +19,14 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [reason, setReason] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!student) return;
 
     if (!rewardPoints) {
       toast({ title: "Ma'lumot yetishmayapti", description: "Ball miqdorini kiriting", variant: "destructive" });
-      return;
-    }
-
-    if (!reason.trim()) {
-      toast({ title: "Ma'lumot yetishmayapti", description: "Sabab yozing", variant: "destructive" });
       return;
     }
 
@@ -39,10 +35,18 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
       toast({ title: "Noto'g'ri format", description: "Ball 0.1 dan 5 gacha bo'lishi kerak", variant: "destructive" });
       return;
     }
-    
-    onAddReward(student.id, points, rewardType);
-    setRewardPoints('');
-    setReason('');
+
+    try {
+      setIsLoading(true);
+      await onAddReward(student.id, points, rewardType);
+      setRewardPoints('');
+      setReason('');
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error in reward dialog:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!student) return null;
@@ -59,6 +63,7 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
               onClick={() => setRewardType('reward')} 
               variant={rewardType === 'reward' ? 'default' : 'outline'} 
               className="flex items-center justify-center gap-2"
+              disabled={isLoading}
             >
               <Gift className="w-4 h-4" /> Mukofot
             </Button>
@@ -66,6 +71,7 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
               onClick={() => setRewardType('penalty')} 
               variant={rewardType === 'penalty' ? 'default' : 'outline'} 
               className="flex items-center justify-center gap-2"
+              disabled={isLoading}
             >
               <AlertTriangle className="w-4 h-4" /> Jarima
             </Button>
@@ -80,6 +86,7 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
               value={rewardPoints} 
               onChange={(e) => setRewardPoints(e.target.value)} 
               placeholder="Masalan: 5" 
+              disabled={isLoading}
             />
           </div>
           <div>
@@ -89,11 +96,16 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
               onChange={(e) => setReason(e.target.value)} 
               placeholder="Mukofot/jarima sababi..." 
               rows={3}
+              disabled={isLoading}
             />
           </div>
           <div className="flex space-x-2">
-            <Button onClick={handleSave} className="flex-1">Saqlash</Button>
-            <Button onClick={() => onOpenChange(false)} variant="outline" className="flex-1">Bekor qilish</Button>
+            <Button onClick={handleSave} className="flex-1" disabled={isLoading}>
+              {isLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
+            <Button onClick={() => onOpenChange(false)} variant="outline" className="flex-1" disabled={isLoading}>
+              Bekor qilish
+            </Button>
           </div>
         </div>
       </DialogContent>

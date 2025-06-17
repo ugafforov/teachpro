@@ -16,7 +16,7 @@ import GroupDetailsHeader from "./group/GroupDetailsHeader";
 import AttendancePanel from "./group/AttendancePanel";
 import StudentTable from "./group/StudentTable";
 import StudentDialogs from "./group/StudentDialogs";
-import ScheduleManager from "./group/ScheduleManager";
+import ScheduleManagerButton from "./group/ScheduleManagerButton";
 
 interface Student {
   id: string;
@@ -68,7 +68,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   });
   const { toast } = useToast();
 
-  // NEW: method to refresh students and attendance
   const handleStudentImportComplete = () => {
     fetchStudents();
     fetchAttendanceForDate(selectedDate);
@@ -102,7 +101,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
         if (scoresError) throw scoresError;
 
-        // Bugungi sana uchun mukofot/jarima olganlarni tekshirish
         const today = new Date().toISOString().split('T')[0];
         const { data: todayRewards, error: rewardsError } = await supabase
           .from('daily_reward_penalty_summary')
@@ -183,13 +181,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const markAttendance = async (studentId: string, status: AttendanceStatus, reason: string | null = null) => {
     try {
-      const { data: existingRecord } = await supabase
+      const { data: existingRecord, error: fetchError } = await supabase
         .from('attendance_records')
         .select('*')
         .eq('teacher_id', teacherId)
         .eq('student_id', studentId)
         .eq('date', selectedDate)
         .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
 
       if (existingRecord) {
         if (existingRecord.status === status && status !== 'absent_with_reason') {
@@ -244,7 +246,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error marking attendance:', error);
       toast({
         title: "Xatolik",
-        description: "Davomatni belgilashda xatolik yuz berdi. Internet aloqangizni tekshiring.",
+        description: "Davomatni belgilashda xatolik yuz berdi.",
         variant: "destructive",
       });
     }
@@ -338,7 +340,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error adding reward/penalty:', error);
       toast({
         title: "Xatolik",
-        description: "Mukofot/jarima berishda xatolik yuz berdi. Internet aloqangizni tekshiring.",
+        description: "Mukofot/jarima berishda xatolik yuz berdi.",
         variant: "destructive",
       });
     } finally {
@@ -381,7 +383,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full overflow-y-auto">
       <GroupDetailsHeader
         groupName={groupName}
         studentCount={students.length}
@@ -395,7 +397,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         teacherId={teacherId}
       />
 
-      <ScheduleManager groupName={groupName} teacherId={teacherId} />
+      <ScheduleManagerButton groupName={groupName} teacherId={teacherId} />
 
       <AttendancePanel
         selectedDate={selectedDate}

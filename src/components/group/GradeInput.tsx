@@ -37,7 +37,10 @@ const GradeInput: React.FC<GradeInputProps> = ({
         .eq('date_given', selectedDate)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching grade:', error);
+        return;
+      }
       
       if (data) {
         setGrade(data.grade.toString());
@@ -52,7 +55,6 @@ const GradeInput: React.FC<GradeInputProps> = ({
   const handleGradeChange = async (value: string) => {
     if (value === '') {
       setGrade('');
-      // O'chirish uchun
       try {
         setIsLoading(true);
         const { error } = await supabase
@@ -62,16 +64,11 @@ const GradeInput: React.FC<GradeInputProps> = ({
           .eq('teacher_id', teacherId)
           .eq('date_given', selectedDate);
 
-        if (error) throw error;
+        if (error && error.code !== 'PGRST116') throw error;
         
         if (onGradeChange) onGradeChange();
       } catch (error) {
         console.error('Error deleting grade:', error);
-        toast({
-          title: "Xatolik",
-          description: "Bahoni o'chirishda xatolik yuz berdi. Internet aloqangizni tekshiring.",
-          variant: "destructive",
-        });
       } finally {
         setIsLoading(false);
       }
@@ -79,7 +76,7 @@ const GradeInput: React.FC<GradeInputProps> = ({
     }
 
     const numericGrade = parseFloat(value);
-    if (!allowedGrades.includes(numericGrade)) {
+    if (isNaN(numericGrade) || !allowedGrades.includes(numericGrade)) {
       toast({
         title: "Noto'g'ri baho",
         description: "Faqat 2, 2.5, 3, 3.5, 4, 4.5, 5 baholarni kiritish mumkin.",
@@ -105,23 +102,13 @@ const GradeInput: React.FC<GradeInputProps> = ({
 
       if (error) throw error;
 
-      // Reyting ballarini yangilash
       await updateStudentRewardPoints(studentId, teacherId);
       
       if (onGradeChange) onGradeChange();
       
-      toast({
-        title: "Muvaffaqiyat",
-        description: "Baho muvaffaqiyatli saqlandi.",
-      });
     } catch (error) {
       console.error('Error saving grade:', error);
-      toast({
-        title: "Xatolik",
-        description: "Bahoni saqlashda xatolik yuz berdi. Internet aloqangizni tekshiring.",
-        variant: "destructive",
-      });
-      setGrade(''); // Reset on error
+      setGrade('');
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +116,6 @@ const GradeInput: React.FC<GradeInputProps> = ({
 
   const updateStudentRewardPoints = async (studentId: string, teacherId: string) => {
     try {
-      // Baholarning yig'indisini hisoblash
       const { data: gradesData, error: gradesError } = await supabase
         .from('grades')
         .select('grade')
@@ -140,7 +126,6 @@ const GradeInput: React.FC<GradeInputProps> = ({
 
       const totalGradePoints = gradesData?.reduce((sum, g) => sum + g.grade, 0) || 0;
 
-      // Mavjud mukofot/jarima ballarini olish
       const { data: existingScore, error: scoreError } = await supabase
         .from('student_scores')
         .select('reward_penalty_points')
@@ -148,12 +133,11 @@ const GradeInput: React.FC<GradeInputProps> = ({
         .eq('teacher_id', teacherId)
         .maybeSingle();
 
-      if (scoreError) throw scoreError;
+      if (scoreError && scoreError.code !== 'PGRST116') throw scoreError;
 
       const rewardPenaltyPoints = existingScore?.reward_penalty_points || 0;
       const newTotalScore = rewardPenaltyPoints + totalGradePoints;
 
-      // Student_scores jadvalini yangilash
       await supabase
         .from('student_scores')
         .upsert({
