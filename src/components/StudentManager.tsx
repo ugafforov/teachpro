@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus } from 'lucide-react';
+import { Plus, GraduationCap, Search, LayoutGrid, List } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import StudentDetailsPopup from './StudentDetailsPopup';
-import StudentImport from './StudentImport';
-import StudentListItem from './student/StudentListItem';
-import StudentGridItem from './student/StudentGridItem';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import StudentFilters from './student/StudentFilters';
+import StudentGridItem from './student/StudentGridItem';
+import StudentListItem from './student/StudentListItem';
 import AddStudentDialog from './student/AddStudentDialog';
 import EditStudentDialog from './student/EditStudentDialog';
 import RewardDialog from './student/RewardDialog';
@@ -22,12 +22,13 @@ export interface Student {
   group_name: string;
   teacher_id: string;
   created_at: string;
+  rewardPenaltyPoints?: number;
+  attendancePercentage?: number;
 }
 
 export interface Group {
   id: string;
   name: string;
-  description?: string;
 }
 
 export interface NewStudent {
@@ -40,61 +41,41 @@ export interface NewStudent {
 
 interface StudentManagerProps {
   teacherId: string;
-  onStatsUpdate?: () => Promise<void>;
+  onStatsUpdate: () => Promise<void>;
 }
 
-const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdate }) => {
+const StudentManager: React.FC<StudentManagerProps> = ({
+  teacherId,
+  onStatsUpdate,
+}) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'group' | 'points' | 'attendance'>('name');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [rewardingStudent, setRewardingStudent] = useState<Student | null>(null);
+  const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchStudents();
     fetchGroups();
+    fetchStudents();
   }, [teacherId]);
 
   useEffect(() => {
     filterStudents();
-  }, [students, selectedGroup, searchTerm]);
-
-  const fetchStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
-      setStudents(data || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchilarni yuklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [students, searchTerm, selectedGroup, sortBy]);
 
   const fetchGroups = async () => {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('*')
+        .select('id, name')
         .eq('teacher_id', teacherId)
         .eq('is_active', true)
         .order('name');
@@ -106,55 +87,125 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const filterStudents = () => {
-    let filtered = students;
+  const fetchStudents = async () => {
+    try {
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true)
+        .order('name');
 
+      if (studentsError) throw studentsError;
+
+      // Get reward/penalty points and attendance for each student
+      const studentIds = studentsData?.map(s => s.id) || [];
+      
+      let studentsWithStats = studentsData || [];
+      
+      if (studentIds.length > 0) {
+        // Get scores
+        const { data: scoresData, error: scoresError } = await supabase
+          .from('student_scores')
+          .select('student_id, total_score')
+          .in('student_id', studentIds)
+          .eq('teacher_id', teacherId);
+
+        if (scoresError) throw scoresError;
+
+        // Get attendance stats
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance_records')
+          .select('student_id, status')
+          .in('student_id', studentIds)
+          .eq('teacher_id', teacherId);
+
+        if (attendanceError) throw attendanceError;
+
+        // Calculate attendance percentages
+        const attendanceStats: Record<string, { total: number; present: number }> = {};
+        
+        attendanceData?.forEach(record => {
+          if (!attendanceStats[record.student_id]) {
+            attendanceStats[record.student_id] = { total: 0, present: 0 };
+          }
+          attendanceStats[record.student_id].total++;
+          if (record.status === 'present' || record.status === 'late') {
+            attendanceStats[record.student_id].present++;
+          }
+        });
+
+        studentsWithStats = studentsData?.map(student => ({
+          ...student,
+          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.total_score || 0,
+          attendancePercentage: attendanceStats[student.id] 
+            ? Math.round((attendanceStats[student.id].present / attendanceStats[student.id].total) * 100)
+            : 0
+        })) || [];
+      }
+
+      setStudents(studentsWithStats);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterStudents = () => {
+    let filtered = [...students];
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(student =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.group_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by group
     if (selectedGroup !== 'all') {
       filtered = filtered.filter(student => student.group_name === selectedGroup);
     }
 
-    if (searchTerm) {
-      filtered = filtered.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'group':
+          return a.group_name.localeCompare(b.group_name);
+        case 'points':
+          return (b.rewardPenaltyPoints || 0) - (a.rewardPenaltyPoints || 0);
+        case 'attendance':
+          return (b.attendancePercentage || 0) - (a.attendancePercentage || 0);
+        default:
+          return 0;
+      }
+    });
 
     setFilteredStudents(filtered);
   };
 
-  const addStudent = async (newStudent: NewStudent) => {
-    if (!newStudent.name.trim() || !newStudent.group_name) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "O'quvchi nomi va guruhni tanlashingiz shart",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleAddStudent = async (studentData: any) => {
     try {
       const { error } = await supabase
         .from('students')
         .insert({
           teacher_id: teacherId,
-          name: newStudent.name.trim(),
-          student_id: newStudent.student_id.trim() || null,
-          email: newStudent.email.trim() || null,
-          phone: newStudent.phone.trim() || null,
-          group_name: newStudent.group_name
+          ...studentData
         });
 
       if (error) throw error;
 
       await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
-      
+      await onStatsUpdate();
       setIsAddDialogOpen(false);
-      
+
       toast({
-        title: "O'quvchi qo'shildi",
-        description: `"${newStudent.name}" muvaffaqiyatli qo'shildi`,
+        title: "Muvaffaqiyat",
+        description: "O'quvchi muvaffaqiyatli qo'shildi",
       });
     } catch (error) {
       console.error('Error adding student:', error);
@@ -166,118 +217,87 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const editStudent = async (studentToUpdate: Student) => {
-    if (!studentToUpdate || !studentToUpdate.name.trim()) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "O'quvchi nomini kiriting",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleEditStudent = async (studentData: any) => {
+    if (!selectedStudent) return;
 
     try {
       const { error } = await supabase
         .from('students')
-        .update({
-          name: studentToUpdate.name.trim(),
-          student_id: studentToUpdate.student_id?.trim() || null,
-          email: studentToUpdate.email?.trim() || null,
-          phone: studentToUpdate.phone?.trim() || null,
-          group_name: studentToUpdate.group_name
-        })
-        .eq('id', studentToUpdate.id);
+        .update(studentData)
+        .eq('id', selectedStudent.id);
 
       if (error) throw error;
 
       await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
-      
+      await onStatsUpdate();
       setIsEditDialogOpen(false);
-      setEditingStudent(null);
-      
+      setSelectedStudent(null);
+
       toast({
-        title: "O'quvchi yangilandi",
-        description: "O'quvchi ma'lumotlari muvaffaqiyatli yangilandi",
+        title: "Muvaffaqiyat",
+        description: "O'quvchi ma'lumotlari yangilandi",
       });
     } catch (error) {
       console.error('Error updating student:', error);
       toast({
         title: "Xatolik",
-        description: "O'quvchini yangilashda xatolik yuz berdi",
+        description: "O'quvchi ma'lumotlarini yangilashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
   };
 
-  const archiveStudent = async (studentId: string, studentName: string) => {
-    try {
-      const student = students.find(s => s.id === studentId);
-      if (!student) return;
+  const handleReward = async (points: number, type: 'reward' | 'penalty', reason: string) => {
+    if (!selectedStudent) return;
 
-      await supabase
-        .from('archived_students')
+    try {
+      const { error } = await supabase
+        .from('reward_penalty_history')
         .insert({
-          original_student_id: studentId,
+          student_id: selectedStudent.id,
           teacher_id: teacherId,
-          name: student.name,
-          student_id: student.student_id,
-          group_name: student.group_name,
-          email: student.email,
-          phone: student.phone,
-          archived_by: teacherId
+          points: type === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          reason,
+          type,
+          date_given: new Date().toISOString().split('T')[0]
         });
 
-      await supabase
-        .from('students')
-        .update({ is_active: false })
-        .eq('id', studentId);
+      if (error) throw error;
 
       await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
+      await onStatsUpdate();
+      setIsRewardDialogOpen(false);
+      setSelectedStudent(null);
 
       toast({
         title: "Muvaffaqiyat",
-        description: `${studentName} muvaffaqiyatli arxivlandi`,
+        description: `${type === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi`,
       });
     } catch (error) {
-      console.error('Error archiving student:', error);
+      console.error('Error adding reward/penalty:', error);
       toast({
         title: "Xatolik",
-        description: "O'quvchini arxivlashda xatolik yuz berdi",
+        description: "Mukofot/jarima berishda xatolik yuz berdi",
         variant: "destructive",
       });
     }
   };
 
-  const deleteStudent = async (studentId: string, studentName: string) => {
+  const handleDeleteStudent = async (studentId: string) => {
     try {
-      const student = students.find(s => s.id === studentId);
-      if (!student) return;
-
-      await supabase
-        .from('deleted_students')
-        .insert({
-          original_student_id: studentId,
-          teacher_id: teacherId,
-          name: student.name,
-          student_id: student.student_id,
-          group_name: student.group_name,
-          email: student.email,
-          phone: student.phone
-        });
-
-      await supabase
+      const { error } = await supabase
         .from('students')
         .update({ is_active: false })
         .eq('id', studentId);
 
+      if (error) throw error;
+
       await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
+      await onStatsUpdate();
 
       toast({
         title: "Muvaffaqiyat",
-        description: `${studentName} muvaffaqiyatli o'chirildi`,
+        description: "O'quvchi o'chirildi",
       });
     } catch (error) {
       console.error('Error deleting student:', error);
@@ -287,47 +307,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
         variant: "destructive",
       });
     }
-  };
-
-  const addReward = async (studentId: string, points: number, type: 'reward' | 'penalty') => {
-    try {
-      const { error } = await supabase
-        .from('reward_penalty_history')
-        .insert({
-          student_id: studentId,
-          teacher_id: teacherId,
-          points: type === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: type === 'reward' ? 'Mukofot' : 'Jarima',
-          type: type
-        });
-
-      if (error) throw error;
-
-      setRewardingStudent(null);
-      if (onStatsUpdate) await onStatsUpdate();
-      
-      const studentName = students.find(s => s.id === studentId)?.name || '';
-      toast({
-        title: type === 'reward' ? "Mukofot berildi" : "Jarima berildi",
-        description: `${studentName}ga ${Math.abs(points)} ball ${type === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
-      });
-    } catch (error) {
-      console.error('Error adding reward/penalty:', error);
-      toast({
-        title: "Xatolik",
-        description: "Ball qo'shishda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleEdit = (student: Student) => {
-    setEditingStudent(student);
-    setIsEditDialogOpen(true);
-  };
-  
-  const handleReward = (student: Student) => {
-    setRewardingStudent(student);
   };
 
   if (loading) {
@@ -340,129 +319,143 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">O'quvchilar boshqaruvi</h2>
-          <p className="text-muted-foreground">O'quvchilarni qo'shing va boshqaring</p>
+          <h2 className="text-2xl font-bold text-gray-900">O'quvchilar boshqaruvi</h2>
+          <p className="text-gray-600">Barcha o'quvchilaringizni boshqaring</p>
         </div>
-        <div className="flex gap-2">
-          <StudentImport 
-            teacherId={teacherId} 
-            groupName={selectedGroup !== 'all' ? selectedGroup : undefined}
-            onImportComplete={() => {
-              fetchStudents();
-              if (onStatsUpdate) onStatsUpdate();
-            }}
-          />
-          <Button className="apple-button" onClick={() => setIsAddDialogOpen(true)}>
+        <div className="flex items-center gap-4">
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={viewMode === 'grid' ? 'default' : 'outline'} 
+                  onClick={() => setViewMode('grid')} 
+                  size="icon"
+                >
+                  <LayoutGrid />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Setka ko'rinishi</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={viewMode === 'list' ? 'default' : 'outline'} 
+                  onClick={() => setViewMode('list')} 
+                  size="icon"
+                >
+                  <List />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Ro'yxat ko'rinishi</TooltipContent>
+            </Tooltip>
+          </div>
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-black text-white hover:bg-gray-800"
+          >
             <Plus className="w-4 h-4 mr-2" />
-            Yangi o'quvchi
+            O'quvchi qo'shish
           </Button>
         </div>
       </div>
 
       <StudentFilters
         searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
+        onSearchChange={setSearchTerm}
         selectedGroup={selectedGroup}
-        onSelectedGroupChange={setSelectedGroup}
+        onGroupChange={setSelectedGroup}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
         groups={groups}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
       />
-      
+
       {filteredStudents.length === 0 ? (
-        <Card className="apple-card p-12 text-center">
-          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+        <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
+          <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
-          <p className="text-muted-foreground mb-4">
-            {searchTerm || selectedGroup !== 'all' 
-              ? "Qidiruv yoki filtr bo'yicha o'quvchilar topilmadi"
-              : "Birinchi o'quvchingizni qo'shing"
+          <p className="text-gray-600 mb-4">
+            {students.length === 0 
+              ? "Birinchi o'quvchingizni qo'shing"
+              : "Qidiruv shartlariga mos o'quvchi topilmadi"
             }
           </p>
-          {!searchTerm && selectedGroup === 'all' && (
-            <div className="flex gap-2 justify-center">
-              <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Birinchi o'quvchini qo'shish
-              </Button>
-              <StudentImport 
-                teacherId={teacherId} 
-                onImportComplete={() => {
-                  fetchStudents();
-                  if (onStatsUpdate) onStatsUpdate();
-                }}
-              />
-            </div>
+          {students.length === 0 && (
+            <Button 
+              onClick={() => setIsAddDialogOpen(true)}
+              className="bg-black text-white hover:bg-gray-800"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Birinchi o'quvchini qo'shish
+            </Button>
           )}
         </Card>
-      ) : viewMode === 'list' ? (
-        <Card className="apple-card">
-          <div className="p-6 border-b border-border/50">
-            <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
-            <p className="text-sm text-muted-foreground">{filteredStudents.length} o'quvchi topildi</p>
-          </div>
-          <div className="divide-y divide-border/50">
-            {filteredStudents.map(student => (
-              <StudentListItem 
-                key={student.id} 
-                student={student}
-                onSelectStudent={setSelectedStudent}
-                onEdit={handleEdit}
-                onArchive={archiveStudent}
-                onDelete={deleteStudent}
-                onReward={handleReward}
-              />
-            ))}
-          </div>
-        </Card>
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map(student => (
+          {filteredStudents.map((student) => (
             <StudentGridItem
               key={student.id}
               student={student}
-              onSelectStudent={setSelectedStudent}
-              onEdit={handleEdit}
-              onArchive={archiveStudent}
-              onDelete={deleteStudent}
-              onReward={handleReward}
+              onEdit={(student) => {
+                setSelectedStudent(student);
+                setIsEditDialogOpen(true);
+              }}
+              onReward={(student) => {
+                setSelectedStudent(student);
+                setIsRewardDialogOpen(true);
+              }}
+              onDelete={handleDeleteStudent}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredStudents.map((student) => (
+            <StudentListItem
+              key={student.id}
+              student={student}
+              onEdit={(student) => {
+                setSelectedStudent(student);
+                setIsEditDialogOpen(true);
+              }}
+              onReward={(student) => {
+                setSelectedStudent(student);
+                setIsRewardDialogOpen(true);
+              }}
+              onDelete={handleDeleteStudent}
             />
           ))}
         </div>
       )}
 
-      <AddStudentDialog 
+      <AddStudentDialog
         isOpen={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onAddStudent={addStudent}
+        onClose={() => setIsAddDialogOpen(false)}
+        onAdd={handleAddStudent}
         groups={groups}
       />
 
-      <EditStudentDialog 
+      <EditStudentDialog
         isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-        student={editingStudent}
-        onEditStudent={editStudent}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setSelectedStudent(null);
+        }}
+        onEdit={handleEditStudent}
+        student={selectedStudent}
         groups={groups}
       />
 
       <RewardDialog
-        isOpen={!!rewardingStudent}
-        onOpenChange={(isOpen) => !isOpen && setRewardingStudent(null)}
-        student={rewardingStudent}
-        onAddReward={addReward}
+        isOpen={isRewardDialogOpen}
+        onClose={() => {
+          setIsRewardDialogOpen(false);
+          setSelectedStudent(null);
+        }}
+        onReward={handleReward}
+        student={selectedStudent}
       />
-      
-      {selectedStudent && (
-        <StudentDetailsPopup
-          studentId={selectedStudent.id}
-          isOpen={!!selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-          teacherId={teacherId}
-        />
-      )}
     </div>
   );
 };

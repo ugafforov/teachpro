@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, AlertTriangle, LayoutGrid, List } from 'lucide-react';
+import { Plus, Users2, AlertTriangle, LayoutGrid, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
@@ -555,7 +555,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       {groups.length === 0 ? (
         <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
-          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Users2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
           <p className="text-gray-600 mb-4">
             Birinchi guruhingizni yarating va o'quvchilar qo'shishni boshlang

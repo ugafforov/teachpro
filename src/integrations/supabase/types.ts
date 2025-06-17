@@ -271,6 +271,57 @@ export type Database = {
           },
         ]
       }
+      grades: {
+        Row: {
+          created_at: string
+          date_given: string
+          grade: number
+          id: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_given?: string
+          grade: number
+          id?: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          date_given?: string
+          grade?: number
+          id?: string
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      group_schedule: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          group_name: string
+          id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          group_name: string
+          id?: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          group_name?: string
+          id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       groups: {
         Row: {
           created_at: string
@@ -356,6 +407,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      schedule_exceptions: {
+        Row: {
+          created_at: string
+          description: string | null
+          exception_date: string
+          exception_type: string
+          group_name: string
+          id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          exception_date: string
+          exception_type: string
+          group_name: string
+          id?: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          exception_date?: string
+          exception_type?: string
+          group_name?: string
+          id?: string
+          teacher_id?: string
+        }
+        Relationships: []
       }
       student_rankings: {
         Row: {

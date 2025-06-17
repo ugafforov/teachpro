@@ -16,6 +16,7 @@ import GroupDetailsHeader from "./group/GroupDetailsHeader";
 import AttendancePanel from "./group/AttendancePanel";
 import StudentTable from "./group/StudentTable";
 import StudentDialogs from "./group/StudentDialogs";
+import ScheduleManager from "./group/ScheduleManager";
 
 interface Student {
   id: string;
@@ -95,7 +96,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       if (studentIds.length > 0) {
         const { data: scoresData, error: scoresError } = await supabase
           .from('student_scores')
-          .select('student_id, reward_penalty_points')
+          .select('student_id, reward_penalty_points, total_score')
           .in('student_id', studentIds)
           .eq('teacher_id', teacherId);
 
@@ -114,7 +115,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
         const studentsWithRewards = studentsData?.map(student => ({
           ...student,
-          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0,
+          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.total_score || 0,
           hasRewardToday: todayRewards?.some(r => r.student_id === student.id) || false
         })) || [];
 
@@ -241,6 +242,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       await onStatsUpdate();
     } catch (error) {
       console.error('Error marking attendance:', error);
+      toast({
+        title: "Xatolik",
+        description: "Davomatni belgilashda xatolik yuz berdi. Internet aloqangizni tekshiring.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -332,7 +338,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error adding reward/penalty:', error);
       toast({
         title: "Xatolik",
-        description: "Mukofot/jarima berishda xatolik yuz berdi.",
+        description: "Mukofot/jarima berishda xatolik yuz berdi. Internet aloqangizni tekshiring.",
         variant: "destructive",
       });
     } finally {
@@ -389,6 +395,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         teacherId={teacherId}
       />
 
+      <ScheduleManager groupName={groupName} teacherId={teacherId} />
+
       <AttendancePanel
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
@@ -404,6 +412,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         onShowReward={setShowRewardDialog}
         onShowReason={handleReasonButtonClick}
         onAddStudentClick={() => setIsAddDialogOpen(true)}
+        selectedDate={selectedDate}
+        teacherId={teacherId}
+        onGradeChange={fetchStudents}
       />
 
       <StudentDialogs
