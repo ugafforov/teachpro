@@ -247,17 +247,15 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
-  const handleReward = async (points: number, type: 'reward' | 'penalty', reason: string) => {
-    if (!selectedStudent) return;
-
+  const handleReward = async (studentId: string, points: number, type: 'reward' | 'penalty') => {
     try {
       const { error } = await supabase
         .from('reward_penalty_history')
         .insert({
-          student_id: selectedStudent.id,
+          student_id: studentId,
           teacher_id: teacherId,
           points: type === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason,
+          reason: `${type === 'reward' ? 'Mukofot' : 'Jarima'} berildi`,
           type,
           date_given: new Date().toISOString().split('T')[0]
         });
