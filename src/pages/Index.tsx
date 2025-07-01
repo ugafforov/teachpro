@@ -73,26 +73,6 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, [toast]);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setTeacher(null);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
-    } catch (error) {
-      console.error('Error signing out:', error);
-      toast({
-        title: "Error",
-        description: "Failed to log out",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -116,7 +96,7 @@ const Index = () => {
     );
   }
 
-  return <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />;
+  return <Dashboard />;
 };
 
 export default Index;
