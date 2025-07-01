@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Gift, AlertTriangle } from 'lucide-react';
 import { Student } from '../StudentManager';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface RewardDialogProps {
   student: Student | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAddReward: (studentId: string, points: number, type: 'reward' | 'penalty') => void;
+  onAddReward: (studentId: string, points: number, type: 'reward' | 'penalty') => Promise<void>;
 }
 
 const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChange, onAddReward }) => {
@@ -25,27 +26,145 @@ const RewardDialog: React.FC<RewardDialogProps> = ({ student, isOpen, onOpenChan
   const handleSave = async () => {
     if (!student) return;
 
-    if (!rewardPoints) {
-      toast({ title: "Ma'lumot yetishmayapti", description: "Ball miqdorini kiriting", variant: "destructive" });
+    if (!rewardPoints || !rewardPoints.trim()) {
+      toast({ 
+        title: "Ma'lumot yetishmayapti", 
+        description: "Ball miqdorini kiriting", 
+        variant: "destructive" 
+      });
       return;
     }
 
     const points = parseFloat(rewardPoints);
     if (isNaN(points) || points <= 0 || points > 5) {
-      toast({ title: "Noto'g'ri format", description: "Ball 0.1 dan 5 gacha bo'lishi kerak", variant: "destructive" });
+      toast({ 
+        title: "Noto'g'ri format", 
+        description: "Ball 0.1 dan 5 gacha bo'lishi kerak", 
+        variant: "destructive" 
+      });
       return;
     }
 
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      // Check if student already has reward/penalty today
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existingReward, error: checkError } = await supabase
+        .from('daily_reward_penalty_summary')
+        .select('id')
+        .eq('student_id', student.id)
+        .eq('date_given', today)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing reward:', checkError);
+        throw checkError;
+      }
+
+      if (existingReward) {
+        toast({
+          title: "Cheklov",
+          description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Add reward/penalty to history
+      const finalPoints = rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points);
+      const { error: historyError } = await supabase
+        .from('reward_penalty_history')
+        .insert({
+          student_id: student.id,
+          teacher_id: student.teacher_id,
+          points: finalPoints,
+          reason: reason || (rewardType === 'reward' ? 'Mukofot' : 'Jarima'),
+          type: rewardType,
+          date_given: today
+        });
+
+      if (historyError) {
+        console.error('Error saving reward history:', historyError);
+        throw historyError;
+      }
+
+      // Update student scores
+      await updateStudentScores(student.id, student.teacher_id);
+
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi.`,
+      });
+
+      // Call the parent callback
       await onAddReward(student.id, points, rewardType);
+      
+      // Reset form and close dialog
       setRewardPoints('');
       setReason('');
       onOpenChange(false);
+      
     } catch (error) {
-      console.error('Error in reward dialog:', error);
+      console.error('Error adding reward/penalty:', error);
+      toast({
+        title: "Xatolik",
+        description: "Mukofot/jarima berishda xatolik yuz berdi.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const updateStudentScores = async (studentId: string, teacherId: string) => {
+    try {
+      // Calculate total reward/penalty points
+      const { data: rewardData, error: rewardError } = await supabase
+        .from('reward_penalty_history')
+        .select('points')
+        .eq('student_id', studentId)
+        .eq('teacher_id', teacherId);
+
+      if (rewardError) {
+        console.error('Error fetching reward points:', rewardError);
+        return;
+      }
+
+      const totalRewardPoints = rewardData?.reduce((sum, r) => sum + r.points, 0) || 0;
+
+      // Get total grade points
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select('grade')
+        .eq('student_id', studentId)
+        .eq('teacher_id', teacherId);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const totalGradePoints = gradesData?.reduce((sum, g) => sum + g.grade, 0) || 0;
+      const newTotalScore = totalRewardPoints + totalGradePoints;
+
+      // Update student scores
+      const { error: updateError } = await supabase
+        .from('student_scores')
+        .upsert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          reward_penalty_points: totalRewardPoints,
+          total_score: newTotalScore
+        }, {
+          onConflict: 'student_id,teacher_id'
+        });
+
+      if (updateError) {
+        console.error('Error updating student scores:', updateError);
+      }
+
+    } catch (error) {
+      console.error('Error updating student scores:', error);
     }
   };
 

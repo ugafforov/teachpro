@@ -21,13 +21,17 @@ const GradeInput: React.FC<GradeInputProps> = ({
 }) => {
   const [grade, setGrade] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchExistingGrade();
-  }, [studentId, selectedDate]);
+  }, [studentId, selectedDate, teacherId]);
 
   const fetchExistingGrade = async () => {
+    if (!studentId || !teacherId || !selectedDate) return;
+    
+    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('grades')
@@ -49,14 +53,19 @@ const GradeInput: React.FC<GradeInputProps> = ({
       }
     } catch (error) {
       console.error('Error fetching grade:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGradeChange = async (value: string) => {
-    if (value === '') {
+    if (isSaving) return;
+
+    // Handle empty value (delete grade)
+    if (value === '' || value === '0') {
       setGrade('');
+      setIsSaving(true);
       try {
-        setIsLoading(true);
         const { error } = await supabase
           .from('grades')
           .delete()
@@ -64,13 +73,28 @@ const GradeInput: React.FC<GradeInputProps> = ({
           .eq('teacher_id', teacherId)
           .eq('date_given', selectedDate);
 
-        if (error && error.code !== 'PGRST116') throw error;
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error deleting grade:', error);
+          toast({
+            title: "Xatolik",
+            description: "Bahoni o'chirishda xatolik yuz berdi",
+            variant: "destructive",
+          });
+          return;
+        }
         
+        await updateStudentTotalScore(studentId, teacherId);
         if (onGradeChange) onGradeChange();
+        
       } catch (error) {
         console.error('Error deleting grade:', error);
+        toast({
+          title: "Xatolik",
+          description: "Bahoni o'chirishda xatolik yuz berdi",
+          variant: "destructive",
+        });
       } finally {
-        setIsLoading(false);
+        setIsSaving(false);
       }
       return;
     }
@@ -86,9 +110,9 @@ const GradeInput: React.FC<GradeInputProps> = ({
     }
 
     setGrade(value);
+    setIsSaving(true);
     
     try {
-      setIsLoading(true);
       const { error } = await supabase
         .from('grades')
         .upsert({
@@ -100,32 +124,56 @@ const GradeInput: React.FC<GradeInputProps> = ({
           onConflict: 'student_id,teacher_id,date_given'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving grade:', error);
+        toast({
+          title: "Xatolik",
+          description: "Bahoni saqlashda xatolik yuz berdi",
+          variant: "destructive",
+        });
+        setGrade('');
+        return;
+      }
 
-      await updateStudentRewardPoints(studentId, teacherId);
+      await updateStudentTotalScore(studentId, teacherId);
       
       if (onGradeChange) onGradeChange();
       
+      toast({
+        title: "Muvaffaqiyat",
+        description: "Baho muvaffaqiyatli saqlandi",
+      });
+      
     } catch (error) {
       console.error('Error saving grade:', error);
+      toast({
+        title: "Xatolik",
+        description: "Bahoni saqlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
       setGrade('');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  const updateStudentRewardPoints = async (studentId: string, teacherId: string) => {
+  const updateStudentTotalScore = async (studentId: string, teacherId: string) => {
     try {
+      // Get all grades for this student
       const { data: gradesData, error: gradesError } = await supabase
         .from('grades')
         .select('grade')
         .eq('student_id', studentId)
         .eq('teacher_id', teacherId);
 
-      if (gradesError) throw gradesError;
+      if (gradesError) {
+        console.error('Error fetching grades for total score:', gradesError);
+        return;
+      }
 
       const totalGradePoints = gradesData?.reduce((sum, g) => sum + g.grade, 0) || 0;
 
+      // Get existing reward/penalty points
       const { data: existingScore, error: scoreError } = await supabase
         .from('student_scores')
         .select('reward_penalty_points')
@@ -133,12 +181,16 @@ const GradeInput: React.FC<GradeInputProps> = ({
         .eq('teacher_id', teacherId)
         .maybeSingle();
 
-      if (scoreError && scoreError.code !== 'PGRST116') throw scoreError;
+      if (scoreError && scoreError.code !== 'PGRST116') {
+        console.error('Error fetching existing score:', scoreError);
+        return;
+      }
 
       const rewardPenaltyPoints = existingScore?.reward_penalty_points || 0;
       const newTotalScore = rewardPenaltyPoints + totalGradePoints;
 
-      await supabase
+      // Update or insert student score
+      const { error: updateError } = await supabase
         .from('student_scores')
         .upsert({
           student_id: studentId,
@@ -149,8 +201,12 @@ const GradeInput: React.FC<GradeInputProps> = ({
           onConflict: 'student_id,teacher_id'
         });
 
+      if (updateError) {
+        console.error('Error updating student total score:', updateError);
+      }
+
     } catch (error) {
-      console.error('Error updating student reward points:', error);
+      console.error('Error updating student total score:', error);
     }
   };
 
@@ -164,7 +220,7 @@ const GradeInput: React.FC<GradeInputProps> = ({
       onChange={(e) => handleGradeChange(e.target.value)}
       placeholder="Baho"
       className="w-16 h-8 text-center text-sm"
-      disabled={isLoading}
+      disabled={isLoading || isSaving}
     />
   );
 };

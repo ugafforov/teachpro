@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -285,15 +286,19 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     if (isSavingReward) return;
 
     if (!rewardPoints || !studentId) {
-      console.log('Missing rewardPoints or studentId');
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "Ball miqdorini kiriting",
+        variant: "destructive",
+      });
       return;
     }
 
     const points = parseFloat(rewardPoints);
     if (isNaN(points) || points <= 0 || points > 5) {
       toast({
-        title: "Xatolik",
-        description: `Ball miqdori 0 dan katta va 5 gacha bo'lishi kerak.`,
+        title: "Noto'g'ri format",
+        description: "Ball 0.1 dan 5 gacha bo'lishi kerak",
         variant: "destructive",
       });
       return;
@@ -313,20 +318,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
     setIsSavingReward(true);
     try {
-      const { error } = await supabase
+      const today = new Date().toISOString().split('T')[0];
+      const finalPoints = rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points);
+      
+      // Add to reward/penalty history
+      const { error: historyError } = await supabase
         .from('reward_penalty_history')
         .insert({
           student_id: studentId,
           teacher_id: teacherId,
-          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          points: finalPoints,
           reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
           type: rewardType,
-          date_given: new Date().toISOString().split('T')[0]
+          date_given: today
         });
 
-      if (error) {
-        throw error;
+      if (historyError) {
+        console.error('Error adding reward history:', historyError);
+        throw historyError;
       }
+
+      // Update student scores
+      await updateStudentScores(studentId, teacherId);
       
       toast({
         title: "Muvaffaqiyat",
@@ -350,6 +363,58 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
+  const updateStudentScores = async (studentId: string, teacherId: string) => {
+    try {
+      // Calculate total reward/penalty points
+      const { data: rewardData, error: rewardError } = await supabase
+        .from('reward_penalty_history')
+        .select('points')
+        .eq('student_id', studentId)
+        .eq('teacher_id', teacherId);
+
+      if (rewardError) {
+        console.error('Error fetching reward points:', rewardError);
+        return;
+      }
+
+      const totalRewardPoints = rewardData?.reduce((sum, r) => sum + r.points, 0) || 0;
+
+      // Get total grade points
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select('grade')
+        .eq('student_id', studentId)
+        .eq('teacher_id', teacherId);
+
+      if (gradesError) {
+        console.error('Error fetching grades:', gradesError);
+        return;
+      }
+
+      const totalGradePoints = gradesData?.reduce((sum, g) => sum + g.grade, 0) || 0;
+      const newTotalScore = totalRewardPoints + totalGradePoints;
+
+      // Update student scores
+      const { error: updateError } = await supabase
+        .from('student_scores')
+        .upsert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          reward_penalty_points: totalRewardPoints,
+          total_score: newTotalScore
+        }, {
+          onConflict: 'student_id,teacher_id'
+        });
+
+      if (updateError) {
+        console.error('Error updating student scores:', updateError);
+      }
+
+    } catch (error) {
+      console.error('Error updating student scores:', error);
+    }
+  };
+
   const handleStudentClick = (studentId: string) => {
     setSelectedStudentId(studentId);
     setIsStudentPopupOpen(true);
@@ -366,12 +431,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     setIsReasonDialogOpen(true);
   };
 
-  const handleSaveReason = () => {
+  const handleSaveReason = async () => {
     if (!reasonStudent) return;
-    markAttendance(reasonStudent.id, 'absent_with_reason', reasonText || null);
-    setIsReasonDialogOpen(false);
-    setReasonStudent(null);
-    setReasonText('');
+    
+    try {
+      await markAttendance(reasonStudent.id, 'absent_with_reason', reasonText || null);
+      setIsReasonDialogOpen(false);
+      setReasonStudent(null);
+      setReasonText('');
+      
+      toast({
+        title: "Muvaffaqiyat",
+        description: "Sabab muvaffaqiyatli saqlandi",
+      });
+    } catch (error) {
+      console.error('Error saving reason:', error);
+      toast({
+        title: "Xatolik",
+        description: "Sababni saqlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {

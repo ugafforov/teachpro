@@ -30,7 +30,7 @@ function App() {
   return (
     <TooltipProvider>
       <Router>
-        <div className="min-h-screen w-full overflow-hidden">
+        <div className="min-h-screen w-full">
           <Routes>
             <Route 
               path="/" 

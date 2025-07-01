@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -59,7 +60,7 @@ const Dashboard: React.FC = () => {
     { id: 'attendance', label: 'Davomat', icon: Calendar },
     { id: 'rankings', label: 'Reyting', icon: TrendingUp },
     { id: 'archive', label: 'Arxiv', icon: Archive },
-    { id: 'trash', label: 'Chiqindilar', icon: Trash2 },
+    { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
   ];
 
   useEffect(() => {
@@ -188,14 +189,15 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 w-full overflow-hidden">
-      <div className="flex h-screen">
+    <div className="min-h-screen bg-gray-50 w-full">
+      <div className="flex h-screen max-w-full">
         {/* Mobile menu button */}
         <div className="lg:hidden fixed top-4 left-4 z-50">
           <Button
             variant="outline"
             size="icon"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="bg-white shadow-md"
           >
             {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </Button>
@@ -204,28 +206,31 @@ const Dashboard: React.FC = () => {
         {/* Sidebar */}
         <div className={`${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out lg:flex lg:flex-col`}>
+        } lg:translate-x-0 fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col`}>
           
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center justify-center p-6 border-b border-gray-200">
+            <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center mr-3">
+              <span className="text-white font-bold text-lg">T</span>
+            </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">EduManager</h1>
+              <h1 className="text-lg font-bold text-gray-900">TeachPro</h1>
               <p className="text-sm text-gray-600">{teacher.name}</p>
             </div>
           </div>
 
           <nav className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-2">
+            <div className="space-y-1">
               {menuItems.map((item) => (
                 <Button
                   key={item.id}
                   variant={activeTab === item.id ? "default" : "ghost"}
-                  className="w-full justify-start text-left"
+                  className="w-full justify-start text-left h-12"
                   onClick={() => {
                     setActiveTab(item.id);
                     setIsSidebarOpen(false);
                   }}
                 >
-                  <item.icon className="w-4 h-4 mr-3" />
+                  <item.icon className="w-5 h-5 mr-3" />
                   {item.label}
                 </Button>
               ))}
@@ -236,7 +241,7 @@ const Dashboard: React.FC = () => {
             <div className="text-xs text-gray-500 mb-2">Maktab: {teacher.school}</div>
             <Button
               variant="outline"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
               onClick={handleSignOut}
             >
               <LogOut className="w-4 h-4 mr-2" />
@@ -246,55 +251,57 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-            {activeTab === 'statistics' && (
-              <Statistics teacherId={teacher.id} />
-            )}
-            {activeTab === 'groups' && (
-              <GroupManager 
-                teacherId={teacher.id} 
-                onGroupSelect={handleGroupSelect}
-                onStatsUpdate={fetchStats}
-              />
-            )}
-            {activeTab === 'students' && (
-              <StudentManager 
-                teacherId={teacher.id}
-                onStatsUpdate={fetchStats}
-              />
-            )}
-            {activeTab === 'attendance' && (
-              <AttendanceTracker 
-                teacherId={teacher.id}
-                onStatsUpdate={fetchStats}
-              />
-            )}
-            {activeTab === 'rankings' && (
-              <StudentRankings 
-                teacherId={teacher.id}
-              />
-            )}
-            {activeTab === 'archive' && (
-              <ArchiveManager 
-                teacherId={teacher.id}
-                onStatsUpdate={fetchStats}
-              />
-            )}
-            {activeTab === 'trash' && (
-              <TrashManager 
-                teacherId={teacher.id}
-                onStatsUpdate={fetchStats}
-              />
-            )}
-            {activeTab === 'group-details' && selectedGroup && (
-              <GroupDetails
-                groupName={selectedGroup}
-                teacherId={teacher.id}
-                onBack={handleBackToGroups}
-                onStatsUpdate={fetchStats}
-              />
-            )}
+        <div className="flex-1 flex flex-col min-w-0 max-w-full">
+          <main className="flex-1 overflow-y-auto p-4 lg:p-8 w-full max-w-full">
+            <div className="max-w-full">
+              {activeTab === 'statistics' && (
+                <Statistics teacherId={teacher.id} />
+              )}
+              {activeTab === 'groups' && (
+                <GroupManager 
+                  teacherId={teacher.id} 
+                  onGroupSelect={handleGroupSelect}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+              {activeTab === 'students' && (
+                <StudentManager 
+                  teacherId={teacher.id}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+              {activeTab === 'attendance' && (
+                <AttendanceTracker 
+                  teacherId={teacher.id}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+              {activeTab === 'rankings' && (
+                <StudentRankings 
+                  teacherId={teacher.id}
+                />
+              )}
+              {activeTab === 'archive' && (
+                <ArchiveManager 
+                  teacherId={teacher.id}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+              {activeTab === 'trash' && (
+                <TrashManager 
+                  teacherId={teacher.id}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+              {activeTab === 'group-details' && selectedGroup && (
+                <GroupDetails
+                  groupName={selectedGroup}
+                  teacherId={teacher.id}
+                  onBack={handleBackToGroups}
+                  onStatsUpdate={fetchStats}
+                />
+              )}
+            </div>
           </main>
         </div>
       </div>
