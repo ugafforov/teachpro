@@ -14,7 +14,415 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      archived_groups: {
+        Row: {
+          archived_at: string
+          description: string | null
+          id: string
+          name: string
+          original_group_id: string | null
+          teacher_id: string
+        }
+        Insert: {
+          archived_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          original_group_id?: string | null
+          teacher_id: string
+        }
+        Update: {
+          archived_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          original_group_id?: string | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archived_groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      archived_students: {
+        Row: {
+          age: number | null
+          archived_at: string
+          id: string
+          name: string
+          original_student_id: string | null
+          parent_phone: string | null
+          phone: string | null
+          reward_penalty_points: number | null
+          teacher_id: string
+        }
+        Insert: {
+          age?: number | null
+          archived_at?: string
+          id?: string
+          name: string
+          original_student_id?: string | null
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id: string
+        }
+        Update: {
+          age?: number | null
+          archived_at?: string
+          id?: string
+          name?: string
+          original_student_id?: string | null
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archived_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          status?: string
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deleted_groups: {
+        Row: {
+          deleted_at: string
+          description: string | null
+          id: string
+          name: string
+          original_group_id: string | null
+          teacher_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          original_group_id?: string | null
+          teacher_id: string
+        }
+        Update: {
+          deleted_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          original_group_id?: string | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deleted_students: {
+        Row: {
+          age: number | null
+          deleted_at: string
+          id: string
+          name: string
+          original_student_id: string | null
+          parent_phone: string | null
+          phone: string | null
+          reward_penalty_points: number | null
+          teacher_id: string
+        }
+        Insert: {
+          age?: number | null
+          deleted_at?: string
+          id?: string
+          name: string
+          original_student_id?: string | null
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id: string
+        }
+        Update: {
+          age?: number | null
+          deleted_at?: string
+          id?: string
+          name?: string
+          original_student_id?: string | null
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_penalty_history: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          points: number
+          reason: string | null
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          points: number
+          reason?: string | null
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          points?: number
+          reason?: string | null
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_penalty_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_penalty_history_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_scores: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          score: number
+          student_id: string
+          subject: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          score: number
+          student_id: string
+          subject: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          score?: number
+          student_id?: string
+          subject?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_scores_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_scores_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          age: number | null
+          created_at: string
+          group_id: string | null
+          id: string
+          name: string
+          parent_phone: string | null
+          phone: string | null
+          reward_penalty_points: number | null
+          teacher_id: string
+        }
+        Insert: {
+          age?: number | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          name: string
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id: string
+        }
+        Update: {
+          age?: number | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          name?: string
+          parent_phone?: string | null
+          phone?: string | null
+          reward_penalty_points?: number | null
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teachers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          school: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone?: string | null
+          school?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          school?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
