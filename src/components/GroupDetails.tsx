@@ -2,22 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import AttendanceSection from './group/AttendanceSection';
-import StudentList from './group/StudentList';
-import AddStudentDialog from './group/AddStudentDialog';
-import RewardPenaltyDialog from './group/RewardPenaltyDialog';
-import AbsentReasonDialog from './group/AbsentReasonDialog';
-import GroupDetailsHeader from "./group/GroupDetailsHeader";
-import AttendancePanel from "./group/AttendancePanel";
-import StudentTable from "./group/StudentTable";
-import StudentDialogs from "./group/StudentDialogs";
-import ScheduleManagerButton from "./group/ScheduleManagerButton";
 
 interface Student {
   id: string;
@@ -29,10 +22,19 @@ interface Student {
   teacher_id: string;
   created_at: string;
   rewardPenaltyPoints?: number;
-  hasRewardToday?: boolean;
 }
 
-type AttendanceStatus = 'present' | 'absent' | 'late' | 'absent_with_reason';
+type AttendanceStatus = 'present' | 'absent' | 'late';
+
+interface AttendanceRecord {
+  id: string;
+  student_id: string;
+  teacher_id: string;
+  date: string;
+  status: AttendanceStatus;
+  created_at: string;
+  updated_at: string;
+}
 
 interface GroupDetailsProps {
   groupName: string;
@@ -41,26 +43,22 @@ interface GroupDetailsProps {
   onStatsUpdate: () => Promise<void>;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({
-  groupName,
-  teacherId,
-  onBack,
-  onStatsUpdate
+const GroupDetails: React.FC<GroupDetailsProps> = ({ 
+  groupName, 
+  teacherId, 
+  onBack, 
+  onStatsUpdate 
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<Record<string, { status: AttendanceStatus; reason?: string | null }>>({});
+  const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
-  const [isSavingReward, setIsSavingReward] = useState(false);
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
-  const [isReasonDialogOpen, setIsReasonDialogOpen] = useState(false);
-  const [reasonStudent, setReasonStudent] = useState<Student | null>(null);
-  const [reasonText, setReasonText] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -68,12 +66,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     phone: ''
   });
   const { toast } = useToast();
-
-  const handleStudentImportComplete = () => {
-    fetchStudents();
-    fetchAttendanceForDate(selectedDate);
-    if (onStatsUpdate) onStatsUpdate();
-  };
 
   useEffect(() => {
     fetchStudents();
@@ -92,30 +84,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       if (studentsError) throw studentsError;
 
+      // Fetch reward/penalty points for each student
       const studentIds = studentsData?.map(s => s.id) || [];
       if (studentIds.length > 0) {
         const { data: scoresData, error: scoresError } = await supabase
           .from('student_scores')
-          .select('student_id, reward_penalty_points, total_score')
+          .select('student_id, reward_penalty_points')
           .in('student_id', studentIds)
           .eq('teacher_id', teacherId);
 
         if (scoresError) throw scoresError;
 
-        const today = new Date().toISOString().split('T')[0];
-        const { data: todayRewards, error: rewardsError } = await supabase
-          .from('daily_reward_penalty_summary')
-          .select('student_id')
-          .in('student_id', studentIds)
-          .eq('teacher_id', teacherId)
-          .eq('date_given', today);
-
-        if (rewardsError) throw rewardsError;
-
+        // Merge reward points with student data
         const studentsWithRewards = studentsData?.map(student => ({
           ...student,
-          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.total_score || 0,
-          hasRewardToday: todayRewards?.some(r => r.student_id === student.id) || false
+          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0
         })) || [];
 
         setStudents(studentsWithRewards);
@@ -133,16 +116,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     try {
       const { data, error } = await supabase
         .from('attendance_records')
-        .select('student_id, status, reason')
+        .select('student_id, status')
         .eq('teacher_id', teacherId)
         .eq('date', date);
 
       if (error) throw error;
 
-      const attendanceMap: Record<string, { status: AttendanceStatus; reason?: string | null }> = {};
+      const attendanceMap: Record<string, AttendanceStatus> = {};
       if (data) {
         data.forEach((record: any) => {
-          attendanceMap[record.student_id] = { status: record.status as AttendanceStatus, reason: record.reason };
+          attendanceMap[record.student_id] = record.status as AttendanceStatus;
         });
       }
       setAttendance(attendanceMap);
@@ -180,9 +163,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const markAttendance = async (studentId: string, status: AttendanceStatus, reason: string | null = null) => {
+  const markAttendance = async (studentId: string, status: AttendanceStatus) => {
     try {
-      const { data: existingRecord, error: fetchError } = await supabase
+      const { data: existingRecord } = await supabase
         .from('attendance_records')
         .select('*')
         .eq('teacher_id', teacherId)
@@ -190,12 +173,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         .eq('date', selectedDate)
         .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
       if (existingRecord) {
-        if (existingRecord.status === status && status !== 'absent_with_reason') {
+        if (existingRecord.status === status) {
           const { error } = await supabase
             .from('attendance_records')
             .delete()
@@ -209,47 +188,39 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             return newAttendance;
           });
         } else {
-          const newReason = status === 'absent_with_reason' ? reason : null;
           const { error } = await supabase
             .from('attendance_records')
-            .update({ status: status, reason: newReason })
+            .update({ status: status })
             .eq('id', existingRecord.id);
 
           if (error) throw error;
 
           setAttendance(prevAttendance => ({
             ...prevAttendance,
-            [studentId]: { status, reason: newReason },
+            [studentId]: status,
           }));
         }
       } else {
-        const newReason = status === 'absent_with_reason' ? reason : null;
         const { error } = await supabase
           .from('attendance_records')
           .insert({
             teacher_id: teacherId,
             student_id: studentId,
             date: selectedDate,
-            status: status,
-            reason: newReason
+            status: status
           });
 
         if (error) throw error;
 
         setAttendance(prevAttendance => ({
           ...prevAttendance,
-          [studentId]: { status, reason: newReason },
+          [studentId]: status,
         }));
       }
 
       await onStatsUpdate();
     } catch (error) {
       console.error('Error marking attendance:', error);
-      toast({
-        title: "Xatolik",
-        description: "Davomatni belgilashda xatolik yuz berdi.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -283,135 +254,42 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   };
 
   const addReward = async (studentId: string) => {
-    if (isSavingReward) return;
-
-    if (!rewardPoints || !studentId) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "Ball miqdorini kiriting",
-        variant: "destructive",
-      });
+    if (!rewardPoints) {
       return;
     }
 
     const points = parseFloat(rewardPoints);
-    if (isNaN(points) || points <= 0 || points > 5) {
-      toast({
-        title: "Noto'g'ri format",
-        description: "Ball 0.1 dan 5 gacha bo'lishi kerak",
-        variant: "destructive",
-      });
+    if (isNaN(points)) {
       return;
     }
 
-    const student = students.find(s => s.id === studentId);
-    if (student?.hasRewardToday) {
-      toast({
-        title: "Cheklov",
-        description: "Bu o'quvchiga bugun allaqachon mukofot/jarima berilgan.",
-        variant: "destructive",
-      });
-      setShowRewardDialog(null);
-      setRewardPoints('');
+    // Validate point limits
+    if (rewardType === 'reward' && points > 5) {
+      return;
+    }
+    if (rewardType === 'penalty' && Math.abs(points) > 5) {
       return;
     }
 
-    setIsSavingReward(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const finalPoints = rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points);
-      
-      // Add to reward/penalty history
-      const { error: historyError } = await supabase
+      const { error } = await supabase
         .from('reward_penalty_history')
         .insert({
           student_id: studentId,
           teacher_id: teacherId,
-          points: finalPoints,
+          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
           reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          type: rewardType,
-          date_given: today
+          type: rewardType
         });
 
-      if (historyError) {
-        console.error('Error adding reward history:', historyError);
-        throw historyError;
-      }
+      if (error) throw error;
 
-      // Update student scores
-      await updateStudentScores(studentId, teacherId);
-      
-      toast({
-        title: "Muvaffaqiyat",
-        description: `${rewardType === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi.`,
-      });
-      
-      await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
-
-    } catch (error) {
-      console.error('Error adding reward/penalty:', error);
-      toast({
-        title: "Xatolik",
-        description: "Mukofot/jarima berishda xatolik yuz berdi.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingReward(false);
       setShowRewardDialog(null);
       setRewardPoints('');
-    }
-  };
-
-  const updateStudentScores = async (studentId: string, teacherId: string) => {
-    try {
-      // Calculate total reward/penalty points
-      const { data: rewardData, error: rewardError } = await supabase
-        .from('reward_penalty_history')
-        .select('points')
-        .eq('student_id', studentId)
-        .eq('teacher_id', teacherId);
-
-      if (rewardError) {
-        console.error('Error fetching reward points:', rewardError);
-        return;
-      }
-
-      const totalRewardPoints = rewardData?.reduce((sum, r) => sum + r.points, 0) || 0;
-
-      // Get total grade points
-      const { data: gradesData, error: gradesError } = await supabase
-        .from('grades')
-        .select('grade')
-        .eq('student_id', studentId)
-        .eq('teacher_id', teacherId);
-
-      if (gradesError) {
-        console.error('Error fetching grades:', gradesError);
-        return;
-      }
-
-      const totalGradePoints = gradesData?.reduce((sum, g) => sum + g.grade, 0) || 0;
-      const newTotalScore = totalRewardPoints + totalGradePoints;
-
-      // Update student scores
-      const { error: updateError } = await supabase
-        .from('student_scores')
-        .upsert({
-          student_id: studentId,
-          teacher_id: teacherId,
-          reward_penalty_points: totalRewardPoints,
-          total_score: newTotalScore
-        }, {
-          onConflict: 'student_id,teacher_id'
-        });
-
-      if (updateError) {
-        console.error('Error updating student scores:', updateError);
-      }
-
+      await fetchStudents(); // Refresh to show updated reward points
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error updating student scores:', error);
+      console.error('Error adding reward/penalty:', error);
     }
   };
 
@@ -420,38 +298,45 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     setIsStudentPopupOpen(true);
   };
 
-  const handleReasonButtonClick = (student: Student) => {
-    setReasonStudent(student);
-    const currentAttendance = attendance[student.id];
-    if (currentAttendance?.status === 'absent_with_reason') {
-        setReasonText(currentAttendance.reason || '');
-    } else {
-        setReasonText('');
+  const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
+    const currentStatus = attendance[studentId];
+    const isActive = currentStatus === targetStatus;
+    
+    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
+    
+    if (!isActive) {
+      return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
     }
-    setIsReasonDialogOpen(true);
+    
+    switch (targetStatus) {
+      case 'present':
+        return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
+      case 'late':
+        return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
+      case 'absent':
+        return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
+      default:
+        return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+    }
   };
 
-  const handleSaveReason = async () => {
-    if (!reasonStudent) return;
-    
-    try {
-      await markAttendance(reasonStudent.id, 'absent_with_reason', reasonText || null);
-      setIsReasonDialogOpen(false);
-      setReasonStudent(null);
-      setReasonText('');
-      
-      toast({
-        title: "Muvaffaqiyat",
-        description: "Sabab muvaffaqiyatli saqlandi",
-      });
-    } catch (error) {
-      console.error('Error saving reason:', error);
-      toast({
-        title: "Xatolik",
-        description: "Sababni saqlashda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    }
+  const getRewardDisplay = (points: number) => {
+    if (points === 0) return null;
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+        points > 0 
+          ? 'bg-green-100 text-green-800 border border-green-200' 
+          : 'bg-red-100 text-red-800 border border-red-200'
+      }`}>
+        {points > 0 ? '+' : ''}{points}
+      </span>
+    );
+  };
+
+  const getRewardIcon = (points: number) => {
+    if (points === 0) return null;
+    if (points > 0) return <Star className="w-4 h-4 text-yellow-500" />;
+    return <AlertTriangle className="w-4 h-4 text-red-500" />;
   };
 
   if (loading) {
@@ -463,59 +348,277 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   }
 
   return (
-    <div className="space-y-6 h-full overflow-y-auto">
-      <GroupDetailsHeader
-        groupName={groupName}
-        studentCount={students.length}
-        onBack={onBack}
-        onStudentImport={handleStudentImportComplete}
-        isAddDialogOpen={isAddDialogOpen}
-        onAddDialogOpenChange={setIsAddDialogOpen}
-        newStudent={newStudent}
-        onStudentChange={setNewStudent}
-        onAddStudent={addStudent}
-        teacherId={teacherId}
-      />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button onClick={onBack} variant="ghost" size="sm">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold">{groupName}</h2>
+            <p className="text-muted-foreground">{students.length} o'quvchi</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <StudentImport 
+            teacherId={teacherId} 
+            groupName={groupName}
+            onImportComplete={() => {
+              fetchStudents();
+              fetchAttendanceForDate(selectedDate);
+              if (onStatsUpdate) onStatsUpdate();
+            }}
+          />
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                O'quvchi qo'shish
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="studentName">O'quvchi nomi *</Label>
+                  <Input
+                    id="studentName"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    placeholder="To'liq ism sharif"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentId">O'quvchi ID</Label>
+                  <Input
+                    id="studentId"
+                    value={newStudent.student_id}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
+                    placeholder="Masalan: 2024001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentEmail">Email</Label>
+                  <Input
+                    id="studentEmail"
+                    type="email"
+                    value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                    placeholder="student@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentPhone">Telefon</Label>
+                  <Input
+                    id="studentPhone"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                    placeholder="+998 90 123 45 67"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button onClick={addStudent} className="apple-button flex-1">
+                    Qo'shish
+                  </Button>
+                  <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
+                    Bekor qilish
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
 
-      <ScheduleManagerButton groupName={groupName} teacherId={teacherId} />
+      <Card className="apple-card">
+        <div className="p-6 border-b border-border/50">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Davomat</h3>
+              <p className="text-sm text-muted-foreground">
+                O'quvchilar davomatini boshqaring
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <Button
+                onClick={markAllAsPresent}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Barchani kelgan deb belgilash
+              </Button>
+              <Button
+                onClick={clearAllAttendance}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Belgilarni tozalash
+              </Button>
+            </div>
+          </div>
+        </div>
+        {students.length === 0 ? (
+          <div className="p-12 text-center">
+            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
+            <p className="text-muted-foreground mb-4">
+              Guruhga o'quvchilarni qo'shing
+            </p>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+              <Plus className="w-4 h-4 mr-2" />
+              Birinchi o'quvchini qo'shish
+            </Button>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/50">
+            {students.map(student => (
+              <div key={student.id} className="p-4 flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => handleStudentClick(student.id)}
+                    className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center relative">
+                      <span className="text-sm font-medium">
+                        {student.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                      {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && (
+                        <div className="absolute -top-1 -right-1">
+                          {getRewardIcon(student.rewardPenaltyPoints)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{student.name}</h3>
+                        {student.rewardPenaltyPoints !== undefined && getRewardDisplay(student.rewardPenaltyPoints)}
+                      </div>
+                      {student.student_id && (
+                        <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
+                      )}
+                    </div>
+                  </button>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    onClick={() => markAttendance(student.id, 'present')}
+                    className={getButtonStyle(student.id, 'present')}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => markAttendance(student.id, 'late')}
+                    className={getButtonStyle(student.id, 'late')}
+                  >
+                    <Clock className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => markAttendance(student.id, 'absent')}
+                    className={getButtonStyle(student.id, 'absent')}
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowRewardDialog(student.id)}
+                    title="Mukofot/Jarima berish"
+                  >
+                    <Gift className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
-      <AttendancePanel
-        selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
-        onMarkAllPresent={markAllAsPresent}
-        onClearAll={clearAllAttendance}
-      />
+      {/* Reward Dialog */}
+      {showRewardDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setRewardType('reward')}
+                  variant={rewardType === 'reward' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Gift className="w-4 h-4" />
+                  Mukofot
+                </Button>
+                <Button
+                  onClick={() => setRewardType('penalty')}
+                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Jarima
+                </Button>
+              </div>
+              <div>
+                <label className="text-sm font-medium">
+                  Ball miqdori (maksimum {rewardType === 'reward' ? '+5' : '-5'})
+                </label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="5"
+                  value={rewardPoints}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (value <= 5) {
+                      setRewardPoints(e.target.value);
+                    }
+                  }}
+                  placeholder="Masalan: 3"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => addReward(showRewardDialog)}
+                  className="flex-1"
+                  disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}
+                >
+                  Saqlash
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRewardDialog(null);
+                    setRewardPoints('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <StudentTable
-        students={students}
-        attendance={attendance}
-        onStudentClick={handleStudentClick}
-        onMarkAttendance={markAttendance}
-        onShowReward={setShowRewardDialog}
-        onShowReason={handleReasonButtonClick}
-        onAddStudentClick={() => setIsAddDialogOpen(true)}
-        selectedDate={selectedDate}
-        teacherId={teacherId}
-        onGradeChange={fetchStudents}
-      />
-
-      <StudentDialogs
-        showRewardDialog={showRewardDialog}
-        setShowRewardDialog={setShowRewardDialog}
-        rewardPoints={rewardPoints}
-        setRewardPoints={setRewardPoints}
-        rewardType={rewardType}
-        setRewardType={setRewardType}
-        onRewardSave={addReward}
-        isSaving={isSavingReward}
-        isReasonDialogOpen={isReasonDialogOpen}
-        setReasonDialogOpen={setIsReasonDialogOpen}
-        reasonStudent={reasonStudent}
-        reasonText={reasonText}
-        setReasonText={setReasonText}
-        onReasonSave={handleSaveReason}
-      />
-
+      {/* Student Details Popup */}
       <StudentDetailsPopup
         studentId={selectedStudentId}
         isOpen={isStudentPopupOpen}

@@ -2,18 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, GraduationCap, Search, LayoutGrid, List } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import StudentFilters from './student/StudentFilters';
-import StudentGridItem from './student/StudentGridItem';
-import StudentListItem from './student/StudentListItem';
-import AddStudentDialog from './student/AddStudentDialog';
-import EditStudentDialog from './student/EditStudentDialog';
-import RewardDialog from './student/RewardDialog';
+import StudentDetailsPopup from './StudentDetailsPopup';
+import StudentImport from './StudentImport';
 
-export interface Student {
+interface Student {
   id: string;
   name: string;
   student_id?: string;
@@ -22,60 +20,80 @@ export interface Student {
   group_name: string;
   teacher_id: string;
   created_at: string;
-  rewardPenaltyPoints?: number;
-  attendancePercentage?: number;
 }
 
-export interface Group {
+interface Group {
   id: string;
   name: string;
-}
-
-export interface NewStudent {
-  name: string;
-  student_id: string;
-  email: string;
-  phone: string;
-  group_name: string;
+  description?: string;
 }
 
 interface StudentManagerProps {
   teacherId: string;
-  onStatsUpdate: () => Promise<void>;
+  onStatsUpdate?: () => Promise<void>;
 }
 
-const StudentManager: React.FC<StudentManagerProps> = ({
-  teacherId,
-  onStatsUpdate,
-}) => {
+const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [students, setStudents] = useState<Student[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'group' | 'points' | 'attendance'>('name');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
+  const [rewardPoints, setRewardPoints] = useState('');
+  const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
+  const [loading, setLoading] = useState(true);
+  const [newStudent, setNewStudent] = useState({
+    name: '',
+    student_id: '',
+    email: '',
+    phone: '',
+    group_name: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchGroups();
     fetchStudents();
+    fetchGroups();
   }, [teacherId]);
 
   useEffect(() => {
     filterStudents();
-  }, [students, searchTerm, selectedGroup, sortBy]);
+  }, [students, selectedGroup, searchTerm]);
+
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchilarni yuklashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchGroups = async () => {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, name')
+        .select('*')
         .eq('teacher_id', teacherId)
         .eq('is_active', true)
         .order('name');
@@ -87,125 +105,56 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
-  const fetchStudents = async () => {
-    try {
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .order('name');
-
-      if (studentsError) throw studentsError;
-
-      // Get reward/penalty points and attendance for each student
-      const studentIds = studentsData?.map(s => s.id) || [];
-      
-      let studentsWithStats = studentsData || [];
-      
-      if (studentIds.length > 0) {
-        // Get scores
-        const { data: scoresData, error: scoresError } = await supabase
-          .from('student_scores')
-          .select('student_id, total_score')
-          .in('student_id', studentIds)
-          .eq('teacher_id', teacherId);
-
-        if (scoresError) throw scoresError;
-
-        // Get attendance stats
-        const { data: attendanceData, error: attendanceError } = await supabase
-          .from('attendance_records')
-          .select('student_id, status')
-          .in('student_id', studentIds)
-          .eq('teacher_id', teacherId);
-
-        if (attendanceError) throw attendanceError;
-
-        // Calculate attendance percentages
-        const attendanceStats: Record<string, { total: number; present: number }> = {};
-        
-        attendanceData?.forEach(record => {
-          if (!attendanceStats[record.student_id]) {
-            attendanceStats[record.student_id] = { total: 0, present: 0 };
-          }
-          attendanceStats[record.student_id].total++;
-          if (record.status === 'present' || record.status === 'late') {
-            attendanceStats[record.student_id].present++;
-          }
-        });
-
-        studentsWithStats = studentsData?.map(student => ({
-          ...student,
-          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.total_score || 0,
-          attendancePercentage: attendanceStats[student.id] 
-            ? Math.round((attendanceStats[student.id].present / attendanceStats[student.id].total) * 100)
-            : 0
-        })) || [];
-      }
-
-      setStudents(studentsWithStats);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const filterStudents = () => {
-    let filtered = [...students];
+    let filtered = students;
 
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.group_name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Filter by group
     if (selectedGroup !== 'all') {
       filtered = filtered.filter(student => student.group_name === selectedGroup);
     }
 
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'group':
-          return a.group_name.localeCompare(b.group_name);
-        case 'points':
-          return (b.rewardPenaltyPoints || 0) - (a.rewardPenaltyPoints || 0);
-        case 'attendance':
-          return (b.attendancePercentage || 0) - (a.attendancePercentage || 0);
-        default:
-          return 0;
-      }
-    });
+    if (searchTerm) {
+      filtered = filtered.filter(student =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    }
 
     setFilteredStudents(filtered);
   };
 
-  const handleAddStudent = async (studentData: any) => {
+  const addStudent = async () => {
+    if (!newStudent.name.trim() || !newStudent.group_name) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "O'quvchi nomi va guruhni tanlashingiz shart",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('students')
         .insert({
           teacher_id: teacherId,
-          ...studentData
+          name: newStudent.name.trim(),
+          student_id: newStudent.student_id.trim() || null,
+          email: newStudent.email.trim() || null,
+          phone: newStudent.phone.trim() || null,
+          group_name: newStudent.group_name
         });
 
       if (error) throw error;
 
       await fetchStudents();
-      await onStatsUpdate();
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      setNewStudent({ name: '', student_id: '', email: '', phone: '', group_name: '' });
       setIsAddDialogOpen(false);
-
+      
       toast({
-        title: "Muvaffaqiyat",
-        description: "O'quvchi muvaffaqiyatli qo'shildi",
+        title: "O'quvchi qo'shildi",
+        description: `"${newStudent.name}" muvaffaqiyatli qo'shildi`,
       });
     } catch (error) {
       console.error('Error adding student:', error);
@@ -217,109 +166,91 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
-  const handleEditStudent = async (studentData: any) => {
-    if (!selectedStudent) return;
+  const editStudent = async () => {
+    if (!editingStudent || !editingStudent.name.trim()) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "O'quvchi nomini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('students')
-        .update(studentData)
-        .eq('id', selectedStudent.id);
+        .update({
+          name: editingStudent.name.trim(),
+          student_id: editingStudent.student_id?.trim() || null,
+          email: editingStudent.email?.trim() || null,
+          phone: editingStudent.phone?.trim() || null,
+          group_name: editingStudent.group_name
+        })
+        .eq('id', editingStudent.id);
 
       if (error) throw error;
 
       await fetchStudents();
-      await onStatsUpdate();
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      setEditingStudent(null);
       setIsEditDialogOpen(false);
-      setSelectedStudent(null);
-
+      
       toast({
-        title: "Muvaffaqiyat",
-        description: "O'quvchi ma'lumotlari yangilandi",
+        title: "O'quvchi yangilandi",
+        description: "O'quvchi ma'lumotlari muvaffaqiyatli yangilandi",
       });
     } catch (error) {
       console.error('Error updating student:', error);
       toast({
         title: "Xatolik",
-        description: "O'quvchi ma'lumotlarini yangilashda xatolik yuz berdi",
+        description: "O'quvchini yangilashda xatolik yuz berdi",
         variant: "destructive",
       });
     }
   };
 
-  const handleReward = async (studentId: string, points: number, type: 'reward' | 'penalty') => {
+  const archiveStudent = async (studentId: string, studentName: string) => {
     try {
-      const { error } = await supabase
-        .from('reward_penalty_history')
+      const student = students.find(s => s.id === studentId);
+      if (!student) return;
+
+      await supabase
+        .from('archived_students')
         .insert({
-          student_id: studentId,
+          original_student_id: studentId,
           teacher_id: teacherId,
-          points: type === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: `${type === 'reward' ? 'Mukofot' : 'Jarima'} berildi`,
-          type,
-          date_given: new Date().toISOString().split('T')[0]
+          name: student.name,
+          student_id: student.student_id,
+          group_name: student.group_name,
+          email: student.email,
+          phone: student.phone,
+          archived_by: teacherId
         });
 
-      if (error) throw error;
-
-      await fetchStudents();
-      await onStatsUpdate();
-      setIsRewardDialogOpen(false);
-      setSelectedStudent(null);
-
-      toast({
-        title: "Muvaffaqiyat",
-        description: `${type === 'reward' ? 'Mukofot' : 'Jarima'} muvaffaqiyatli berildi`,
-      });
-    } catch (error) {
-      console.error('Error adding reward/penalty:', error);
-      toast({
-        title: "Xatolik",
-        description: "Mukofot/jarima berishda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteStudent = async (studentId: string) => {
-    try {
-      const { error } = await supabase
+      await supabase
         .from('students')
         .update({ is_active: false })
         .eq('id', studentId);
 
-      if (error) throw error;
-
       await fetchStudents();
-      await onStatsUpdate();
-
-      toast({
-        title: "Muvaffaqiyat",
-        description: "O'quvchi o'chirildi",
-      });
+      if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error deleting student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchini o'chirishda xatolik yuz berdi",
-        variant: "destructive",
-      });
+      console.error('Error archiving student:', error);
     }
   };
 
-  const handleSelectStudent = (student: Student) => {
-    // Handle student selection logic here
-    console.log('Selected student:', student);
-  };
+  const deleteStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
 
-  const handleArchiveStudent = async (studentId: string, studentName: string) => {
     try {
-      // First add to archived_students table
       const student = students.find(s => s.id === studentId);
       if (!student) return;
 
-      const { error: archiveError } = await supabase
-        .from('archived_students')
+      await supabase
+        .from('deleted_students')
         .insert({
           original_student_id: studentId,
           teacher_id: teacherId,
@@ -330,32 +261,227 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           phone: student.phone
         });
 
-      if (archiveError) throw archiveError;
-
-      // Then deactivate the student
-      const { error } = await supabase
+      await supabase
         .from('students')
         .update({ is_active: false })
         .eq('id', studentId);
 
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+    } catch (error) {
+      console.error('Error deleting student:', error);
+    }
+  };
+
+  const addReward = async (studentId: string) => {
+    if (!rewardPoints) {
+      toast({
+        title: "Ma'lumot yetishmayapti",
+        description: "Ball miqdorini kiriting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const points = parseFloat(rewardPoints);
+    if (isNaN(points)) {
+      toast({
+        title: "Noto'g'ri format",
+        description: "Ball sonli qiymat bo'lishi kerak",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reward_penalty_history')
+        .insert({
+          student_id: studentId,
+          teacher_id: teacherId,
+          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
+          type: rewardType
+        });
+
       if (error) throw error;
 
-      await fetchStudents();
-      await onStatsUpdate();
-
+      setShowRewardDialog(null);
+      setRewardPoints('');
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      const studentName = students.find(s => s.id === studentId)?.name || '';
       toast({
-        title: "Muvaffaqiyat",
-        description: `${studentName} arxivlandi`,
+        title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
+        description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
       });
     } catch (error) {
-      console.error('Error archiving student:', error);
+      console.error('Error adding reward/penalty:', error);
       toast({
         title: "Xatolik",
-        description: "O'quvchini arxivlashda xatolik yuz berdi",
+        description: "Ball qo'shishda xatolik yuz berdi",
         variant: "destructive",
       });
     }
   };
+
+  const renderStudentsList = () => (
+    <Card className="apple-card">
+      <div className="p-6 border-b border-border/50">
+        <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
+        <p className="text-sm text-muted-foreground">
+          {filteredStudents.length} o'quvchi topildi
+        </p>
+      </div>
+      <div className="divide-y divide-border/50">
+        {filteredStudents.map(student => (
+          <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium">
+                  {student.name.split(' ').map(n => n[0]).join('')}
+                </span>
+              </div>
+              <div>
+                <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
+                  {student.name}
+                </h3>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  {student.student_id && <span>ID: {student.student_id}</span>}
+                  <span className="text-blue-600">{student.group_name}</span>
+                </div>
+                {(student.email || student.phone) && (
+                  <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-1">
+                    {student.email && <span>{student.email}</span>}
+                    {student.phone && <span>{student.phone}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowRewardDialog(student.id)}
+                title="Mukofot/Jarima berish"
+              >
+                <Gift className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingStudent(student);
+                  setIsEditDialogOpen(true);
+                }}
+              >
+                <Edit2 className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => archiveStudent(student.id, student.name)}
+                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <Archive className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => deleteStudent(student.id, student.name)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  const renderStudentsGrid = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {filteredStudents.map(student => (
+        <Card key={student.id} className="apple-card p-6">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
+                  <span className="text-lg font-medium">
+                    {student.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-semibold cursor-pointer hover:text-blue-600 transition-colors" onClick={() => setSelectedStudent(student)}>
+                    {student.name}
+                  </h3>
+                  {student.student_id && (
+                    <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
+                  )}
+                  <p className="text-sm text-blue-600">{student.group_name}</p>
+                </div>
+              </div>
+            </div>
+
+            {(student.email || student.phone) && (
+              <div className="space-y-1">
+                {student.email && (
+                  <p className="text-sm text-muted-foreground">{student.email}</p>
+                )}
+                {student.phone && (
+                  <p className="text-sm text-muted-foreground">{student.phone}</p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <span className="text-xs text-muted-foreground">
+                {new Date(student.created_at).toLocaleDateString('uz-UZ')}
+              </span>
+              <div className="flex items-center space-x-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowRewardDialog(student.id)}
+                  title="Mukofot/Jarima berish"
+                >
+                  <Gift className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingStudent(student);
+                    setIsEditDialogOpen(true);
+                  }}
+                >
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => archiveStudent(student.id, student.name)}
+                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                >
+                  <Archive className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => deleteStudent(student.id, student.name)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 
   if (loading) {
     return (
@@ -367,147 +493,310 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">O'quvchilar boshqaruvi</h2>
-          <p className="text-gray-600">Barcha o'quvchilaringizni boshqaring</p>
+          <h2 className="text-2xl font-bold">O'quvchilar boshqaruvi</h2>
+          <p className="text-muted-foreground">O'quvchilarni qo'shing va boshqaring</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant={viewMode === 'grid' ? 'default' : 'outline'} 
-                  onClick={() => setViewMode('grid')} 
-                  size="icon"
-                >
-                  <LayoutGrid />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Setka ko'rinishi</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant={viewMode === 'list' ? 'default' : 'outline'} 
-                  onClick={() => setViewMode('list')} 
-                  size="icon"
-                >
-                  <List />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ro'yxat ko'rinishi</TooltipContent>
-            </Tooltip>
-          </div>
-          <Button 
-            onClick={() => setIsAddDialogOpen(true)}
-            className="bg-black text-white hover:bg-gray-800"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            O'quvchi qo'shish
-          </Button>
+        <div className="flex gap-2">
+          <StudentImport 
+            teacherId={teacherId} 
+            groupName={selectedGroup !== 'all' ? selectedGroup : undefined}
+            onImportComplete={() => {
+              fetchStudents();
+              if (onStatsUpdate) onStatsUpdate();
+            }}
+          />
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                Yangi o'quvchi
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="studentName">O'quvchi nomi *</Label>
+                  <Input
+                    id="studentName"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    placeholder="To'liq ism sharif"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentId">O'quvchi ID</Label>
+                  <Input
+                    id="studentId"
+                    value={newStudent.student_id}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
+                    placeholder="Masalan: 2024001"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentGroup">Guruh *</Label>
+                  <Select value={newStudent.group_name} onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Guruhni tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map(group => (
+                        <SelectItem key={group.id} value={group.name}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="studentEmail">Email</Label>
+                  <Input
+                    id="studentEmail"
+                    type="email"
+                    value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                    placeholder="student@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="studentPhone">Telefon</Label>
+                  <Input
+                    id="studentPhone"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                    placeholder="+998 90 123 45 67"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button onClick={addStudent} className="apple-button flex-1">
+                    Qo'shish
+                  </Button>
+                  <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
+                    Bekor qilish
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <StudentFilters
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        selectedGroup={selectedGroup}
-        onSelectedGroupChange={setSelectedGroup}
-        groups={groups}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-      />
+      {/* Filter va qidiruv */}
+      <Card className="apple-card p-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="O'quvchi nomi yoki ID bo'yicha qidiring..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha guruhlar</SelectItem>
+              {groups.map(group => (
+                <SelectItem key={group.id} value={group.name}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'outline'}
+              onClick={() => setViewMode('grid')}
+              size="sm"
+              title="Grid ko'rinishi"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              onClick={() => setViewMode('list')}
+              size="sm"
+              title="Ro'yxat ko'rinishi"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
 
+      {/* O'quvchilar ro'yxati */}
       {filteredStudents.length === 0 ? (
-        <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
-          <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <Card className="apple-card p-12 text-center">
+          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
-          <p className="text-gray-600 mb-4">
-            {students.length === 0 
-              ? "Birinchi o'quvchingizni qo'shing"
-              : "Qidiruv shartlariga mos o'quvchi topilmadi"
+          <p className="text-muted-foreground mb-4">
+            {searchTerm || selectedGroup !== 'all' 
+              ? "Qidiruv yoki filtr bo'yicha o'quvchilar topilmadi"
+              : "Birinchi o'quvchingizni qo'shing"
             }
           </p>
-          {students.length === 0 && (
-            <Button 
-              onClick={() => setIsAddDialogOpen(true)}
-              className="bg-black text-white hover:bg-gray-800"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Birinchi o'quvchini qo'shish
-            </Button>
+          {!searchTerm && selectedGroup === 'all' && (
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
+                <Plus className="w-4 h-4 mr-2" />
+                Birinchi o'quvchini qo'shish
+              </Button>
+              <StudentImport 
+                teacherId={teacherId} 
+                onImportComplete={() => {
+                  fetchStudents();
+                  if (onStatsUpdate) onStatsUpdate();
+                }}
+              />
+            </div>
           )}
         </Card>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredStudents.map((student) => (
-            <StudentGridItem
-              key={student.id}
-              student={student}
-              onSelectStudent={handleSelectStudent}
-              onEdit={(student) => {
-                setSelectedStudent(student);
-                setIsEditDialogOpen(true);
-              }}
-              onArchive={handleArchiveStudent}
-              onReward={(student) => {
-                setSelectedStudent(student);
-                setIsRewardDialogOpen(true);
-              }}
-              onDelete={handleDeleteStudent}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="space-y-4">
-          {filteredStudents.map((student) => (
-            <StudentListItem
-              key={student.id}
-              student={student}
-              onSelectStudent={handleSelectStudent}
-              onEdit={(student) => {
-                setSelectedStudent(student);
-                setIsEditDialogOpen(true);
-              }}
-              onArchive={handleArchiveStudent}
-              onReward={(student) => {
-                setSelectedStudent(student);
-                setIsRewardDialogOpen(true);
-              }}
-              onDelete={handleDeleteStudent}
-            />
-          ))}
+        viewMode === 'grid' ? renderStudentsGrid() : renderStudentsList()
+      )}
+
+      {/* Reward Dialog */}
+      {showRewardDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => setRewardType('reward')}
+                  variant={rewardType === 'reward' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Gift className="w-4 h-4" />
+                  Mukofot
+                </Button>
+                <Button
+                  onClick={() => setRewardType('penalty')}
+                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Jarima
+                </Button>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ball miqdori</label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={rewardPoints}
+                  onChange={(e) => setRewardPoints(e.target.value)}
+                  placeholder="Masalan: 5"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => addReward(showRewardDialog)}
+                  className="flex-1"
+                >
+                  Saqlash
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowRewardDialog(null);
+                    setRewardPoints('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      <AddStudentDialog
-        isOpen={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onAddStudent={handleAddStudent}
-        groups={groups}
-      />
+      {/* Tahrirlash dialogi */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>O'quvchini tahrirlash</DialogTitle>
+          </DialogHeader>
+          {editingStudent && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-studentName">O'quvchi nomi *</Label>
+                <Input
+                  id="edit-studentName"
+                  value={editingStudent.name}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-studentId">O'quvchi ID</Label>
+                <Input
+                  id="edit-studentId"
+                  value={editingStudent.student_id || ''}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, student_id: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-studentGroup">Guruh</Label>
+                <Select value={editingStudent.group_name} onValueChange={(value) => setEditingStudent({ ...editingStudent, group_name: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map(group => (
+                      <SelectItem key={group.id} value={group.name}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-studentEmail">Email</Label>
+                <Input
+                  id="edit-studentEmail"
+                  type="email"
+                  value={editingStudent.email || ''}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, email: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-studentPhone">Telefon</Label>
+                <Input
+                  id="edit-studentPhone"
+                  value={editingStudent.phone || ''}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, phone: e.target.value })}
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button onClick={editStudent} className="apple-button flex-1">
+                  Saqlash
+                </Button>
+                <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-      <EditStudentDialog
-        isOpen={isEditDialogOpen}
-        onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) setSelectedStudent(null);
-        }}
-        onEditStudent={handleEditStudent}
-        student={selectedStudent}
-        groups={groups}
-      />
-
-      <RewardDialog
-        isOpen={isRewardDialogOpen}
-        onOpenChange={(open) => {
-          setIsRewardDialogOpen(open);
-          if (!open) setSelectedStudent(null);
-        }}
-        onAddReward={handleReward}
-        student={selectedStudent}
-      />
+      {/* Student Details Popup */}
+      {selectedStudent && (
+        <StudentDetailsPopup
+          studentId={selectedStudent.id}
+          isOpen={!!selectedStudent}
+          onClose={() => setSelectedStudent(null)}
+          teacherId={teacherId}
+        />
+      )}
     </div>
   );
 };

@@ -1,318 +1,339 @@
-
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Users, 
-  Layers, 
-  TrendingUp, 
-  Calendar,
-  BookOpen,
-  Trash2,
-  Archive,
-  Settings,
-  BarChart3,
-  LogOut,
-  Menu,
-  X
-} from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import Statistics from './Statistics';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
-import AttendanceTracker from './AttendanceTracker';
+import Statistics from './Statistics';
 import StudentRankings from './StudentRankings';
-import TrashManager from './TrashManager';
 import ArchiveManager from './ArchiveManager';
-import GroupDetails from './GroupDetails';
+import TrashManager from './TrashManager';
 
-interface Teacher {
-  id: string;
-  name: string;
-  email: string;
-  school: string;
-  phone?: string;
+interface DashboardProps {
+  teacherId: string;
+  teacherName?: string;
+  onLogout: () => void;
 }
 
 interface Stats {
   totalStudents: number;
   totalGroups: number;
-  todayPresent: number;
-  thisWeekAvgAttendance: number;
+  averageAttendance: number;
+  topStudent: string;
 }
 
-const Dashboard: React.FC = () => {
-  const [teacher, setTeacher] = useState<Teacher | null>(null);
-  const [stats, setStats] = useState<Stats>({ totalStudents: 0, totalGroups: 0, todayPresent: 0, thisWeekAvgAttendance: 0 });
+const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [stats, setStats] = useState<Stats>({
+    totalStudents: 0,
+    totalGroups: 0,
+    averageAttendance: 0,
+    topStudent: ''
+  });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('statistics');
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { toast } = useToast();
-
-  const menuItems = [
-    { id: 'statistics', label: 'Statistika', icon: BarChart3 },
-    { id: 'groups', label: 'Guruhlar', icon: Layers },
-    { id: 'students', label: 'O\'quvchilar', icon: Users },
-    { id: 'attendance', label: 'Davomat', icon: Calendar },
-    { id: 'rankings', label: 'Reyting', icon: TrendingUp },
-    { id: 'archive', label: 'Arxiv', icon: Archive },
-    { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
-  ];
 
   useEffect(() => {
-    fetchTeacherData();
     fetchStats();
-  }, []);
+  }, [teacherId]);
 
-  const fetchTeacherData = async () => {
+  const fetchStats = async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
+      setLoading(true);
 
-      if (user) {
-        const { data: teacherData, error: teacherError } = await supabase
-          .from('teachers')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+      // Faqat faol o'quvchilar sonini olish
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
 
-        if (teacherError) throw teacherError;
-        setTeacher(teacherData);
+      if (studentsError) throw studentsError;
+
+      // Faqat faol guruhlar sonini olish
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('groups')
+        .select('id')
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
+
+      if (groupsError) throw groupsError;
+
+      const totalStudents = studentsData?.length || 0;
+      const totalGroups = groupsData?.length || 0;
+
+      // O'rtacha davomatni hisoblash (faqat faol o'quvchilar uchun)
+      let averageAttendance = 0;
+      if (totalStudents > 0) {
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance_records')
+          .select(`
+            status,
+            students!inner(is_active)
+          `)
+          .eq('teacher_id', teacherId)
+          .eq('students.is_active', true);
+
+        if (attendanceError) throw attendanceError;
+
+        const totalRecords = attendanceData?.length || 0;
+        const presentRecords = attendanceData?.filter(a => a.status === 'present' || a.status === 'late').length || 0;
+        averageAttendance = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
       }
+
+      // Eng yaxshi o'quvchini topish (faqat faol o'quvchilar orasidan)
+      const { data: topStudentData, error: topStudentError } = await supabase
+        .from('student_scores')
+        .select(`
+          student_id, 
+          total_score, 
+          students!inner(name, is_active)
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('students.is_active', true)
+        .order('total_score', { ascending: false })
+        .limit(1);
+
+      if (topStudentError) throw topStudentError;
+
+      const topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
+
+      setStats({
+        totalStudents,
+        totalGroups,
+        averageAttendance: Math.round(averageAttendance * 100) / 100,
+        topStudent
+      });
     } catch (error) {
-      console.error('Error fetching teacher data:', error);
+      console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStats = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: teacherData } = await supabase
-        .from('teachers')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!teacherData) return;
-
-      const teacherId = teacherData.id;
-
-      const [studentsResult, groupsResult, attendanceResult] = await Promise.all([
-        supabase.from('students').select('id').eq('teacher_id', teacherId).eq('is_active', true),
-        supabase.from('groups').select('id').eq('teacher_id', teacherId).eq('is_active', true),
-        supabase.from('attendance_records')
-          .select('status')
-          .eq('teacher_id', teacherId)
-          .eq('date', new Date().toISOString().split('T')[0])
-      ]);
-
-      const totalStudents = studentsResult.data?.length || 0;
-      const totalGroups = groupsResult.data?.length || 0;
-      const todayPresent = attendanceResult.data?.filter(record => 
-        record.status === 'present' || record.status === 'late'
-      ).length || 0;
-
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-      const { data: weekAttendance } = await supabase
-        .from('attendance_records')
-        .select('status')
-        .eq('teacher_id', teacherId)
-        .gte('date', oneWeekAgo.toISOString().split('T')[0]);
-
-      const weekPresentCount = weekAttendance?.filter(record => 
-        record.status === 'present' || record.status === 'late'
-      ).length || 0;
-      const weekTotalCount = weekAttendance?.length || 0;
-      const thisWeekAvgAttendance = weekTotalCount > 0 ? (weekPresentCount / weekTotalCount) * 100 : 0;
-
-      setStats({
-        totalStudents,
-        totalGroups,
-        todayPresent,
-        thisWeekAvgAttendance: Math.round(thisWeekAvgAttendance)
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-      toast({
-        title: "Xatolik",
-        description: "Chiqishda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleGroupSelect = (groupName: string) => {
-    setSelectedGroup(groupName);
-    setActiveTab('group-details');
+    // For now, we can just log the selected group
+    // This could be extended to navigate to group details or perform other actions
+    console.log('Selected group:', groupName);
   };
 
-  const handleBackToGroups = () => {
-    setSelectedGroup(null);
-    setActiveTab('groups');
+  const menuItems = [
+    { id: 'overview', label: 'Umumiy ko\'rinish', icon: BookOpen },
+    { id: 'groups', label: 'Guruhlar', icon: Users },
+    { id: 'students', label: 'O\'quvchilar', icon: Users },
+    { id: 'rankings', label: 'Reyting', icon: Trophy },
+    { id: 'statistics', label: 'Statistika', icon: BarChart3 },
+    { id: 'archive', label: 'Arxiv', icon: Archive },
+    { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'groups':
+        return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={fetchStats} />;
+      case 'students':
+        return <StudentManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'rankings':
+        return <StudentRankings teacherId={teacherId} />;
+      case 'statistics':
+        return <Statistics teacherId={teacherId} />;
+      case 'archive':
+        return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'trash':
+        return <TrashManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      default:
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Umumiy ko'rinish</h2>
+              <p className="text-muted-foreground">Sinflaringiz va o'quvchilaringiz statistikasi</p>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center p-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="apple-card p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats.totalStudents}</p>
+                      <p className="text-sm text-muted-foreground">Jami o'quvchilar</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="apple-card p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats.totalGroups}</p>
+                      <p className="text-sm text-muted-foreground">Faol guruhlar</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="apple-card p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats.averageAttendance.toFixed(1)}%</p>
+                      <p className="text-sm text-muted-foreground">O'rtacha davomat</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="apple-card p-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Trophy className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold truncate">{stats.topStudent}</p>
+                      <p className="text-sm text-muted-foreground">Eng yaxshi o'quvchi</p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            <Card className="p-6 bg-white shadow-sm border border-gray-200">
+              <h3 className="text-lg font-semibold mb-4">Tezkor harakatlar</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  onClick={() => setActiveTab('groups')}
+                  variant="outline"
+                  className="h-16 flex flex-col gap-2"
+                >
+                  <Users className="w-5 h-5" />
+                  <span>Guruhlarni boshqarish</span>
+                </Button>
+                <Button
+                  onClick={() => setActiveTab('students')}
+                  variant="outline"
+                  className="h-16 flex flex-col gap-2"
+                >
+                  <Users className="w-5 h-5" />
+                  <span>O'quvchilarni boshqarish</span>
+                </Button>
+                <Button
+                  onClick={() => setActiveTab('statistics')}
+                  variant="outline"
+                  className="h-16 flex flex-col gap-2"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Statistikani ko'rish</span>
+                </Button>
+              </div>
+            </Card>
+          </div>
+        );
+    }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!teacher) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">O'qituvchi ma'lumotlari topilmadi</h2>
-          <Button onClick={handleSignOut}>Qaytadan kirish</Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 w-full">
-      <div className="flex h-screen max-w-full">
-        {/* Mobile menu button */}
-        <div className="lg:hidden fixed top-4 left-4 z-50">
+    <div className="min-h-screen bg-white">
+      {/* Top Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
           <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="bg-white shadow-md"
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden"
           >
-            {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            <Menu className="w-5 h-5" />
           </Button>
-        </div>
-
-        {/* Sidebar */}
-        <div className={`${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:relative inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out flex flex-col`}>
-          
-          <div className="flex items-center justify-center p-6 border-b border-gray-200">
-            <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center mr-3">
-              <span className="text-white font-bold text-lg">T</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden lg:flex"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">TeachPro</h1>
-              <p className="text-sm text-gray-600">{teacher.name}</p>
+              <h1 className="text-xl font-bold text-gray-800">TeachPro</h1>
+              {teacherName && (
+                <p className="text-sm text-gray-600">Xush kelibsiz, {teacherName}</p>
+              )}
             </div>
           </div>
-
-          <nav className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-1">
-              {menuItems.map((item) => (
-                <Button
-                  key={item.id}
-                  variant={activeTab === item.id ? "default" : "ghost"}
-                  className="w-full justify-start text-left h-12"
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsSidebarOpen(false);
-                  }}
-                >
-                  <item.icon className="w-5 h-5 mr-3" />
-                  {item.label}
-                </Button>
-              ))}
-            </div>
-          </nav>
-
-          <div className="border-t border-gray-200 p-4">
-            <div className="text-xs text-gray-500 mb-2">Maktab: {teacher.school}</div>
-            <Button
-              variant="outline"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-              onClick={handleSignOut}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Chiqish
-            </Button>
-          </div>
         </div>
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0 max-w-full">
-          <main className="flex-1 overflow-y-auto p-4 lg:p-8 w-full max-w-full">
-            <div className="max-w-full">
-              {activeTab === 'statistics' && (
-                <Statistics teacherId={teacher.id} />
-              )}
-              {activeTab === 'groups' && (
-                <GroupManager 
-                  teacherId={teacher.id} 
-                  onGroupSelect={handleGroupSelect}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-              {activeTab === 'students' && (
-                <StudentManager 
-                  teacherId={teacher.id}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-              {activeTab === 'attendance' && (
-                <AttendanceTracker 
-                  teacherId={teacher.id}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-              {activeTab === 'rankings' && (
-                <StudentRankings 
-                  teacherId={teacher.id}
-                />
-              )}
-              {activeTab === 'archive' && (
-                <ArchiveManager 
-                  teacherId={teacher.id}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-              {activeTab === 'trash' && (
-                <TrashManager 
-                  teacherId={teacher.id}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-              {activeTab === 'group-details' && selectedGroup && (
-                <GroupDetails
-                  groupName={selectedGroup}
-                  teacherId={teacher.id}
-                  onBack={handleBackToGroups}
-                  onStatsUpdate={fetchStats}
-                />
-              )}
-            </div>
-          </main>
-        </div>
+        
+        <Button 
+          onClick={onLogout} 
+          variant="ghost"
+          className="flex items-center space-x-2"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Chiqish</span>
+        </Button>
       </div>
 
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 z-30 bg-black bg-opacity-50"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      <div className="flex">
+        {/* Sidebar */}
+        <div className={`
+          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          bg-white shadow-lg h-screen fixed lg:relative z-40 transition-all duration-300 ease-in-out
+          ${sidebarCollapsed ? '' : 'top-[73px]'} lg:top-0
+        `}>
+          <nav className="mt-6 pb-20 overflow-y-auto">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center px-6 py-3 text-left transition-colors ${
+                    activeTab === item.id
+                      ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                  title={sidebarCollapsed ? item.label : ''}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  {!sidebarCollapsed && <span className="ml-3">{item.label}</span>}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Mobile overlay */}
+        {mobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Main Content */}
+        <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-0'}`}>
+          <div className="p-4 lg:p-8 bg-white min-h-screen">
+            {renderContent()}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

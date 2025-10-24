@@ -119,7 +119,6 @@ export type Database = {
           created_at: string
           date: string
           id: string
-          reason: string | null
           status: string
           student_id: string
           teacher_id: string
@@ -129,7 +128,6 @@ export type Database = {
           created_at?: string
           date: string
           id?: string
-          reason?: string | null
           status: string
           student_id: string
           teacher_id: string
@@ -139,7 +137,6 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
-          reason?: string | null
           status?: string
           student_id?: string
           teacher_id?: string
@@ -161,36 +158,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      daily_reward_penalty_summary: {
-        Row: {
-          created_at: string
-          date_given: string
-          id: string
-          student_id: string
-          teacher_id: string
-          total_points: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          date_given?: string
-          id?: string
-          student_id: string
-          teacher_id: string
-          total_points?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          date_given?: string
-          id?: string
-          student_id?: string
-          teacher_id?: string
-          total_points?: number
-          updated_at?: string
-        }
-        Relationships: []
       }
       deleted_groups: {
         Row: {
@@ -271,57 +238,6 @@ export type Database = {
           },
         ]
       }
-      grades: {
-        Row: {
-          created_at: string
-          date_given: string
-          grade: number
-          id: string
-          student_id: string
-          teacher_id: string
-        }
-        Insert: {
-          created_at?: string
-          date_given?: string
-          grade: number
-          id?: string
-          student_id: string
-          teacher_id: string
-        }
-        Update: {
-          created_at?: string
-          date_given?: string
-          grade?: number
-          id?: string
-          student_id?: string
-          teacher_id?: string
-        }
-        Relationships: []
-      }
-      group_schedule: {
-        Row: {
-          created_at: string
-          day_of_week: number
-          group_name: string
-          id: string
-          teacher_id: string
-        }
-        Insert: {
-          created_at?: string
-          day_of_week: number
-          group_name: string
-          id?: string
-          teacher_id: string
-        }
-        Update: {
-          created_at?: string
-          day_of_week?: number
-          group_name?: string
-          id?: string
-          teacher_id?: string
-        }
-        Relationships: []
-      }
       groups: {
         Row: {
           created_at: string
@@ -363,7 +279,6 @@ export type Database = {
       reward_penalty_history: {
         Row: {
           created_at: string
-          date_given: string | null
           id: string
           points: number
           reason: string
@@ -373,7 +288,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          date_given?: string | null
           id?: string
           points: number
           reason: string
@@ -383,7 +297,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          date_given?: string | null
           id?: string
           points?: number
           reason?: string
@@ -407,36 +320,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      schedule_exceptions: {
-        Row: {
-          created_at: string
-          description: string | null
-          exception_date: string
-          exception_type: string
-          group_name: string
-          id: string
-          teacher_id: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          exception_date: string
-          exception_type: string
-          group_name: string
-          id?: string
-          teacher_id: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          exception_date?: string
-          exception_type?: string
-          group_name?: string
-          id?: string
-          teacher_id?: string
-        }
-        Relationships: []
       }
       student_rankings: {
         Row: {

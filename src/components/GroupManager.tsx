@@ -5,15 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users2, AlertTriangle, LayoutGrid, List } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import GroupCard from './group/GroupCard';
-import GroupListItem from './group/GroupListItem';
 
-export interface Group {
+interface Group {
   id: string;
   name: string;
   description?: string;
@@ -28,19 +25,21 @@ interface GroupManagerProps {
   onStatsUpdate: () => Promise<void>;
 }
 
-const GroupManager: React.FC<GroupManagerProps> = ({
-  teacherId,
-  onGroupSelect,
-  onStatsUpdate,
+const GroupManager: React.FC<GroupManagerProps> = ({ 
+  teacherId, 
+  onGroupSelect, 
+  onStatsUpdate 
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [newGroup, setNewGroup] = useState({ name: '', description: '' });
+  const [newGroup, setNewGroup] = useState({
+    name: '',
+    description: ''
+  });
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [nameError, setNameError] = useState('');
   const { toast } = useToast();
 
@@ -134,8 +133,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       if (deletedError) throw deletedError;
 
-      return (activeGroups?.length || 0) > 0 ||
-             (archivedGroups?.length || 0) > 0 ||
+      return (activeGroups?.length || 0) > 0 || 
+             (archivedGroups?.length || 0) > 0 || 
              (deletedGroups?.length || 0) > 0;
     } catch (error) {
       console.error('Error checking group name:', error);
@@ -185,7 +184,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       await fetchGroups();
       await onStatsUpdate();
-
+      
       setNewGroup({ name: '', description: '' });
       setNameError('');
       setIsAddDialogOpen(false);
@@ -214,7 +213,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     setSelectedGroup(null);
   };
 
-  const handleEditGroup = (e: React.MouseEvent, group: Group) => {
+  const handleEditGroup = async (e: React.MouseEvent, group: Group) => {
     e.stopPropagation();
     console.log('Edit group:', group.name);
     setEditingGroup(group);
@@ -254,10 +253,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       await fetchGroups();
       await onStatsUpdate();
-
+      
       setEditingGroup(null);
       setIsEditDialogOpen(false);
-
+      
       toast({
         title: "Guruh yangilandi",
         description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
@@ -272,7 +271,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleArchiveGroup = async (groupId: string, groupName: string) => {
+  const handleArchiveGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+    e.stopPropagation();
+    
+    if (!confirm(`"${groupName}" guruhini arxivlashga ishonchingiz komilmi?`)) {
+      return;
+    }
+
     try {
       // Move group to archived_groups table
       const group = groups.find(g => g.id === groupId);
@@ -351,7 +356,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleDeleteGroup = async (groupId: string, groupName: string) => {
+  const handleDeleteGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+    e.stopPropagation();
+    
+    if (!confirm(`"${groupName}" guruhini o'chirishga ishonchingiz komilmi?`)) {
+      return;
+    }
+
     try {
       // Move group to deleted_groups table
       const group = groups.find(g => g.id === groupId);
@@ -457,143 +468,150 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>
           <p className="text-gray-600">Sinflaringizni yarating va boshqaring</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={viewMode === 'grid' ? 'default' : 'outline'} onClick={() => setViewMode('grid')} size="icon">
-                  <LayoutGrid />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Setka ko'rinishi</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={viewMode === 'list' ? 'default' : 'outline'} onClick={() => setViewMode('list')} size="icon">
-                  <List />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ro'yxat ko'rinishi</TooltipContent>
-            </Tooltip>
-          </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
-                <Plus className="w-4 h-4 mr-2" />
-                Yangi guruh
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Yangi guruh yaratish</DialogTitle>
-                <DialogDescription>
-                  Yangi guruh yarating va o'quvchilar qo'shing
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="groupName">Guruh nomi *</Label>
-                  <Input
-                    id="groupName"
-                    value={newGroup.name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="Masalan: 10-A sinf"
-                    className={nameError ? 'border-red-500' : ''}
-                  />
-                  {nameError && (
-                    <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
-                      <AlertTriangle className="w-4 h-4" />
-                      {nameError}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="groupDescription">Izoh</Label>
-                  <Textarea
-                    id="groupDescription"
-                    value={newGroup.description}
-                    onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
-                    placeholder="Guruh haqida qo'shimcha ma'lumot"
-                    rows={3}
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={addGroup}
-                        className="bg-black text-white hover:bg-gray-800 flex-1"
-                        disabled={!newGroup.name.trim() || !!nameError}
-                      >
-                        Yaratish
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Yangi guruhni yaratish</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => {
-                          setIsAddDialogOpen(false);
-                          setNewGroup({ name: '', description: '' });
-                          setNameError('');
-                        }}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Bekor qilish
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Bekor qilish</TooltipContent>
-                  </Tooltip>
-                </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
+              <Plus className="w-4 h-4 mr-2" />
+              Yangi guruh
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Yangi guruh yaratish</DialogTitle>
+              <DialogDescription>
+                Yangi guruh yarating va o'quvchilar qo'shing
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="groupName">Guruh nomi *</Label>
+                <Input
+                  id="groupName"
+                  value={newGroup.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="Masalan: 10-A sinf"
+                  className={nameError ? 'border-red-500' : ''}
+                />
+                {nameError && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
+                    <AlertTriangle className="w-4 h-4" />
+                    {nameError}
+                  </div>
+                )}
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div>
+                <Label htmlFor="groupDescription">Izoh</Label>
+                <Textarea
+                  id="groupDescription"
+                  value={newGroup.description}
+                  onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
+                  placeholder="Guruh haqida qo'shimcha ma'lumot"
+                  rows={3}
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={addGroup} 
+                  className="bg-black text-white hover:bg-gray-800 flex-1"
+                  disabled={!newGroup.name.trim() || !!nameError}
+                >
+                  Yaratish
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setIsAddDialogOpen(false);
+                    setNewGroup({ name: '', description: '' });
+                    setNameError('');
+                  }} 
+                  variant="outline" 
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {groups.length === 0 ? (
         <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
-          <Users2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
           <p className="text-gray-600 mb-4">
             Birinchi guruhingizni yarating va o'quvchilar qo'shishni boshlang
           </p>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
-                <Plus className="w-4 h-4 mr-2" />
-                Birinchi guruhni yaratish
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Biror guruh yo'q, yangi guruh yarating</TooltipContent>
-          </Tooltip>
+          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
+            <Plus className="w-4 h-4 mr-2" />
+            Birinchi guruhni yaratish
+          </Button>
         </Card>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map((group) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              onGroupClick={handleGroupClick}
-              onEdit={handleEditGroup}
-              onArchive={handleArchiveGroup}
-              onDelete={handleDeleteGroup}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="space-y-4">
-          {groups.map((group) => (
-            <GroupListItem
-              key={group.id}
-              group={group}
-              onGroupClick={handleGroupClick}
-              onEdit={handleEditGroup}
-              onArchive={handleArchiveGroup}
-              onDelete={handleDeleteGroup}
-            />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {groups.map(group => (
+            <Card 
+              key={group.id} 
+              className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleGroupClick(group.name)}
+            >
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-500" />
+                    <div>
+                      <span className="text-gray-600 text-sm">O'quvchilar</span>
+                      <div className="text-lg font-semibold">{group.student_count}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-green-500" />
+                    <div>
+                      <span className="text-gray-600 text-sm">Davomat</span>
+                      <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-500">
+                  {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <Button
+                    onClick={(e) => handleEditGroup(e, group)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                    title="Tahrirlash"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                    title="Arxivlash"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+                    title="O'chirish"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
           ))}
         </div>
       )}
@@ -627,22 +645,12 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 />
               </div>
               <div className="flex space-x-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button onClick={updateGroup} className="bg-black text-white hover:bg-gray-800 flex-1">
-                      Saqlash
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>O'zgartirishlarni saqlash</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
-                      Bekor qilish
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Bekor qilish</TooltipContent>
-                </Tooltip>
+                <Button onClick={updateGroup} className="bg-black text-white hover:bg-gray-800 flex-1">
+                  Saqlash
+                </Button>
+                <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
+                  Bekor qilish
+                </Button>
               </div>
             </div>
           )}

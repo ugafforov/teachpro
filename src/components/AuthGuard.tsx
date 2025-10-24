@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Shield, User, School, Mail, Phone } from 'lucide-react';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface Teacher {
   name: string;
@@ -119,31 +119,19 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, onAuthenticated }) => {
                   className="pr-10"
                   required
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Parolni {showPassword ? "yashirish" : "ko'rsatish"}
-                  </TooltipContent>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="submit" className="w-full apple-button">
-                  Access Platform
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Tizimga kirish</TooltipContent>
-            </Tooltip>
+            <Button type="submit" className="w-full apple-button">
+              Access Platform
+            </Button>
           </form>
         </Card>
       </div>
@@ -222,14 +210,9 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, onAuthenticated }) => {
               </div>
             </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="submit" className="w-full apple-button">
-                  Complete Registration
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Ro'yxatdan o'tishni yakunlash</TooltipContent>
-            </Tooltip>
+            <Button type="submit" className="w-full apple-button">
+              Complete Registration
+            </Button>
           </form>
         </Card>
       </div>

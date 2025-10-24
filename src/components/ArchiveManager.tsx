@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, BookOpen, Search, RotateCcw, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface ArchivedStudent {
   id: string;
@@ -42,13 +41,6 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('students');
   const [loading, setLoading] = useState(true);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    action: () => void;
-    title: string;
-    description: string;
-    confirmText: string;
-    isDestructive: boolean;
-  } | null>(null);
 
   useEffect(() => {
     fetchArchivedData();
@@ -105,7 +97,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const restoreStudent = async (studentId: string) => {
+  const restoreStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni qayta tiklamoqchimisiz?`)) {
+      return;
+    }
+
     try {
       const archivedStudent = archivedStudents.find(s => s.id === studentId);
       if (!archivedStudent) return;
@@ -136,7 +132,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const restoreGroup = async (groupId: string) => {
+  const restoreGroup = async (groupId: string, groupName: string) => {
+    if (!confirm(`Rostdan ham "${groupName}" guruhini qayta tiklamoqchimisiz?`)) {
+      return;
+    }
+
     try {
       const archivedGroup = archivedGroups.find(g => g.id === groupId);
       if (!archivedGroup) return;
@@ -164,7 +164,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const deleteArchivedStudent = async (studentId: string) => {
+  const deleteArchivedStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Rostdan ham "${studentName}" ni butunlay o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
     try {
       const archivedStudent = archivedStudents.find(s => s.id === studentId);
       if (!archivedStudent) return;
@@ -195,7 +199,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const deleteArchivedGroup = async (groupId: string) => {
+  const deleteArchivedGroup = async (groupId: string, groupName: string) => {
+    if (!confirm(`Rostdan ham "${groupName}" guruhini butunlay o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
     try {
       const archivedGroup = archivedGroups.find(g => g.id === groupId);
       if (!archivedGroup) return;
@@ -274,13 +282,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setConfirmDialog({
-                        action: () => restoreStudent(student.id),
-                        title: "O'quvchini qayta tiklash",
-                        description: `Rostdan ham "${student.name}" ni qayta tiklamoqchimisiz?`,
-                        confirmText: 'Qayta tiklash',
-                        isDestructive: false,
-                      })}
+                      onClick={() => restoreStudent(student.id, student.name)}
                       title="Qayta tiklash"
                       className="text-green-600 hover:text-green-700 hover:bg-green-50"
                     >
@@ -289,13 +291,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setConfirmDialog({
-                        action: () => deleteArchivedStudent(student.id),
-                        title: "Chiqindi qutisiga o'tkazish",
-                        description: `Rostdan ham "${student.name}" ni chiqindi qutisiga o'tkazmoqchimisiz?`,
-                        confirmText: "O'tkazish",
-                        isDestructive: true,
-                      })}
+                      onClick={() => deleteArchivedStudent(student.id, student.name)}
                       title="Chiqindi qutisiga o'tkazish"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
@@ -346,13 +342,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setConfirmDialog({
-                        action: () => restoreGroup(group.id),
-                        title: "Guruhni qayta tiklash",
-                        description: `Rostdan ham "${group.name}" guruhini qayta tiklamoqchimisiz?`,
-                        confirmText: 'Qayta tiklash',
-                        isDestructive: false,
-                      })}
+                      onClick={() => restoreGroup(group.id, group.name)}
                       title="Qayta tiklash"
                       className="text-green-600 hover:text-green-700 hover:bg-green-50"
                     >
@@ -361,13 +351,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setConfirmDialog({
-                        action: () => deleteArchivedGroup(group.id),
-                        title: "Chiqindi qutisiga o'tkazish",
-                        description: `Rostdan ham "${group.name}" guruhini chiqindi qutisiga o'tkazmoqchimisiz?`,
-                        confirmText: "O'tkazish",
-                        isDestructive: true,
-                      })}
+                      onClick={() => deleteArchivedGroup(group.id, group.name)}
                       title="Chiqindi qutisiga o'tkazish"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
@@ -426,30 +410,6 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
           )}
         </TabsContent>
       </Tabs>
-      {confirmDialog && (
-      <AlertDialog open onOpenChange={() => setConfirmDialog(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDialog.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                confirmDialog.action();
-                setConfirmDialog(null);
-              }}
-              className={confirmDialog.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-            >
-              {confirmDialog.confirmText}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )}
     </div>
   );
 };
