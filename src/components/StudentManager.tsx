@@ -296,13 +296,13 @@ const StudentManager: React.FC<StudentManagerProps> = ({ teacherId, onStatsUpdat
     try {
       const { error } = await supabase
         .from('reward_penalty_history')
-        .insert({
+        .insert([{
           student_id: studentId,
           teacher_id: teacherId,
           points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
           reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          type: rewardType
-        });
+          date: new Date().toISOString().split('T')[0]
+        }] as any);
 
       if (error) throw error;
 

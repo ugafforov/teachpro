@@ -53,34 +53,43 @@ export type Database = {
         Row: {
           age: number | null
           archived_at: string
+          email: string | null
+          group_name: string | null
           id: string
           name: string
           original_student_id: string | null
           parent_phone: string | null
           phone: string | null
           reward_penalty_points: number | null
+          student_id: string | null
           teacher_id: string
         }
         Insert: {
           age?: number | null
           archived_at?: string
+          email?: string | null
+          group_name?: string | null
           id?: string
           name: string
           original_student_id?: string | null
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id: string
         }
         Update: {
           age?: number | null
           archived_at?: string
+          email?: string | null
+          group_name?: string | null
           id?: string
           name?: string
           original_student_id?: string | null
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id?: string
         }
         Relationships: [
@@ -177,34 +186,43 @@ export type Database = {
         Row: {
           age: number | null
           deleted_at: string
+          email: string | null
+          group_name: string | null
           id: string
           name: string
           original_student_id: string | null
           parent_phone: string | null
           phone: string | null
           reward_penalty_points: number | null
+          student_id: string | null
           teacher_id: string
         }
         Insert: {
           age?: number | null
           deleted_at?: string
+          email?: string | null
+          group_name?: string | null
           id?: string
           name: string
           original_student_id?: string | null
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id: string
         }
         Update: {
           age?: number | null
           deleted_at?: string
+          email?: string | null
+          group_name?: string | null
           id?: string
           name?: string
           original_student_id?: string | null
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id?: string
         }
         Relationships: [
@@ -222,6 +240,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_active: boolean
           name: string
           teacher_id: string
         }
@@ -229,6 +248,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean
           name: string
           teacher_id: string
         }
@@ -236,6 +256,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_active?: boolean
           name?: string
           teacher_id?: string
         }
@@ -258,6 +279,7 @@ export type Database = {
           reason: string | null
           student_id: string
           teacher_id: string
+          type: string | null
         }
         Insert: {
           created_at?: string
@@ -267,6 +289,7 @@ export type Database = {
           reason?: string | null
           student_id: string
           teacher_id: string
+          type?: string | null
         }
         Update: {
           created_at?: string
@@ -276,6 +299,7 @@ export type Database = {
           reason?: string | null
           student_id?: string
           teacher_id?: string
+          type?: string | null
         }
         Relationships: [
           {
@@ -300,30 +324,36 @@ export type Database = {
           date: string
           id: string
           notes: string | null
+          reward_penalty_points: number | null
           score: number
           student_id: string
           subject: string
           teacher_id: string
+          total_score: number | null
         }
         Insert: {
           created_at?: string
           date: string
           id?: string
           notes?: string | null
+          reward_penalty_points?: number | null
           score: number
           student_id: string
           subject: string
           teacher_id: string
+          total_score?: number | null
         }
         Update: {
           created_at?: string
           date?: string
           id?: string
           notes?: string | null
+          reward_penalty_points?: number | null
           score?: number
           student_id?: string
           subject?: string
           teacher_id?: string
+          total_score?: number | null
         }
         Relationships: [
           {
@@ -346,34 +376,46 @@ export type Database = {
         Row: {
           age: number | null
           created_at: string
+          email: string | null
           group_id: string | null
+          group_name: string | null
           id: string
+          is_active: boolean
           name: string
           parent_phone: string | null
           phone: string | null
           reward_penalty_points: number | null
+          student_id: string | null
           teacher_id: string
         }
         Insert: {
           age?: number | null
           created_at?: string
+          email?: string | null
           group_id?: string | null
+          group_name?: string | null
           id?: string
+          is_active?: boolean
           name: string
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id: string
         }
         Update: {
           age?: number | null
           created_at?: string
+          email?: string | null
           group_id?: string | null
+          group_name?: string | null
           id?: string
+          is_active?: boolean
           name?: string
           parent_phone?: string | null
           phone?: string | null
           reward_penalty_points?: number | null
+          student_id?: string | null
           teacher_id?: string
         }
         Relationships: [
