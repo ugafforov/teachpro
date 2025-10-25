@@ -41,6 +41,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
+  const [showReasonInput, setShowReasonInput] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
   const { toast } = useToast();
 
@@ -163,12 +164,20 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
     await markAttendance(studentId, 'absent_with_reason', absentReason);
     setShowAbsentDialog(null);
+    setShowReasonInput(false);
     setAbsentReason('');
   };
 
   const handleAbsentWithoutReason = async (studentId: string) => {
     await markAttendance(studentId, 'absent_without_reason');
     setShowAbsentDialog(null);
+    setShowReasonInput(false);
+    setAbsentReason('');
+  };
+
+  const closeAbsentDialog = () => {
+    setShowAbsentDialog(null);
+    setShowReasonInput(false);
     setAbsentReason('');
   };
 
@@ -511,59 +520,69 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       {showAbsentDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Kelmagan sababi</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                {students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeAbsentDialog}
+                className="h-8 w-8 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            {!showReasonInput ? (
+              <div className="grid grid-cols-2 gap-3">
                 <Button
                   onClick={() => handleAbsentWithoutReason(showAbsentDialog)}
                   variant="outline"
-                  className="flex items-center justify-center gap-2"
+                  className="h-12"
                 >
-                  <X className="w-4 h-4" />
                   Sababsiz
                 </Button>
                 <Button
-                  onClick={() => {
-                    if (absentReason.trim()) {
-                      handleAbsentWithReason(showAbsentDialog);
-                    }
-                  }}
-                  variant="default"
-                  className="flex items-center justify-center gap-2"
+                  onClick={() => setShowReasonInput(true)}
+                  variant="outline"
+                  className="h-12"
                 >
-                  <AlertTriangle className="w-4 h-4" />
                   Sababli
                 </Button>
               </div>
-              <div>
-                <label className="text-sm font-medium">Sabab (sababli kelmagan uchun majburiy)</label>
-                <Input
-                  type="text"
-                  value={absentReason}
-                  onChange={(e) => setAbsentReason(e.target.value)}
-                  placeholder="Sabab kiriting..."
-                />
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    Sabab (majburiy)
+                  </label>
+                  <Input
+                    type="text"
+                    value={absentReason}
+                    onChange={(e) => setAbsentReason(e.target.value)}
+                    placeholder="Sabab kiriting..."
+                    autoFocus
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() => handleAbsentWithReason(showAbsentDialog)}
+                    className="flex-1"
+                    disabled={!absentReason.trim()}
+                  >
+                    Saqlash
+                  </Button>
+                  <Button
+                    onClick={() => setShowReasonInput(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Ortga
+                  </Button>
+                </div>
               </div>
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => handleAbsentWithReason(showAbsentDialog)}
-                  className="flex-1"
-                  disabled={!absentReason.trim()}
-                >
-                  Sababli belgilash
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowAbsentDialog(null);
-                    setAbsentReason('');
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Bekor qilish
-                </Button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
