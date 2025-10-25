@@ -594,57 +594,75 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         </div>
 
         {selectedExamName && Object.keys(analysisData).length > 0 && (
-          <Card className="p-6">
+          <Card className="p-6 overflow-x-auto">
             <h3 className="text-lg font-semibold mb-4">
               {selectedExamName} - Natijalar tahlili
               {selectedAnalysisGroup && ` (${groups.find(g => g.id === selectedAnalysisGroup)?.name})`}
             </h3>
-            <div className="space-y-6">
-              {Object.entries(analysisData).map(([studentId, results]) => {
-                const trend = getTrend(results);
-                const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
-                
-                return (
-                  <div key={studentId} className="border rounded-lg p-4 bg-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-base">{results[0]?.studentName}</h4>
-                        <p className="text-sm text-muted-foreground">{results[0]?.groupName}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-muted-foreground">O'rtacha</div>
-                        <div className="text-xl font-bold text-primary">{avgScore}</div>
-                        {trend && (
-                          <div className={`text-sm flex items-center gap-1 justify-end ${trend.color}`}>
-                            <span>{trend.icon}</span>
-                            <span>{trend.text}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                      {results.map((result, index) => (
-                        <div 
-                          key={index} 
-                          className={`p-3 rounded-lg border ${getScoreColor(result.score)}`}
-                        >
-                          <div className="text-xs font-medium mb-1">
-                            {new Date(result.examDate).toLocaleDateString('uz-UZ', { 
-                              day: '2-digit', 
-                              month: 'short' 
-                            })}
-                          </div>
-                          <div className="text-2xl font-bold">
-                            {result.score}
-                          </div>
-                        </div>
+            
+            {(() => {
+              const allDates = Array.from(
+                new Set(
+                  Object.values(analysisData)
+                    .flat()
+                    .map(r => r.examDate)
+                )
+              ).sort();
+              
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[180px]">O'quvchi</TableHead>
+                      <TableHead className="min-w-[120px]">Guruh</TableHead>
+                      {allDates.map((date, idx) => (
+                        <TableHead key={idx} className="text-center min-w-[100px]">
+                          {new Date(date).toLocaleDateString('uz-UZ', { 
+                            day: '2-digit', 
+                            month: 'short',
+                            year: '2-digit'
+                          })}
+                        </TableHead>
                       ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      <TableHead className="text-center min-w-[80px]">O'rtacha</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.entries(analysisData).map(([studentId, results]) => {
+                      const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
+                      const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
+                      
+                      return (
+                        <TableRow key={studentId}>
+                          <TableCell className="font-medium">{results[0]?.studentName}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
+                          {allDates.map((date, idx) => {
+                            const score = scoresByDate.get(date);
+                            return (
+                              <TableCell key={idx} className="text-center">
+                                {score !== undefined ? (
+                                  <span className={`inline-block px-3 py-1 rounded-md font-semibold ${
+                                    score >= 90 ? 'bg-green-100 text-green-700' :
+                                    score >= 70 ? 'bg-blue-100 text-blue-700' :
+                                    score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                                  }`}>
+                                    {score}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-center font-bold text-primary">{avgScore}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              );
+            })()}
           </Card>
         )}
 
