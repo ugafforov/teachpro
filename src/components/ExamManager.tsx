@@ -79,6 +79,12 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   }, [selectedGroup]);
 
+  useEffect(() => {
+    if (showResultsDialog && selectedGroup) {
+      fetchStudents(selectedGroup);
+    }
+  }, [showResultsDialog, selectedGroup]);
+
   const fetchGroups = async () => {
     try {
       const { data, error } = await supabase
@@ -192,6 +198,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
       setCurrentExamId(data.id);
       setShowCreateDialog(false);
+      await fetchStudents(selectedGroup);
       setShowResultsDialog(true);
       await fetchExams();
 
@@ -580,6 +587,12 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 ))}
               </TableBody>
             </Table>
+
+            {students.length === 0 && (
+              <p className="text-muted-foreground text-center py-4">
+                Bu guruhda faol o'quvchilar topilmadi. Avval guruhga o'quvchi qo'shing.
+              </p>
+            )}
 
             <Button onClick={saveExamResults} className="w-full">
               Natijalarni saqlash
