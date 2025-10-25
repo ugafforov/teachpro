@@ -374,7 +374,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           .eq('teacher_id', teacherId)
           .eq('exams.exam_name', selectedExamName);
 
-        if (selectedAnalysisGroup) {
+        if (selectedAnalysisGroup && selectedAnalysisGroup !== 'all') {
           query = query.eq('exams.group_id', selectedAnalysisGroup);
         }
 
@@ -455,7 +455,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 <SelectValue placeholder="Barcha guruhlar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Barcha guruhlar</SelectItem>
+                <SelectItem value="all">Barcha guruhlar</SelectItem>
                 {groups.map((group) => (
                   <SelectItem key={group.id} value={group.id}>
                     {group.name}
