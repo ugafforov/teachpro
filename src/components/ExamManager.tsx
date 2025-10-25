@@ -486,14 +486,15 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.map((student) => (
+                {students.map((student, index) => (
                   <TableRow key={student.id}>
-                    <TableCell>{student.name}</TableCell>
+                    <TableCell className="font-medium">{student.name}</TableCell>
                     <TableCell>
                       <Input
+                        id={`result-${student.id}`}
                         type="number"
                         step="0.1"
-                        placeholder="Ball"
+                        placeholder="Ball kiriting"
                         value={examResults[student.id] || ''}
                         onChange={(e) =>
                           setExamResults({
@@ -501,6 +502,20 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                             [student.id]: e.target.value,
                           })
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const nextIndex = index + 1;
+                            if (nextIndex < students.length) {
+                              const nextInput = document.getElementById(`result-${students[nextIndex].id}`);
+                              nextInput?.focus();
+                            } else {
+                              // Last input, save results
+                              saveExamResults();
+                            }
+                          }
+                        }}
+                        autoFocus={index === 0}
                       />
                     </TableCell>
                   </TableRow>
