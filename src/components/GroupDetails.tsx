@@ -24,7 +24,7 @@ interface Student {
   rewardPenaltyPoints?: number;
 }
 
-type AttendanceStatus = 'present' | 'absent' | 'late';
+type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
 
 interface AttendanceRecord {
   id: string;
@@ -59,6 +59,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
+  const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
+  const [showReasonInput, setShowReasonInput] = useState(false);
+  const [absentReason, setAbsentReason] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -125,7 +128,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const attendanceMap: Record<string, AttendanceStatus> = {};
       if (data) {
         data.forEach((record: any) => {
-          attendanceMap[record.student_id] = record.status as AttendanceStatus;
+          attendanceMap[record.student_id] = (record.status === 'absent' ? 'absent_without_reason' : record.status) as AttendanceStatus;
         });
       }
       setAttendance(attendanceMap);
@@ -163,7 +166,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const markAttendance = async (studentId: string, status: AttendanceStatus) => {
+  const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
     try {
       const { data: existingRecord } = await supabase
         .from('attendance_records')
@@ -174,7 +177,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         .maybeSingle();
 
       if (existingRecord) {
-        if (existingRecord.status === status) {
+        if ((existingRecord.status === status) && ((notes ?? existingRecord.notes ?? null) === (existingRecord.notes ?? null))) {
           const { error } = await supabase
             .from('attendance_records')
             .delete()
@@ -183,14 +186,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           if (error) throw error;
 
           setAttendance(prevAttendance => {
-            const newAttendance = { ...prevAttendance };
+            const newAttendance = { ...prevAttendance } as Record<string, AttendanceStatus>;
             delete newAttendance[studentId];
             return newAttendance;
           });
         } else {
           const { error } = await supabase
             .from('attendance_records')
-            .update({ status: status })
+            .update({ status: status, notes: notes === undefined ? (existingRecord.notes ?? null) : notes })
             .eq('id', existingRecord.id);
 
           if (error) throw error;
@@ -207,7 +210,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             teacher_id: teacherId,
             student_id: studentId,
             date: selectedDate,
-            status: status
+            status: status,
+            notes: notes ?? null
           });
 
         if (error) throw error;
@@ -300,24 +304,32 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
     const currentStatus = attendance[studentId];
-    const isActive = currentStatus === targetStatus;
-    
+    const normalized = (currentStatus === 'absent' ? 'absent_without_reason' : currentStatus) as AttendanceStatus | undefined;
     const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
-    
-    if (!isActive) {
-      return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
-    }
-    
-    switch (targetStatus) {
-      case 'present':
-        return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
-      case 'late':
-        return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
-      case 'absent':
-        return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
-      default:
+
+    if (targetStatus !== 'absent') {
+      const isActive = normalized === targetStatus;
+      if (!isActive) {
         return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+      }
+      switch (targetStatus) {
+        case 'present':
+          return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
+        case 'late':
+          return `${baseStyle} bg-orange-500 hover:bg-orange-600 text-white border-orange-500`;
+        default:
+          return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+      }
     }
+
+    // targetStatus is 'absent' -> show different colors based on reason
+    if (normalized === 'absent_with_reason') {
+      return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
+    }
+    if (normalized === 'absent_without_reason') {
+      return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
+    }
+    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
   };
 
   const getRewardDisplay = (points: number) => {
@@ -531,7 +543,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => markAttendance(student.id, 'absent')}
+                    onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }}
                     className={getButtonStyle(student.id, 'absent')}
                   >
                     <XCircle className="w-4 h-4" />
@@ -550,6 +562,84 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           </div>
         )}
       </Card>
+
+      {/* Absent Dialog */}
+      {showAbsentDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">
+                {students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowAbsentDialog(null); setShowReasonInput(false); setAbsentReason(''); }}
+                className="h-8 w-8 p-0"
+              >
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {!showReasonInput ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={async () => { await markAttendance(showAbsentDialog!, 'absent_without_reason', null); setShowAbsentDialog(null); setShowReasonInput(false); setAbsentReason(''); }}
+                  variant="outline"
+                  className="h-12"
+                >
+                  Sababsiz
+                </Button>
+                <Button
+                  onClick={() => setShowReasonInput(true)}
+                  variant="outline"
+                  className="h-12"
+                >
+                  Sababli
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-2">Sabab (majburiy)</label>
+                  <Input
+                    type="text"
+                    value={absentReason}
+                    onChange={(e) => setAbsentReason(e.target.value)}
+                    placeholder="Sabab kiriting..."
+                    autoFocus
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={async () => {
+                      if (!absentReason.trim()) {
+                        toast({ title: "Xatolik", description: "Sabab kiritish majburiy", variant: "destructive" });
+                        return;
+                      }
+                      await markAttendance(showAbsentDialog!, 'absent_with_reason', absentReason.trim());
+                      setShowAbsentDialog(null);
+                      setShowReasonInput(false);
+                      setAbsentReason('');
+                    }}
+                    className="flex-1"
+                    disabled={!absentReason.trim()}
+                  >
+                    Saqlash
+                  </Button>
+                  <Button
+                    onClick={() => setShowReasonInput(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Ortga
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Reward Dialog */}
       {showRewardDialog && (
