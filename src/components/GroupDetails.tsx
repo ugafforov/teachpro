@@ -305,31 +305,31 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
     const currentStatus = attendance[studentId];
     const normalized = (currentStatus === 'absent' ? 'absent_without_reason' : currentStatus) as AttendanceStatus | undefined;
-    const baseStyle = 'w-10 h-10 p-0 border border-gray-300';
+    const baseStyle = 'w-10 h-10 p-0 border';
 
     if (targetStatus !== 'absent') {
       const isActive = normalized === targetStatus;
       if (!isActive) {
-        return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+        return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
       }
       switch (targetStatus) {
         case 'present':
-          return `${baseStyle} bg-green-500 hover:bg-green-600 text-white border-green-500`;
+          return `${baseStyle} border-green-500 bg-green-500 hover:bg-green-600 text-white`;
         case 'late':
-          return `${baseStyle} bg-orange-500 hover:bg-orange-600 text-white border-orange-500`;
+          return `${baseStyle} border-orange-500 bg-orange-500 hover:bg-orange-600 text-white`;
         default:
-          return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+          return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
       }
     }
 
     // targetStatus is 'absent' -> show different colors based on reason
     if (normalized === 'absent_with_reason') {
-      return `${baseStyle} bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500`;
+      return `${baseStyle} border-yellow-500 bg-yellow-500 hover:bg-yellow-600 text-white`;
     }
     if (normalized === 'absent_without_reason') {
-      return `${baseStyle} bg-red-500 hover:bg-red-600 text-white border-red-500`;
+      return `${baseStyle} border-red-500 bg-red-500 hover:bg-red-600 text-white`;
     }
-    return `${baseStyle} bg-white hover:bg-gray-50 text-gray-600`;
+    return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
   };
 
   const getRewardDisplay = (points: number) => {
