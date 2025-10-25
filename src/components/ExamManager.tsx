@@ -47,6 +47,11 @@ interface ExamResult {
   exam_name: string;
 }
 
+interface ExamWithResults extends Exam {
+  results?: ExamResult[];
+  student_count?: number;
+}
+
 const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const { toast } = useToast();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -63,6 +68,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [examResults, setExamResults] = useState<Record<string, string>>({});
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [showExamDetailsDialog, setShowExamDetailsDialog] = useState(false);
+  const [selectedExamForDetails, setSelectedExamForDetails] = useState<string | null>(null);
+  const [examDetailsData, setExamDetailsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteExamId, setDeleteExamId] = useState<string | null>(null);
   const [archiveExamId, setArchiveExamId] = useState<string | null>(null);
@@ -330,6 +338,37 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
+  const fetchExamDetails = async (examId: string) => {
+    try {
+      console.log('Fetching exam details for examId:', examId);
+      
+      const { data: results, error } = await supabase
+        .from('exam_results')
+        .select(`
+          *,
+          students!inner(id, name, group_name)
+        `)
+        .eq('exam_id', examId)
+        .order('students.name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching exam details:', error);
+        throw error;
+      }
+
+      console.log('Exam details results:', results);
+      setExamDetailsData(results || []);
+      setShowExamDetailsDialog(true);
+    } catch (error) {
+      console.error('Error in fetchExamDetails:', error);
+      toast({
+        title: 'Xato',
+        description: 'Imtihon natijalarini yuklashda xatolik',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getStudentExamHistory = async (studentId: string, examName: string) => {
     try {
       const { data, error } = await supabase
@@ -364,6 +403,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
     const fetchAnalysisData = async () => {
       try {
+        console.log('Fetching analysis for exam:', selectedExamName, 'group:', selectedAnalysisGroup);
+        
         let query = supabase
           .from('exam_results')
           .select(`
@@ -380,7 +421,13 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
         const { data: results, error } = await query.order('students.name', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching analysis data:', error);
+          throw error;
+        }
+
+        console.log('Analysis results:', results);
+        console.log('Number of results:', results?.length || 0);
 
         // Group by student
         const grouped: Record<string, any[]> = {};
@@ -404,6 +451,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           );
         });
 
+        console.log('Grouped analysis data:', grouped);
         setAnalysisData(grouped);
       } catch (error) {
         console.error('Error fetching analysis:', error);
@@ -725,7 +773,11 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </TableHeader>
                 <TableBody>
                   {exams.map((exam) => (
-                    <TableRow key={exam.id}>
+                    <TableRow 
+                      key={exam.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => fetchExamDetails(exam.id)}
+                    >
                       <TableCell className="font-medium">{exam.exam_name}</TableCell>
                       <TableCell>{new Date(exam.exam_date).toLocaleDateString('uz-UZ')}</TableCell>
                       <TableCell>
@@ -735,7 +787,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setArchiveExamId(exam.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setArchiveExamId(exam.id);
+                          }}
                         >
                           <Archive className="w-4 h-4 mr-2" />
                           Arxivlash
@@ -743,7 +798,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => setDeleteExamId(exam.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteExamId(exam.id);
+                          }}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           O'chirish
@@ -790,6 +848,45 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={showExamDetailsDialog} onOpenChange={setShowExamDetailsDialog}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Imtihon natijalari</DialogTitle>
+              <DialogDescription>
+                Barcha o'quvchilar natijalari
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {examDetailsData.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Bu imtihon uchun natijalar topilmadi
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>O'quvchi</TableHead>
+                      <TableHead>Guruh</TableHead>
+                      <TableHead className="text-right">Natija</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {examDetailsData.map((result: any) => (
+                      <TableRow key={result.id}>
+                        <TableCell className="font-medium">{result.students.name}</TableCell>
+                        <TableCell>{result.students.group_name}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-lg font-bold text-primary">{result.score}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="analysis">
           <ExamAnalysis />
