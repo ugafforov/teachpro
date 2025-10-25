@@ -296,13 +296,19 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       const headers = ['O\'quvchi nomi', 'Guruh', 'O\'quvchi ID', 'Sana', 'Holat'];
       const csvContent = [
         headers.join(','),
-        ...(data || []).map(record => [
-          record.students?.name || '',
-          record.students?.group_name || '',
-          record.students?.student_id || '',
-          record.date,
-          record.status === 'present' ? 'Kelgan' : record.status === 'late' ? 'Kechikkan' : 'Kelmagan'
-        ].join(','))
+        ...(data || []).map(record => {
+          const statusText = record.status === 'present' ? 'Kelgan'
+            : record.status === 'late' ? 'Kechikkan'
+            : record.status === 'absent_with_reason' ? 'Sababli kelmagan'
+            : 'Sababsiz kelmagan';
+          return [
+            record.students?.name || '',
+            record.students?.group_name || '',
+            record.students?.student_id || '',
+            record.date,
+            statusText
+          ].join(',');
+        })
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -327,8 +333,13 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
   };
 
+  const normalizeStatus = (status: string | null) => {
+    return status === 'absent' ? 'absent_without_reason' : status;
+  };
+
   const getStatusColor = (status: string | null) => {
-    switch (status) {
+    const s = normalizeStatus(status);
+    switch (s) {
       case 'present': return 'text-green-600 bg-green-50';
       case 'absent_without_reason': return 'text-red-600 bg-red-50';
       case 'absent_with_reason': return 'text-yellow-600 bg-yellow-50';
@@ -338,7 +349,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   };
 
   const getStatusIcon = (status: string | null) => {
-    switch (status) {
+    const s = normalizeStatus(status);
+    switch (s) {
       case 'present': return <Check className="w-4 h-4" />;
       case 'absent_without_reason': return <X className="w-4 h-4" />;
       case 'absent_with_reason': return <X className="w-4 h-4" />;
@@ -348,7 +360,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   };
 
   const getStatusText = (status: string | null) => {
-    switch (status) {
+    const s = normalizeStatus(status);
+    switch (s) {
       case 'present': return 'Kelgan';
       case 'absent_without_reason': return 'Sababsiz kelmagan';
       case 'absent_with_reason': return 'Sababli kelmagan';
@@ -446,7 +459,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         ) : (
           <div className="divide-y divide-border/50">
             {filteredStudents.map(student => {
-              const status = getAttendanceStatus(student.id);
+              const rawStatus = getAttendanceStatus(student.id);
+              const status = normalizeStatus(rawStatus);
               return (
                 <div key={student.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -492,7 +506,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       <Button
                         size="sm"
                         variant={status === 'absent_with_reason' || status === 'absent_without_reason' ? 'default' : 'outline'}
-                        onClick={() => setShowAbsentDialog(student.id)}
+                        onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }}
                         className="w-8 h-8 p-0"
                         title="Kelmagan"
                       >
