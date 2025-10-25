@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X } from 'lucide-react';
+import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -30,6 +30,17 @@ interface DeletedGroup {
   teacher_id: string;
 }
 
+interface DeletedExam {
+  id: string;
+  original_exam_id: string;
+  teacher_id: string;
+  exam_name: string;
+  exam_date: string;
+  group_name: string;
+  deleted_at: string;
+  results_data?: any;
+}
+
 interface TrashManagerProps {
   teacherId: string;
   onStatsUpdate: () => Promise<void>;
@@ -38,11 +49,12 @@ interface TrashManagerProps {
 const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [deletedStudents, setDeletedStudents] = useState<DeletedStudent[]>([]);
   const [deletedGroups, setDeletedGroups] = useState<DeletedGroup[]>([]);
+  const [deletedExams, setDeletedExams] = useState<DeletedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'restore' | 'permanent',
     item: any,
-    itemType: 'student' | 'group'
+    itemType: 'student' | 'group' | 'exam'
   } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
@@ -80,6 +92,20 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
       } else {
         setDeletedGroups(groups || []);
       }
+
+      // O'chirilgan imtihonlarni olish
+      const { data: exams, error: examsError } = await supabase
+        .from('deleted_exams')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .order('deleted_at', { ascending: false });
+
+      if (examsError) {
+        console.error('Error fetching deleted exams:', examsError);
+        setDeletedExams([]);
+      } else {
+        setDeletedExams(exams || []);
+      }
     } catch (error) {
       console.error('Error fetching deleted data:', error);
       toast({
@@ -114,6 +140,14 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
       if (groupsError) throw groupsError;
 
+      // Permanently delete all deleted exams
+      const { error: examsError } = await supabase
+        .from('deleted_exams')
+        .delete()
+        .eq('teacher_id', teacherId);
+
+      if (examsError) throw examsError;
+
       await fetchTrashData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
@@ -121,7 +155,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
-  const handleAction = (type: 'restore' | 'permanent', item: any, itemType: 'student' | 'group') => {
+  const handleAction = (type: 'restore' | 'permanent', item: any, itemType: 'student' | 'group' | 'exam') => {
     setConfirmDialog({ type, item, itemType });
   };
 
@@ -137,11 +171,17 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         } else {
           await permanentDeleteStudent(item);
         }
-      } else {
+      } else if (itemType === 'group') {
         if (type === 'restore') {
           await restoreGroup(item);
         } else {
           await permanentDeleteGroup(item);
+        }
+      } else if (itemType === 'exam') {
+        if (type === 'restore') {
+          await restoreExam(item);
+        } else {
+          await permanentDeleteExam(item);
         }
       }
     } catch (error) {
@@ -275,6 +315,84 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
+  const restoreExam = async (deletedExam: DeletedExam) => {
+    try {
+      // Imtihonni tiklash - exams jadvaliga qaytarish
+      const { data: restoredExam } = await supabase
+        .from('exams')
+        .insert({
+          teacher_id: teacherId,
+          exam_name: deletedExam.exam_name,
+          exam_date: deletedExam.exam_date,
+          group_id: deletedExam.group_name // Note: ideally should be actual group_id
+        })
+        .select()
+        .single();
+
+      if (restoredExam && deletedExam.results_data) {
+        // Natijalarni tiklash
+        const resultsToRestore = deletedExam.results_data.map((r: any) => ({
+          teacher_id: teacherId,
+          exam_id: restoredExam.id,
+          student_id: r.student_id,
+          score: r.score
+        }));
+
+        await supabase.from('exam_results').insert(resultsToRestore);
+      }
+
+      // Trash dan o'chirish
+      const { error: deleteError } = await supabase
+        .from('deleted_exams')
+        .delete()
+        .eq('id', deletedExam.id);
+
+      if (deleteError) throw deleteError;
+
+      await fetchTrashData();
+      await onStatsUpdate();
+
+      toast({
+        title: "Imtihon tiklandi",
+        description: `${deletedExam.exam_name} muvaffaqiyatli tiklandi`,
+      });
+    } catch (error) {
+      console.error('Error restoring exam:', error);
+      toast({
+        title: "Xatolik",
+        description: "Imtihonni tiklashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const permanentDeleteExam = async (deletedExam: DeletedExam) => {
+    try {
+      // Butunlay o'chirish
+      const { error: deleteError } = await supabase
+        .from('deleted_exams')
+        .delete()
+        .eq('id', deletedExam.id);
+
+      if (deleteError) throw deleteError;
+
+      await fetchTrashData();
+      await onStatsUpdate();
+
+      toast({
+        title: "Imtihon o'chirildi",
+        description: `${deletedExam.exam_name} butunlay o'chirildi`,
+      });
+    } catch (error) {
+      console.error('Error permanently deleting exam:', error);
+      toast({
+        title: "Xatolik",
+        description: "Imtihonni o'chirishda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -294,7 +412,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
           onClick={clearAllTrash}
           variant="destructive"
           className="flex items-center space-x-2"
-          disabled={deletedStudents.length === 0 && deletedGroups.length === 0}
+          disabled={deletedStudents.length === 0 && deletedGroups.length === 0 && deletedExams.length === 0}
         >
           <Trash2 className="w-4 h-4" />
           <span>Chiqindini tozalash</span>
@@ -315,7 +433,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
       </Card>
 
       <Tabs defaultValue="students" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="students" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             O'quvchilar ({deletedStudents.length})
@@ -323,6 +441,10 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <Layers className="w-4 h-4" />
             Guruhlar ({deletedGroups.length})
+          </TabsTrigger>
+          <TabsTrigger value="exams" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Imtihonlar ({deletedExams.length})
           </TabsTrigger>
         </TabsList>
 
@@ -436,6 +558,67 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
                         size="sm"
                         variant="outline"
                         onClick={() => handleAction('permanent', group, 'group')}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Butunlay o'chirish
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="exams" className="mt-6">
+          {deletedExams.length === 0 ? (
+            <Card className="apple-card p-12 text-center">
+              <Trash2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">O'chirilgan imtihonlar yo'q</h3>
+              <p className="text-muted-foreground">
+                Hali hech qanday imtihon o'chirilmagan
+              </p>
+            </Card>
+          ) : (
+            <Card className="apple-card">
+              <div className="p-6 border-b border-border/50">
+                <h3 className="text-lg font-semibold">O'chirilgan imtihonlar</h3>
+                <p className="text-sm text-muted-foreground">
+                  {deletedExams.length} o'chirilgan imtihon
+                </p>
+              </div>
+              <div className="divide-y divide-border/50">
+                {deletedExams.map((exam) => (
+                  <div key={exam.id} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{exam.exam_name}</p>
+                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                          <span>{exam.group_name}</span>
+                          <span>{new Date(exam.exam_date).toLocaleDateString('uz-UZ')}</span>
+                          <span>O'chirilgan: {new Date(exam.deleted_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAction('restore', exam, 'exam')}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Tiklash
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAction('permanent', exam, 'exam')}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="w-4 h-4 mr-1" />

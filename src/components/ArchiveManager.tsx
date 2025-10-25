@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, BookOpen, Search, RotateCcw, Trash2 } from 'lucide-react';
+import { Users, BookOpen, Search, RotateCcw, Trash2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ArchivedStudent {
@@ -28,6 +28,17 @@ interface ArchivedGroup {
   archived_at: string;
 }
 
+interface ArchivedExam {
+  id: string;
+  original_exam_id: string;
+  teacher_id: string;
+  exam_name: string;
+  exam_date: string;
+  group_name: string;
+  archived_at: string;
+  results_data?: any;
+}
+
 interface ArchiveManagerProps {
   teacherId: string;
   onStatsUpdate?: () => Promise<void>;
@@ -36,8 +47,10 @@ interface ArchiveManagerProps {
 const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdate }) => {
   const [archivedStudents, setArchivedStudents] = useState<ArchivedStudent[]>([]);
   const [archivedGroups, setArchivedGroups] = useState<ArchivedGroup[]>([]);
+  const [archivedExams, setArchivedExams] = useState<ArchivedExam[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<ArchivedStudent[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<ArchivedGroup[]>([]);
+  const [filteredExams, setFilteredExams] = useState<ArchivedExam[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('students');
   const [loading, setLoading] = useState(true);
@@ -48,7 +61,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
   useEffect(() => {
     filterData();
-  }, [archivedStudents, archivedGroups, searchTerm, activeTab]);
+  }, [archivedStudents, archivedGroups, archivedExams, searchTerm, activeTab]);
 
   const fetchArchivedData = async () => {
     try {
@@ -71,6 +84,15 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
       if (groupsError) throw groupsError;
       setArchivedGroups(groupsData || []);
+
+      const { data: examsData, error: examsError } = await supabase
+        .from('archived_exams')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .order('archived_at', { ascending: false });
+
+      if (examsError) throw examsError;
+      setArchivedExams(examsData || []);
     } catch (error) {
       console.error('Error fetching archived data:', error);
     } finally {
@@ -88,12 +110,18 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         student.group_name.toLowerCase().includes(term)
       );
       setFilteredStudents(filtered);
-    } else {
+    } else if (activeTab === 'groups') {
       const filtered = archivedGroups.filter(group =>
         group.name.toLowerCase().includes(term) ||
         (group.description && group.description.toLowerCase().includes(term))
       );
       setFilteredGroups(filtered);
+    } else if (activeTab === 'exams') {
+      const filtered = archivedExams.filter(exam =>
+        exam.exam_name.toLowerCase().includes(term) ||
+        exam.group_name.toLowerCase().includes(term)
+      );
+      setFilteredExams(filtered);
     }
   };
 
@@ -228,6 +256,86 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
       console.error('Error moving archived group to trash:', error);
+    }
+  };
+
+  const restoreExam = async (examId: string, examName: string) => {
+    if (!confirm(`Rostdan ham "${examName}" imtihonini qayta tiklamoqchimisiz?`)) {
+      return;
+    }
+
+    try {
+      const archivedExam = archivedExams.find(e => e.id === examId);
+      if (!archivedExam) return;
+
+      // Restore to exams table
+      const { data: restoredExam } = await supabase
+        .from('exams')
+        .insert({
+          teacher_id: teacherId,
+          exam_name: archivedExam.exam_name,
+          exam_date: archivedExam.exam_date,
+          group_id: archivedExam.group_name // Note: should be group_id if available
+        })
+        .select()
+        .single();
+
+      if (restoredExam && archivedExam.results_data) {
+        // Restore exam results if available
+        const resultsToRestore = archivedExam.results_data.map((r: any) => ({
+          teacher_id: teacherId,
+          exam_id: restoredExam.id,
+          student_id: r.student_id,
+          score: r.score
+        }));
+
+        await supabase.from('exam_results').insert(resultsToRestore);
+      }
+
+      // Remove from archived_exams
+      await supabase
+        .from('archived_exams')
+        .delete()
+        .eq('id', examId);
+
+      await fetchArchivedData();
+      if (onStatsUpdate) await onStatsUpdate();
+    } catch (error) {
+      console.error('Error restoring exam:', error);
+    }
+  };
+
+  const deleteArchivedExam = async (examId: string, examName: string) => {
+    if (!confirm(`Rostdan ham "${examName}" imtihonini butunlay o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+      return;
+    }
+
+    try {
+      const archivedExam = archivedExams.find(e => e.id === examId);
+      if (!archivedExam) return;
+
+      // Move to deleted_exams table
+      await supabase
+        .from('deleted_exams')
+        .insert({
+          original_exam_id: archivedExam.original_exam_id,
+          teacher_id: teacherId,
+          exam_name: archivedExam.exam_name,
+          exam_date: archivedExam.exam_date,
+          group_name: archivedExam.group_name,
+          results_data: archivedExam.results_data
+        });
+
+      // Remove from archived_exams
+      await supabase
+        .from('archived_exams')
+        .delete()
+        .eq('id', examId);
+
+      await fetchArchivedData();
+      if (onStatsUpdate) await onStatsUpdate();
+    } catch (error) {
+      console.error('Error moving archived exam to trash:', error);
     }
   };
 
@@ -367,6 +475,69 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     </div>
   );
 
+  const renderExamsTab = () => (
+    <div className="space-y-4">
+      {filteredExams.length === 0 ? (
+        <Card className="p-12 text-center">
+          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Arxivlangan imtihonlar topilmadi</h3>
+          <p className="text-muted-foreground">
+            {searchTerm ? "Qidiruv bo'yicha arxivlangan imtihonlar topilmadi" : "Hozircha arxivlangan imtihonlar yo'q"}
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredExams.map(exam => (
+            <Card key={exam.id} className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{exam.exam_name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(exam.exam_date).toLocaleDateString('uz-UZ')}
+                    </p>
+                    <Badge variant="secondary" className="text-xs">
+                      {exam.group_name}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    Arxivlandi: {new Date(exam.archived_at).toLocaleDateString('uz-UZ')}
+                  </span>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => restoreExam(exam.id, exam.exam_name)}
+                      title="Qayta tiklash"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteArchivedExam(exam.id, exam.exam_name)}
+                      title="Chiqindi qutisiga o'tkazish"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -390,6 +561,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         <TabsList>
           <TabsTrigger value="students" onClick={() => setActiveTab('students')}>O'quvchilar</TabsTrigger>
           <TabsTrigger value="groups" onClick={() => setActiveTab('groups')}>Guruhlar</TabsTrigger>
+          <TabsTrigger value="exams" onClick={() => setActiveTab('exams')}>Imtihonlar</TabsTrigger>
         </TabsList>
         <TabsContent value="students">
           {loading ? (
@@ -407,6 +579,15 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
             </div>
           ) : (
             renderGroupsTab()
+          )}
+        </TabsContent>
+        <TabsContent value="exams">
+          {loading ? (
+            <div className="flex items-center justify-center p-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            renderExamsTab()
           )}
         </TabsContent>
       </Tabs>

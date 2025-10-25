@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      archived_exams: {
+        Row: {
+          archived_at: string
+          exam_date: string
+          exam_name: string
+          group_id: string | null
+          group_name: string | null
+          id: string
+          original_exam_id: string | null
+          results_data: Json | null
+          teacher_id: string
+        }
+        Insert: {
+          archived_at?: string
+          exam_date: string
+          exam_name: string
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          original_exam_id?: string | null
+          results_data?: Json | null
+          teacher_id: string
+        }
+        Update: {
+          archived_at?: string
+          exam_date?: string
+          exam_name?: string
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          original_exam_id?: string | null
+          results_data?: Json | null
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       archived_groups: {
         Row: {
           archived_at: string
@@ -146,6 +182,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      deleted_exams: {
+        Row: {
+          deleted_at: string
+          exam_date: string
+          exam_name: string
+          group_id: string | null
+          group_name: string | null
+          id: string
+          original_exam_id: string | null
+          results_data: Json | null
+          teacher_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          exam_date: string
+          exam_name: string
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          original_exam_id?: string | null
+          results_data?: Json | null
+          teacher_id: string
+        }
+        Update: {
+          deleted_at?: string
+          exam_date?: string
+          exam_name?: string
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          original_exam_id?: string | null
+          results_data?: Json | null
+          teacher_id?: string
+        }
+        Relationships: []
       }
       deleted_groups: {
         Row: {

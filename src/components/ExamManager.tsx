@@ -285,7 +285,31 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const deleteExam = async (examId: string) => {
     try {
-      // First delete all exam results
+      // Get exam details with results before deleting
+      const { data: examData } = await supabase
+        .from('exams')
+        .select('*, exam_results(*)')
+        .eq('id', examId)
+        .single();
+
+      const groupName = groups.find(g => g.id === examData?.group_id)?.name;
+
+      // Archive to deleted_exams
+      const { error: archiveError } = await supabase
+        .from('deleted_exams')
+        .insert({
+          teacher_id: teacherId,
+          original_exam_id: examId,
+          exam_name: examData?.exam_name,
+          exam_date: examData?.exam_date,
+          group_name: groupName,
+          group_id: examData?.group_id,
+          results_data: examData?.exam_results || []
+        });
+
+      if (archiveError) throw archiveError;
+
+      // Delete exam results
       const { error: resultsError } = await supabase
         .from('exam_results')
         .delete()
@@ -293,7 +317,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
       if (resultsError) throw resultsError;
 
-      // Then delete the exam
+      // Delete the exam
       const { error: examError } = await supabase
         .from('exams')
         .delete()
@@ -303,7 +327,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
       toast({
         title: 'Muvaffaqiyatli',
-        description: 'Imtihon o\'chirildi',
+        description: 'Imtihon chiqindilar qutisiga yuborildi',
       });
 
       await fetchExams();
@@ -320,13 +344,52 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const archiveExam = async (examId: string) => {
     try {
-      // For now, we'll just mark it as archived by adding a note
-      // You can create a separate archived_exams table if needed
+      // Get exam details with results before archiving
+      const { data: examData } = await supabase
+        .from('exams')
+        .select('*, exam_results(*)')
+        .eq('id', examId)
+        .single();
+
+      const groupName = groups.find(g => g.id === examData?.group_id)?.name;
+
+      // Archive to archived_exams
+      const { error: archiveError } = await supabase
+        .from('archived_exams')
+        .insert({
+          teacher_id: teacherId,
+          original_exam_id: examId,
+          exam_name: examData?.exam_name,
+          exam_date: examData?.exam_date,
+          group_name: groupName,
+          group_id: examData?.group_id,
+          results_data: examData?.exam_results || []
+        });
+
+      if (archiveError) throw archiveError;
+
+      // Delete exam results from active table
+      const { error: resultsError } = await supabase
+        .from('exam_results')
+        .delete()
+        .eq('exam_id', examId);
+
+      if (resultsError) throw resultsError;
+
+      // Delete the exam from active table
+      const { error: examError } = await supabase
+        .from('exams')
+        .delete()
+        .eq('id', examId);
+
+      if (examError) throw examError;
+
       toast({
         title: 'Muvaffaqiyatli',
         description: 'Imtihon arxivlandi',
       });
 
+      await fetchExams();
       setArchiveExamId(null);
     } catch (error) {
       console.error('Error archiving exam:', error);
