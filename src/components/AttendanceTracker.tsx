@@ -20,7 +20,8 @@ interface AttendanceRecord {
   id: string;
   student_id: string;
   date: string;
-  status: 'present' | 'absent' | 'late';
+  status: 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late';
+  notes?: string;
   students?: Student;
 }
 
@@ -39,6 +40,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
+  const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
+  const [absentReason, setAbsentReason] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -91,7 +94,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         .filter(record => record.students?.is_active)
         .map(record => ({
           ...record,
-          status: record.status as 'present' | 'absent' | 'late'
+          status: record.status as 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late'
         }));
       
       setAttendanceRecords(typedData);
@@ -111,7 +114,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     return record?.status || null;
   };
 
-  const markAttendance = async (studentId: string, status: 'present' | 'absent' | 'late') => {
+  const markAttendance = async (studentId: string, status: 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late', notes?: string) => {
     try {
       const { error } = await supabase
         .from('attendance_records')
@@ -119,7 +122,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
           student_id: studentId,
           teacher_id: teacherId,
           date: selectedDate,
-          status: status
+          status: status,
+          notes: notes || null
         }, {
           onConflict: 'student_id,date'
         });
@@ -129,9 +133,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       await fetchAttendanceRecords();
       await onStatsUpdate();
       
+      const statusText = status === 'present' ? 'kelgan' : 
+                        status === 'late' ? 'kechikkan' : 
+                        status === 'absent_with_reason' ? 'sababli kelmagan' : 
+                        'sababsiz kelmagan';
+      
       toast({
         title: "Davomat yangilandi",
-        description: `O'quvchi ${status === 'present' ? 'kelgan' : status === 'late' ? 'kechikkan' : 'kelmagan'} deb belgilandi`,
+        description: `O'quvchi ${statusText} deb belgilandi`,
       });
     } catch (error) {
       console.error('Error marking attendance:', error);
@@ -141,6 +150,26 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         variant: "destructive",
       });
     }
+  };
+
+  const handleAbsentWithReason = async (studentId: string) => {
+    if (!absentReason.trim()) {
+      toast({
+        title: "Xatolik",
+        description: "Sabab kiritish majburiy",
+        variant: "destructive",
+      });
+      return;
+    }
+    await markAttendance(studentId, 'absent_with_reason', absentReason);
+    setShowAbsentDialog(null);
+    setAbsentReason('');
+  };
+
+  const handleAbsentWithoutReason = async (studentId: string) => {
+    await markAttendance(studentId, 'absent_without_reason');
+    setShowAbsentDialog(null);
+    setAbsentReason('');
   };
 
   const markAllPresent = async () => {
@@ -292,7 +321,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'present': return 'text-green-600 bg-green-50';
-      case 'absent': return 'text-red-600 bg-red-50';
+      case 'absent_without_reason': return 'text-red-600 bg-red-50';
+      case 'absent_with_reason': return 'text-yellow-600 bg-yellow-50';
       case 'late': return 'text-orange-600 bg-orange-50';
       default: return 'text-gray-600 bg-gray-50';
     }
@@ -301,7 +331,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const getStatusIcon = (status: string | null) => {
     switch (status) {
       case 'present': return <Check className="w-4 h-4" />;
-      case 'absent': return <X className="w-4 h-4" />;
+      case 'absent_without_reason': return <X className="w-4 h-4" />;
+      case 'absent_with_reason': return <X className="w-4 h-4" />;
       case 'late': return <Clock className="w-4 h-4" />;
       default: return null;
     }
@@ -310,7 +341,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const getStatusText = (status: string | null) => {
     switch (status) {
       case 'present': return 'Kelgan';
-      case 'absent': return 'Kelmagan';
+      case 'absent_without_reason': return 'Sababsiz kelmagan';
+      case 'absent_with_reason': return 'Sababli kelmagan';
       case 'late': return 'Kechikkan';
       default: return null;
     }
@@ -450,8 +482,8 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       </Button>
                       <Button
                         size="sm"
-                        variant={status === 'absent' ? 'default' : 'outline'}
-                        onClick={() => markAttendance(student.id, 'absent')}
+                        variant={status === 'absent_with_reason' || status === 'absent_without_reason' ? 'default' : 'outline'}
+                        onClick={() => setShowAbsentDialog(student.id)}
                         className="w-8 h-8 p-0"
                         title="Kelmagan"
                       >
@@ -474,6 +506,67 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
           </div>
         )}
       </Card>
+
+      {/* Absent Dialog */}
+      {showAbsentDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Kelmagan sababi</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => handleAbsentWithoutReason(showAbsentDialog)}
+                  variant="outline"
+                  className="flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Sababsiz
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (absentReason.trim()) {
+                      handleAbsentWithReason(showAbsentDialog);
+                    }
+                  }}
+                  variant="default"
+                  className="flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Sababli
+                </Button>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Sabab (sababli kelmagan uchun majburiy)</label>
+                <Input
+                  type="text"
+                  value={absentReason}
+                  onChange={(e) => setAbsentReason(e.target.value)}
+                  placeholder="Sabab kiriting..."
+                />
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => handleAbsentWithReason(showAbsentDialog)}
+                  className="flex-1"
+                  disabled={!absentReason.trim()}
+                >
+                  Sababli belgilash
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowAbsentDialog(null);
+                    setAbsentReason('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Bekor qilish
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reward Dialog */}
       {showRewardDialog && (
