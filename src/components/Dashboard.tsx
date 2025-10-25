@@ -10,6 +10,7 @@ import Statistics from './Statistics';
 import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
+import ExamManager from './ExamManager';
 
 interface DashboardProps {
   teacherId: string;
@@ -124,6 +125,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     { id: 'overview', label: 'Umumiy ko\'rinish', icon: BookOpen },
     { id: 'groups', label: 'Guruhlar', icon: Users },
     { id: 'students', label: 'O\'quvchilar', icon: Users },
+    { id: 'exams', label: 'Imtihonlar', icon: TrendingUp },
     { id: 'rankings', label: 'Reyting', icon: Trophy },
     { id: 'statistics', label: 'Statistika', icon: BarChart3 },
     { id: 'archive', label: 'Arxiv', icon: Archive },
@@ -136,6 +138,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={fetchStats} />;
       case 'students':
         return <StudentManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'exams':
+        return <ExamManager teacherId={teacherId} />;
       case 'rankings':
         return <StudentRankings teacherId={teacherId} />;
       case 'statistics':

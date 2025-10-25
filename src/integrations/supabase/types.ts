@@ -235,6 +235,139 @@ export type Database = {
           },
         ]
       }
+      exam_results: {
+        Row: {
+          created_at: string
+          exam_id: string
+          id: string
+          notes: string | null
+          score: number
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          exam_id: string
+          id?: string
+          notes?: string | null
+          score: number
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          exam_id?: string
+          id?: string
+          notes?: string | null
+          score?: number
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_results_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_results_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_types_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          exam_date: string
+          exam_name: string
+          exam_type_id: string | null
+          group_id: string
+          id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          exam_date: string
+          exam_name: string
+          exam_type_id?: string | null
+          group_id: string
+          id?: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          exam_date?: string
+          exam_name?: string
+          exam_type_id?: string | null
+          group_id?: string
+          id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exams_exam_type_id_fkey"
+            columns: ["exam_type_id"]
+            isOneToOne: false
+            referencedRelation: "exam_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exams_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
           created_at: string
