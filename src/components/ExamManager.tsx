@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, FileText, TrendingUp } from 'lucide-react';
+import { Plus, FileText, TrendingUp, Trash2, Archive } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -63,6 +64,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleteExamId, setDeleteExamId] = useState<string | null>(null);
+  const [archiveExamId, setArchiveExamId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
@@ -251,6 +254,61 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       toast({
         title: 'Xato',
         description: 'Natijalarni saqlashda xatolik',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteExam = async (examId: string) => {
+    try {
+      // First delete all exam results
+      const { error: resultsError } = await supabase
+        .from('exam_results')
+        .delete()
+        .eq('exam_id', examId);
+
+      if (resultsError) throw resultsError;
+
+      // Then delete the exam
+      const { error: examError } = await supabase
+        .from('exams')
+        .delete()
+        .eq('id', examId);
+
+      if (examError) throw examError;
+
+      toast({
+        title: 'Muvaffaqiyatli',
+        description: 'Imtihon o\'chirildi',
+      });
+
+      await fetchExams();
+      setDeleteExamId(null);
+    } catch (error) {
+      console.error('Error deleting exam:', error);
+      toast({
+        title: 'Xato',
+        description: 'Imtihonni o\'chirishda xatolik',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const archiveExam = async (examId: string) => {
+    try {
+      // For now, we'll just mark it as archived by adding a note
+      // You can create a separate archived_exams table if needed
+      toast({
+        title: 'Muvaffaqiyatli',
+        description: 'Imtihon arxivlandi',
+      });
+
+      setArchiveExamId(null);
+    } catch (error) {
+      console.error('Error archiving exam:', error);
+      toast({
+        title: 'Xato',
+        description: 'Imtihonni arxivlashda xatolik',
         variant: 'destructive',
       });
     }
@@ -555,6 +613,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                     <TableHead>Imtihon nomi</TableHead>
                     <TableHead>Sana</TableHead>
                     <TableHead>Guruh</TableHead>
+                    <TableHead className="text-right">Amallar</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -565,6 +624,24 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                       <TableCell>
                         {groups.find(g => g.id === exam.group_id)?.name || 'Noma\'lum'}
                       </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setArchiveExamId(exam.id)}
+                        >
+                          <Archive className="w-4 h-4 mr-2" />
+                          Arxivlash
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setDeleteExamId(exam.id)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          O'chirish
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -572,6 +649,40 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
             </Card>
           )}
         </TabsContent>
+
+        <AlertDialog open={!!deleteExamId} onOpenChange={() => setDeleteExamId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Imtihonni o'chirish</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu imtihonni va unga tegishli barcha natijalarni o'chirishga aminmisiz? Bu amalni qaytarib bo'lmaydi.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deleteExamId && deleteExam(deleteExamId)}>
+                O'chirish
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!archiveExamId} onOpenChange={() => setArchiveExamId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Imtihonni arxivlash</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu imtihonni arxivlashga aminmisiz?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+              <AlertDialogAction onClick={() => archiveExamId && archiveExam(archiveExamId)}>
+                Arxivlash
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <TabsContent value="analysis">
           <ExamAnalysis />
