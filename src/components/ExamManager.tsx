@@ -353,26 +353,32 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const ExamAnalysis = () => {
     const [selectedExamName, setSelectedExamName] = useState<string>('');
+    const [selectedAnalysisGroup, setSelectedAnalysisGroup] = useState<string>('');
     const [analysisData, setAnalysisData] = useState<Record<string, any[]>>({});
 
     useEffect(() => {
       if (selectedExamName) {
         fetchAnalysisData();
       }
-    }, [selectedExamName]);
+    }, [selectedExamName, selectedAnalysisGroup]);
 
     const fetchAnalysisData = async () => {
       try {
-        const { data: results, error } = await supabase
+        let query = supabase
           .from('exam_results')
           .select(`
             *,
-            students!inner(id, name),
-            exams!inner(exam_name, exam_date)
+            students!inner(id, name, group_id, group_name),
+            exams!inner(exam_name, exam_date, group_id)
           `)
           .eq('teacher_id', teacherId)
-          .eq('exams.exam_name', selectedExamName)
-          .order('students.name', { ascending: true });
+          .eq('exams.exam_name', selectedExamName);
+
+        if (selectedAnalysisGroup) {
+          query = query.eq('exams.group_id', selectedAnalysisGroup);
+        }
+
+        const { data: results, error } = await query.order('students.name', { ascending: true });
 
         if (error) throw error;
 
@@ -385,6 +391,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           }
           grouped[studentId].push({
             studentName: result.students.name,
+            groupName: result.students.group_name || groups.find(g => g.id === result.students.group_id)?.name,
             examDate: result.exams.exam_date,
             score: result.score,
           });
@@ -403,48 +410,120 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       }
     };
 
+    const getScoreColor = (score: number) => {
+      if (score >= 90) return 'text-green-600 bg-green-50 border-green-200';
+      if (score >= 70) return 'text-blue-600 bg-blue-50 border-blue-200';
+      if (score >= 50) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      return 'text-red-600 bg-red-50 border-red-200';
+    };
+
+    const getTrend = (results: any[]) => {
+      if (results.length < 2) return null;
+      const lastScore = results[results.length - 1].score;
+      const prevScore = results[results.length - 2].score;
+      const diff = lastScore - prevScore;
+      if (diff > 0) return { icon: '📈', text: `+${diff.toFixed(1)}`, color: 'text-green-600' };
+      if (diff < 0) return { icon: '📉', text: `${diff.toFixed(1)}`, color: 'text-red-600' };
+      return { icon: '➡️', text: '0', color: 'text-gray-600' };
+    };
+
     const uniqueExamNames = [...new Set(exams.map(e => e.exam_name))];
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <Label>Imtihon turi</Label>
-          <Select value={selectedExamName} onValueChange={setSelectedExamName}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Imtihon turini tanlang" />
-            </SelectTrigger>
-            <SelectContent>
-              {uniqueExamNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <Label>Imtihon turi</Label>
+            <Select value={selectedExamName} onValueChange={setSelectedExamName}>
+              <SelectTrigger>
+                <SelectValue placeholder="Imtihon turini tanlang" />
+              </SelectTrigger>
+              <SelectContent>
+                {uniqueExamNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex-1">
+            <Label>Guruh (ixtiyoriy)</Label>
+            <Select value={selectedAnalysisGroup} onValueChange={setSelectedAnalysisGroup}>
+              <SelectTrigger>
+                <SelectValue placeholder="Barcha guruhlar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Barcha guruhlar</SelectItem>
+                {groups.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {selectedExamName && Object.keys(analysisData).length > 0 && (
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">O'quvchilar natijalari tahlili</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              {selectedExamName} - Natijalar tahlili
+              {selectedAnalysisGroup && ` (${groups.find(g => g.id === selectedAnalysisGroup)?.name})`}
+            </h3>
             <div className="space-y-6">
-              {Object.entries(analysisData).map(([studentId, results]) => (
-                <div key={studentId} className="border-b pb-4 last:border-b-0">
-                  <h4 className="font-semibold text-base mb-3">{results[0]?.studentName}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {results.map((result, index) => (
-                      <div key={index} className="bg-muted p-3 rounded-lg">
-                        <div className="text-sm text-muted-foreground mb-1">
-                          {new Date(result.examDate).toLocaleDateString('uz-UZ')}
-                        </div>
-                        <div className="text-2xl font-bold text-primary">
-                          {result.score}
-                        </div>
+              {Object.entries(analysisData).map(([studentId, results]) => {
+                const trend = getTrend(results);
+                const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
+                
+                return (
+                  <div key={studentId} className="border rounded-lg p-4 bg-card">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-base">{results[0]?.studentName}</h4>
+                        <p className="text-sm text-muted-foreground">{results[0]?.groupName}</p>
                       </div>
-                    ))}
+                      <div className="text-right">
+                        <div className="text-sm text-muted-foreground">O'rtacha</div>
+                        <div className="text-xl font-bold text-primary">{avgScore}</div>
+                        {trend && (
+                          <div className={`text-sm flex items-center gap-1 justify-end ${trend.color}`}>
+                            <span>{trend.icon}</span>
+                            <span>{trend.text}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {results.map((result, index) => (
+                        <div 
+                          key={index} 
+                          className={`p-3 rounded-lg border ${getScoreColor(result.score)}`}
+                        >
+                          <div className="text-xs font-medium mb-1">
+                            {new Date(result.examDate).toLocaleDateString('uz-UZ', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })}
+                          </div>
+                          <div className="text-2xl font-bold">
+                            {result.score}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          </Card>
+        )}
+
+        {selectedExamName && Object.keys(analysisData).length === 0 && (
+          <Card className="p-12 text-center">
+            <p className="text-muted-foreground">Bu imtihon turi uchun natijalar topilmadi</p>
           </Card>
         )}
       </div>
