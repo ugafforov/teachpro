@@ -37,6 +37,7 @@ interface DeletedExam {
   exam_name: string;
   exam_date: string;
   group_name: string;
+  group_id?: string;
   deleted_at: string;
   results_data?: any;
 }
@@ -317,28 +318,35 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreExam = async (deletedExam: DeletedExam) => {
     try {
-      // Imtihonni tiklash - exams jadvaliga qaytarish
-      const { data: restoredExam } = await supabase
+      // Imtihonni tiklash - exams jadvaliga qaytarish with correct group_id
+      const { data: restoredExam, error: examError } = await supabase
         .from('exams')
         .insert({
           teacher_id: teacherId,
           exam_name: deletedExam.exam_name,
           exam_date: deletedExam.exam_date,
-          group_id: deletedExam.group_name // Note: ideally should be actual group_id
+          group_id: deletedExam.group_id || null
         })
         .select()
         .single();
 
-      if (restoredExam && deletedExam.results_data) {
-        // Natijalarni tiklash
+      if (examError) throw examError;
+
+      if (restoredExam && deletedExam.results_data && Array.isArray(deletedExam.results_data)) {
+        // Natijalarni to'liq tiklash
         const resultsToRestore = deletedExam.results_data.map((r: any) => ({
           teacher_id: teacherId,
           exam_id: restoredExam.id,
           student_id: r.student_id,
-          score: r.score
+          score: r.score,
+          notes: r.notes || null
         }));
 
-        await supabase.from('exam_results').insert(resultsToRestore);
+        const { error: resultsError } = await supabase
+          .from('exam_results')
+          .insert(resultsToRestore);
+
+        if (resultsError) throw resultsError;
       }
 
       // Trash dan o'chirish

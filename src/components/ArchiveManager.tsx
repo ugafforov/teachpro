@@ -35,6 +35,7 @@ interface ArchivedExam {
   exam_name: string;
   exam_date: string;
   group_name: string;
+  group_id?: string;
   archived_at: string;
   results_data?: any;
 }
@@ -268,35 +269,44 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       const archivedExam = archivedExams.find(e => e.id === examId);
       if (!archivedExam) return;
 
-      // Restore to exams table
-      const { data: restoredExam } = await supabase
+      // Restore to exams table with correct group_id
+      const { data: restoredExam, error: examError } = await supabase
         .from('exams')
         .insert({
           teacher_id: teacherId,
           exam_name: archivedExam.exam_name,
           exam_date: archivedExam.exam_date,
-          group_id: archivedExam.group_name // Note: should be group_id if available
+          group_id: archivedExam.group_id || null
         })
         .select()
         .single();
 
-      if (restoredExam && archivedExam.results_data) {
-        // Restore exam results if available
+      if (examError) throw examError;
+
+      if (restoredExam && archivedExam.results_data && Array.isArray(archivedExam.results_data)) {
+        // Restore exam results with all data
         const resultsToRestore = archivedExam.results_data.map((r: any) => ({
           teacher_id: teacherId,
           exam_id: restoredExam.id,
           student_id: r.student_id,
-          score: r.score
+          score: r.score,
+          notes: r.notes || null
         }));
 
-        await supabase.from('exam_results').insert(resultsToRestore);
+        const { error: resultsError } = await supabase
+          .from('exam_results')
+          .insert(resultsToRestore);
+
+        if (resultsError) throw resultsError;
       }
 
       // Remove from archived_exams
-      await supabase
+      const { error: deleteError } = await supabase
         .from('archived_exams')
         .delete()
         .eq('id', examId);
+
+      if (deleteError) throw deleteError;
 
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
