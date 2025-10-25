@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -109,17 +109,26 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const fetchStudents = async (groupId: string) => {
     try {
-      const { data, error } = await supabase
+      const groupName = groups.find(g => g.id === groupId)?.name;
+      let query = supabase
         .from('students')
         .select('*')
         .eq('teacher_id', teacherId)
-        .eq('group_id', groupId)
         .eq('is_active', true);
 
+      if (groupName) {
+        // Fallback: match by group_id or group_name for legacy data
+        query = query.or(`group_id.eq.${groupId},group_name.eq.${groupName}`);
+      } else {
+        query = query.eq('group_id', groupId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
+      setStudents([]);
     }
   };
 
@@ -468,6 +477,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Yangi imtihon yaratish</DialogTitle>
+              <DialogDescription>
+                Guruh, imtihon nomi va sanani tanlang, so'ng davom eting.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -541,6 +553,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Imtihon natijalarini kiriting</DialogTitle>
+            <DialogDescription>
+              Natijani yozing va Enter bosing — kursor keyingi o'quvchiga o'tadi.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Table>
