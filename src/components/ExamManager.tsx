@@ -349,7 +349,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           students!inner(id, name, group_name)
         `)
         .eq('exam_id', examId)
-        .order('students.name', { ascending: true });
+        .order('name', { ascending: true, foreignTable: 'students' });
 
       if (error) {
         console.error('Error fetching exam details:', error);
@@ -380,7 +380,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         .eq('teacher_id', teacherId)
         .eq('student_id', studentId)
         .eq('exams.exam_name', examName)
-        .order('exams.exam_date', { ascending: true });
+        .order('exam_date', { ascending: true, foreignTable: 'exams' });
 
       if (error) throw error;
       return data || [];
@@ -404,22 +404,43 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     const fetchAnalysisData = async () => {
       try {
         console.log('Fetching analysis for exam:', selectedExamName, 'group:', selectedAnalysisGroup);
-        
-        let query = supabase
-          .from('exam_results')
-          .select(`
-            *,
-            students!inner(id, name, group_id, group_name),
-            exams!inner(exam_name, exam_date, group_id)
-          `)
+
+        // 1) Get matching exams to avoid fragile foreign table filters
+        let examsQuery = supabase
+          .from('exams')
+          .select('id, exam_date, exam_name, group_id')
           .eq('teacher_id', teacherId)
-          .eq('exams.exam_name', selectedExamName);
+          .eq('exam_name', selectedExamName);
 
         if (selectedAnalysisGroup && selectedAnalysisGroup !== 'all') {
-          query = query.eq('exams.group_id', selectedAnalysisGroup);
+          examsQuery = examsQuery.eq('group_id', selectedAnalysisGroup);
         }
 
-        const { data: results, error } = await query.order('students.name', { ascending: true });
+        const { data: examRows, error: examsError } = await examsQuery;
+        if (examsError) {
+          console.error('Error fetching exams for analysis:', examsError);
+          throw examsError;
+        }
+
+        if (!examRows || examRows.length === 0) {
+          console.log('No exams found matching filters');
+          setAnalysisData({});
+          return;
+        }
+
+        const examIdToDate = new Map(examRows.map((e) => [e.id, e.exam_date]));
+        const examIds = examRows.map((e) => e.id);
+
+        // 2) Get results for those exams and join students
+        const { data: results, error } = await supabase
+          .from('exam_results')
+          .select(`
+            id, score, exam_id,
+            students!inner(id, name, group_id, group_name)
+          `)
+          .eq('teacher_id', teacherId)
+          .in('exam_id', examIds)
+          .order('name', { ascending: true, foreignTable: 'students' });
 
         if (error) {
           console.error('Error fetching analysis data:', error);
@@ -427,28 +448,23 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         }
 
         console.log('Analysis results:', results);
-        console.log('Number of results:', results?.length || 0);
 
         // Group by student
         const grouped: Record<string, any[]> = {};
         results?.forEach((result: any) => {
           const studentId = result.students.id;
-          if (!grouped[studentId]) {
-            grouped[studentId] = [];
-          }
+          if (!grouped[studentId]) grouped[studentId] = [];
           grouped[studentId].push({
             studentName: result.students.name,
             groupName: result.students.group_name || groups.find(g => g.id === result.students.group_id)?.name,
-            examDate: result.exams.exam_date,
+            examDate: examIdToDate.get(result.exam_id),
             score: result.score,
           });
         });
 
         // Sort each student's results by date
-        Object.keys(grouped).forEach(studentId => {
-          grouped[studentId].sort((a, b) => 
-            new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
-          );
+        Object.keys(grouped).forEach((studentId) => {
+          grouped[studentId].sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
         });
 
         console.log('Grouped analysis data:', grouped);
