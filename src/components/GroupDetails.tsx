@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
-
 interface Student {
   id: string;
   name: string;
@@ -23,9 +21,7 @@ interface Student {
   created_at: string;
   rewardPenaltyPoints?: number;
 }
-
 type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
-
 interface AttendanceRecord {
   id: string;
   student_id: string;
@@ -35,19 +31,17 @@ interface AttendanceRecord {
   created_at: string;
   updated_at: string;
 }
-
 interface GroupDetailsProps {
   groupName: string;
   teacherId: string;
   onBack: () => void;
   onStatsUpdate: () => Promise<void>;
 }
-
-const GroupDetails: React.FC<GroupDetailsProps> = ({ 
-  groupName, 
-  teacherId, 
-  onBack, 
-  onStatsUpdate 
+const GroupDetails: React.FC<GroupDetailsProps> = ({
+  groupName,
+  teacherId,
+  onBack,
+  onStatsUpdate
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
@@ -68,34 +62,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     email: '',
     phone: ''
   });
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   useEffect(() => {
     fetchStudents();
     fetchAttendanceForDate(selectedDate);
   }, [groupName, teacherId, selectedDate]);
-
   const fetchStudents = async () => {
     try {
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('group_name', groupName)
-        .eq('is_active', true)
-        .order('name');
-
+      const {
+        data: studentsData,
+        error: studentsError
+      } = await supabase.from('students').select('*').eq('teacher_id', teacherId).eq('group_name', groupName).eq('is_active', true).order('name');
       if (studentsError) throw studentsError;
 
       // Fetch reward/penalty points for each student
       const studentIds = studentsData?.map(s => s.id) || [];
       if (studentIds.length > 0) {
-        const { data: scoresData, error: scoresError } = await supabase
-          .from('student_scores')
-          .select('student_id, reward_penalty_points')
-          .in('student_id', studentIds)
-          .eq('teacher_id', teacherId);
-
+        const {
+          data: scoresData,
+          error: scoresError
+        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (scoresError) throw scoresError;
 
         // Merge reward points with student data
@@ -103,7 +91,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           ...student,
           rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0
         })) || [];
-
         setStudents(studentsWithRewards);
       } else {
         setStudents(studentsData || []);
@@ -114,17 +101,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setLoading(false);
     }
   };
-
   const fetchAttendanceForDate = async (date: string) => {
     try {
-      const { data, error } = await supabase
-        .from('attendance_records')
-        .select('student_id, status')
-        .eq('teacher_id', teacherId)
-        .eq('date', date);
-
+      const {
+        data,
+        error
+      } = await supabase.from('attendance_records').select('student_id, status').eq('teacher_id', teacherId).eq('date', date);
       if (error) throw error;
-
       const attendanceMap: Record<string, AttendanceStatus> = {};
       if (data) {
         data.forEach((record: any) => {
@@ -136,132 +119,111 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error fetching attendance:', error);
     }
   };
-
   const addStudent = async () => {
     if (!newStudent.name.trim()) {
       return;
     }
-
     try {
-      const { error } = await supabase
-        .from('students')
-        .insert({
-          teacher_id: teacherId,
-          name: newStudent.name.trim(),
-          student_id: newStudent.student_id.trim() || null,
-          email: newStudent.email.trim() || null,
-          phone: newStudent.phone.trim() || null,
-          group_name: groupName
-        });
-
+      const {
+        error
+      } = await supabase.from('students').insert({
+        teacher_id: teacherId,
+        name: newStudent.name.trim(),
+        student_id: newStudent.student_id.trim() || null,
+        email: newStudent.email.trim() || null,
+        phone: newStudent.phone.trim() || null,
+        group_name: groupName
+      });
       if (error) throw error;
-
       await fetchStudents();
       await onStatsUpdate();
-      
-      setNewStudent({ name: '', student_id: '', email: '', phone: '' });
+      setNewStudent({
+        name: '',
+        student_id: '',
+        email: '',
+        phone: ''
+      });
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Error adding student:', error);
     }
   };
-
   const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
     try {
-      const { data: existingRecord } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('student_id', studentId)
-        .eq('date', selectedDate)
-        .maybeSingle();
-
+      const {
+        data: existingRecord
+      } = await supabase.from('attendance_records').select('*').eq('teacher_id', teacherId).eq('student_id', studentId).eq('date', selectedDate).maybeSingle();
       if (existingRecord) {
-        if ((existingRecord.status === status) && ((notes ?? existingRecord.notes ?? null) === (existingRecord.notes ?? null))) {
-          const { error } = await supabase
-            .from('attendance_records')
-            .delete()
-            .eq('id', existingRecord.id);
-
+        if (existingRecord.status === status && (notes ?? existingRecord.notes ?? null) === (existingRecord.notes ?? null)) {
+          const {
+            error
+          } = await supabase.from('attendance_records').delete().eq('id', existingRecord.id);
           if (error) throw error;
-
           setAttendance(prevAttendance => {
-            const newAttendance = { ...prevAttendance } as Record<string, AttendanceStatus>;
+            const newAttendance = {
+              ...prevAttendance
+            } as Record<string, AttendanceStatus>;
             delete newAttendance[studentId];
             return newAttendance;
           });
         } else {
-          const { error } = await supabase
-            .from('attendance_records')
-            .update({ status: status, notes: notes === undefined ? (existingRecord.notes ?? null) : notes })
-            .eq('id', existingRecord.id);
-
+          const {
+            error
+          } = await supabase.from('attendance_records').update({
+            status: status,
+            notes: notes === undefined ? existingRecord.notes ?? null : notes
+          }).eq('id', existingRecord.id);
           if (error) throw error;
-
           setAttendance(prevAttendance => ({
             ...prevAttendance,
-            [studentId]: status,
+            [studentId]: status
           }));
         }
       } else {
-        const { error } = await supabase
-          .from('attendance_records')
-          .insert({
-            teacher_id: teacherId,
-            student_id: studentId,
-            date: selectedDate,
-            status: status,
-            notes: notes ?? null
-          });
-
+        const {
+          error
+        } = await supabase.from('attendance_records').insert({
+          teacher_id: teacherId,
+          student_id: studentId,
+          date: selectedDate,
+          status: status,
+          notes: notes ?? null
+        });
         if (error) throw error;
-
         setAttendance(prevAttendance => ({
           ...prevAttendance,
-          [studentId]: status,
+          [studentId]: status
         }));
       }
-
       await onStatsUpdate();
     } catch (error) {
       console.error('Error marking attendance:', error);
     }
   };
-
   const markAllAsPresent = async () => {
     try {
-      const attendancePromises = students.map(student => 
-        markAttendance(student.id, 'present')
-      );
-      
+      const attendancePromises = students.map(student => markAttendance(student.id, 'present'));
       await Promise.all(attendancePromises);
     } catch (error) {
       console.error('Error marking all as present:', error);
     }
   };
-
   const clearAllAttendance = async () => {
     try {
-      const { error } = await supabase
-        .from('attendance_records')
-        .delete()
-        .eq('teacher_id', teacherId)
-        .eq('date', selectedDate);
-
+      const {
+        error
+      } = await supabase.from('attendance_records').delete().eq('teacher_id', teacherId).eq('date', selectedDate);
       if (error) throw error;
-
       setAttendance({});
       await onStatsUpdate();
     } catch (error) {
       console.error('Error clearing attendance:', error);
     }
   };
-
   const addReward = async (studentId: string) => {
     if (!rewardPoints) {
       return;
     }
-
     const points = parseFloat(rewardPoints);
     if (isNaN(points)) {
       return;
@@ -274,20 +236,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     if (rewardType === 'penalty' && Math.abs(points) > 5) {
       return;
     }
-
     try {
-      const { error } = await supabase
-        .from('reward_penalty_history')
-        .insert([{
-          student_id: studentId,
-          teacher_id: teacherId,
-          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          date: new Date().toISOString().split('T')[0]
-        }] as any);
-
+      const {
+        error
+      } = await supabase.from('reward_penalty_history').insert([{
+        student_id: studentId,
+        teacher_id: teacherId,
+        points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+        reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
+        date: new Date().toISOString().split('T')[0]
+      }] as any);
       if (error) throw error;
-
       setShowRewardDialog(null);
       setRewardPoints('');
       await fetchStudents(); // Refresh to show updated reward points
@@ -296,17 +255,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error adding reward/penalty:', error);
     }
   };
-
   const handleStudentClick = (studentId: string) => {
     setSelectedStudentId(studentId);
     setIsStudentPopupOpen(true);
   };
-
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
     const currentStatus = attendance[studentId];
     const normalized = (currentStatus === 'absent' ? 'absent_without_reason' : currentStatus) as AttendanceStatus | undefined;
     const baseStyle = 'w-10 h-10 p-0 border';
-
     if (targetStatus !== 'absent') {
       const isActive = normalized === targetStatus;
       if (!isActive) {
@@ -331,36 +287,23 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
     return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
   };
-
   const getRewardDisplay = (points: number) => {
     if (points === 0) return null;
-    return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-        points > 0 
-          ? 'bg-green-100 text-green-800 border border-green-200' 
-          : 'bg-red-100 text-red-800 border border-red-200'
-      }`}>
+    return <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${points > 0 ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
         {points > 0 ? '+' : ''}{points}
-      </span>
-    );
+      </span>;
   };
-
   const getRewardIcon = (points: number) => {
     if (points === 0) return null;
     if (points > 0) return <Star className="w-4 h-4 text-yellow-500" />;
     return <AlertTriangle className="w-4 h-4 text-red-500" />;
   };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-12">
+    return <div className="flex items-center justify-center p-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button onClick={onBack} variant="ghost" size="sm">
@@ -372,21 +315,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           </div>
         </div>
         <div className="flex gap-2">
-          <StudentImport 
-            teacherId={teacherId} 
-            groupName={groupName}
-            onImportComplete={() => {
-              fetchStudents();
-              fetchAttendanceForDate(selectedDate);
-              if (onStatsUpdate) onStatsUpdate();
-            }}
-          />
+          <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => {
+          fetchStudents();
+          fetchAttendanceForDate(selectedDate);
+          if (onStatsUpdate) onStatsUpdate();
+        }} />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="apple-button">
-                <Plus className="w-4 h-4 mr-2" />
-                O'quvchi qo'shish
-              </Button>
+              
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
@@ -395,40 +331,31 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="studentName">O'quvchi nomi *</Label>
-                  <Input
-                    id="studentName"
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                    placeholder="To'liq ism sharif"
-                  />
+                  <Input id="studentName" value={newStudent.name} onChange={e => setNewStudent({
+                  ...newStudent,
+                  name: e.target.value
+                })} placeholder="To'liq ism sharif" />
                 </div>
                 <div>
                   <Label htmlFor="studentId">O'quvchi ID</Label>
-                  <Input
-                    id="studentId"
-                    value={newStudent.student_id}
-                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
-                    placeholder="Masalan: 2024001"
-                  />
+                  <Input id="studentId" value={newStudent.student_id} onChange={e => setNewStudent({
+                  ...newStudent,
+                  student_id: e.target.value
+                })} placeholder="Masalan: 2024001" />
                 </div>
                 <div>
                   <Label htmlFor="studentEmail">Email</Label>
-                  <Input
-                    id="studentEmail"
-                    type="email"
-                    value={newStudent.email}
-                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                    placeholder="student@example.com"
-                  />
+                  <Input id="studentEmail" type="email" value={newStudent.email} onChange={e => setNewStudent({
+                  ...newStudent,
+                  email: e.target.value
+                })} placeholder="student@example.com" />
                 </div>
                 <div>
                   <Label htmlFor="studentPhone">Telefon</Label>
-                  <Input
-                    id="studentPhone"
-                    value={newStudent.phone}
-                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                    placeholder="+998 90 123 45 67"
-                  />
+                  <Input id="studentPhone" value={newStudent.phone} onChange={e => setNewStudent({
+                  ...newStudent,
+                  phone: e.target.value
+                })} placeholder="+998 90 123 45 67" />
                 </div>
                 <div className="flex space-x-2">
                   <Button onClick={addStudent} className="apple-button flex-1">
@@ -456,36 +383,20 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-40"
-                />
+                <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-40" />
               </div>
-              <Button
-                onClick={markAllAsPresent}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
+              <Button onClick={markAllAsPresent} variant="outline" size="sm" className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
                 Barchani kelgan deb belgilash
               </Button>
-              <Button
-                onClick={clearAllAttendance}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
+              <Button onClick={clearAllAttendance} variant="outline" size="sm" className="flex items-center gap-2">
                 <RotateCcw className="w-4 h-4" />
                 Belgilarni tozalash
               </Button>
             </div>
           </div>
         </div>
-        {students.length === 0 ? (
-          <div className="p-12 text-center">
+        {students.length === 0 ? <div className="p-12 text-center">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
             <p className="text-muted-foreground mb-4">
@@ -495,172 +406,118 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <Plus className="w-4 h-4 mr-2" />
               Birinchi o'quvchini qo'shish
             </Button>
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {students.map(student => (
-              <div key={student.id} className="p-4 flex items-center justify-between">
+          </div> : <div className="divide-y divide-border/50">
+            {students.map(student => <div key={student.id} className="p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <button
-                    onClick={() => handleStudentClick(student.id)}
-                    className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer"
-                  >
+                  <button onClick={() => handleStudentClick(student.id)} className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer">
                     <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center relative">
                       <span className="text-sm font-medium">
                         {student.name.split(' ').map(n => n[0]).join('')}
                       </span>
-                      {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && (
-                        <div className="absolute -top-1 -right-1">
+                      {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && <div className="absolute -top-1 -right-1">
                           {getRewardIcon(student.rewardPenaltyPoints)}
-                        </div>
-                      )}
+                        </div>}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold">{student.name}</h3>
                         {student.rewardPenaltyPoints !== undefined && getRewardDisplay(student.rewardPenaltyPoints)}
                       </div>
-                      {student.student_id && (
-                        <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>
-                      )}
+                      {student.student_id && <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>}
                     </div>
                   </button>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    onClick={() => markAttendance(student.id, 'present')}
-                    className={getButtonStyle(student.id, 'present')}
-                  >
+                  <Button size="sm" onClick={() => markAttendance(student.id, 'present')} className={getButtonStyle(student.id, 'present')}>
                     <CheckCircle className="w-4 h-4" />
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => markAttendance(student.id, 'late')}
-                    className={getButtonStyle(student.id, 'late')}
-                  >
+                  <Button size="sm" onClick={() => markAttendance(student.id, 'late')} className={getButtonStyle(student.id, 'late')}>
                     <Clock className="w-4 h-4" />
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }}
-                    className={getButtonStyle(student.id, 'absent')}
-                  >
+                  <Button size="sm" onClick={() => {
+              setShowReasonInput(false);
+              setAbsentReason('');
+              setShowAbsentDialog(student.id);
+            }} className={getButtonStyle(student.id, 'absent')}>
                     <XCircle className="w-4 h-4" />
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowRewardDialog(student.id)}
-                    title="Mukofot/Jarima berish"
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => setShowRewardDialog(student.id)} title="Mukofot/Jarima berish">
                     <Gift className="w-4 h-4" />
                   </Button>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              </div>)}
+          </div>}
       </Card>
 
       {/* Absent Dialog */}
-      {showAbsentDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {showAbsentDialog && <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
                 {students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi
               </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setShowAbsentDialog(null); setShowReasonInput(false); setAbsentReason(''); }}
-                className="h-8 w-8 p-0"
-              >
+              <Button variant="ghost" size="sm" onClick={() => {
+            setShowAbsentDialog(null);
+            setShowReasonInput(false);
+            setAbsentReason('');
+          }} className="h-8 w-8 p-0">
                 <XCircle className="w-4 h-4" />
               </Button>
             </div>
 
-            {!showReasonInput ? (
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  onClick={async () => { await markAttendance(showAbsentDialog!, 'absent_without_reason', null); setShowAbsentDialog(null); setShowReasonInput(false); setAbsentReason(''); }}
-                  variant="outline"
-                  className="h-12"
-                >
+            {!showReasonInput ? <div className="grid grid-cols-2 gap-3">
+                <Button onClick={async () => {
+            await markAttendance(showAbsentDialog!, 'absent_without_reason', null);
+            setShowAbsentDialog(null);
+            setShowReasonInput(false);
+            setAbsentReason('');
+          }} variant="outline" className="h-12">
                   Sababsiz
                 </Button>
-                <Button
-                  onClick={() => setShowReasonInput(true)}
-                  variant="outline"
-                  className="h-12"
-                >
+                <Button onClick={() => setShowReasonInput(true)} variant="outline" className="h-12">
                   Sababli
                 </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
+              </div> : <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium block mb-2">Sabab (majburiy)</label>
-                  <Input
-                    type="text"
-                    value={absentReason}
-                    onChange={(e) => setAbsentReason(e.target.value)}
-                    placeholder="Sabab kiriting..."
-                    autoFocus
-                  />
+                  <Input type="text" value={absentReason} onChange={e => setAbsentReason(e.target.value)} placeholder="Sabab kiriting..." autoFocus />
                 </div>
                 <div className="flex space-x-2">
-                  <Button
-                    onClick={async () => {
-                      if (!absentReason.trim()) {
-                        toast({ title: "Xatolik", description: "Sabab kiritish majburiy", variant: "destructive" });
-                        return;
-                      }
-                      await markAttendance(showAbsentDialog!, 'absent_with_reason', absentReason.trim());
-                      setShowAbsentDialog(null);
-                      setShowReasonInput(false);
-                      setAbsentReason('');
-                    }}
-                    className="flex-1"
-                    disabled={!absentReason.trim()}
-                  >
+                  <Button onClick={async () => {
+              if (!absentReason.trim()) {
+                toast({
+                  title: "Xatolik",
+                  description: "Sabab kiritish majburiy",
+                  variant: "destructive"
+                });
+                return;
+              }
+              await markAttendance(showAbsentDialog!, 'absent_with_reason', absentReason.trim());
+              setShowAbsentDialog(null);
+              setShowReasonInput(false);
+              setAbsentReason('');
+            }} className="flex-1" disabled={!absentReason.trim()}>
                     Saqlash
                   </Button>
-                  <Button
-                    onClick={() => setShowReasonInput(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
+                  <Button onClick={() => setShowReasonInput(false)} variant="outline" className="flex-1">
                     Ortga
                   </Button>
                 </div>
-              </div>
-            )}
+              </div>}
           </div>
-        </div>
-      )}
+        </div>}
 
       {/* Reward Dialog */}
-      {showRewardDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {showRewardDialog && <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  onClick={() => setRewardType('reward')}
-                  variant={rewardType === 'reward' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
+                <Button onClick={() => setRewardType('reward')} variant={rewardType === 'reward' ? 'default' : 'outline'} className="flex items-center justify-center gap-2">
                   <Gift className="w-4 h-4" />
                   Mukofot
                 </Button>
-                <Button
-                  onClick={() => setRewardType('penalty')}
-                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
+                <Button onClick={() => setRewardType('penalty')} variant={rewardType === 'penalty' ? 'default' : 'outline'} className="flex items-center justify-center gap-2">
                   <XCircle className="w-4 h-4" />
                   Jarima
                 </Button>
@@ -669,57 +526,33 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 <label className="text-sm font-medium">
                   Ball miqdori (maksimum {rewardType === 'reward' ? '+5' : '-5'})
                 </label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  max="5"
-                  value={rewardPoints}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    if (value <= 5) {
-                      setRewardPoints(e.target.value);
-                    }
-                  }}
-                  placeholder="Masalan: 3"
-                />
+                <Input type="number" step="0.1" min="0.1" max="5" value={rewardPoints} onChange={e => {
+              const value = parseFloat(e.target.value);
+              if (value <= 5) {
+                setRewardPoints(e.target.value);
+              }
+            }} placeholder="Masalan: 3" />
               </div>
               <div className="flex space-x-2">
-                <Button
-                  onClick={() => addReward(showRewardDialog)}
-                  className="flex-1"
-                  disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}
-                >
+                <Button onClick={() => addReward(showRewardDialog)} className="flex-1" disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}>
                   Saqlash
                 </Button>
-                <Button
-                  onClick={() => {
-                    setShowRewardDialog(null);
-                    setRewardPoints('');
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
+                <Button onClick={() => {
+              setShowRewardDialog(null);
+              setRewardPoints('');
+            }} variant="outline" className="flex-1">
                   Bekor qilish
                 </Button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        </div>}
 
       {/* Student Details Popup */}
-      <StudentDetailsPopup
-        studentId={selectedStudentId}
-        isOpen={isStudentPopupOpen}
-        onClose={() => {
-          setIsStudentPopupOpen(false);
-          setSelectedStudentId(null);
-        }}
-        teacherId={teacherId}
-      />
-    </div>
-  );
+      <StudentDetailsPopup studentId={selectedStudentId} isOpen={isStudentPopupOpen} onClose={() => {
+      setIsStudentPopupOpen(false);
+      setSelectedStudentId(null);
+    }} teacherId={teacherId} />
+    </div>;
 };
-
 export default GroupDetails;
