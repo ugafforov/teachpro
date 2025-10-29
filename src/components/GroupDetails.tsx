@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
@@ -56,6 +57,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
+  const [editingScoreCell, setEditingScoreCell] = useState<string | null>(null);
+  const [scoreInputValue, setScoreInputValue] = useState('');
+  const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number} | null>(null);
+  const [scoreChangeReason, setScoreChangeReason] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -69,6 +74,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     fetchStudents();
     fetchAttendanceForDate(selectedDate);
   }, [groupName, teacherId, selectedDate]);
+
+  // Get current score for student
+  const getCurrentScore = (studentId: string): number => {
+    return students.find(s => s.id === studentId)?.rewardPenaltyPoints || 0;
+  };
   const fetchStudents = async () => {
     try {
       const {
@@ -255,6 +265,91 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       console.error('Error adding reward/penalty:', error);
     }
   };
+
+  const handleScoreCellClick = (studentId: string) => {
+    const currentScore = getCurrentScore(studentId);
+    setEditingScoreCell(studentId);
+    setScoreInputValue('');
+  };
+
+  const handleScoreInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow empty, negative sign, or valid numbers
+    if (value === '' || value === '-' || /^-?\d*\.?\d*$/.test(value)) {
+      setScoreInputValue(value);
+    }
+  };
+
+  const handleScoreSubmit = async (studentId: string) => {
+    if (scoreInputValue === '' || scoreInputValue === '-') {
+      setEditingScoreCell(null);
+      setScoreInputValue('');
+      return;
+    }
+
+    const newScore = parseFloat(scoreInputValue);
+    if (isNaN(newScore)) {
+      setEditingScoreCell(null);
+      setScoreInputValue('');
+      return;
+    }
+
+    const currentScore = getCurrentScore(studentId);
+    
+    // If changing existing score, require reason
+    if (currentScore !== 0) {
+      setShowScoreChangeDialog({ studentId, newScore });
+      return;
+    }
+
+    // New score, no reason needed
+    await submitScore(studentId, newScore, null);
+  };
+
+  const submitScore = async (studentId: string, newScore: number, reason: string | null) => {
+    try {
+      const currentScore = getCurrentScore(studentId);
+      const scoreDiff = newScore - currentScore;
+
+      await supabase.from('reward_penalty_history').insert([{
+        student_id: studentId,
+        teacher_id: teacherId,
+        points: scoreDiff,
+        reason: reason || (scoreDiff > 0 ? 'Baho/Mukofot' : 'Jarima'),
+        date: selectedDate
+      }] as any);
+
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyatli",
+        description: `Ball qo'shildi: ${scoreDiff > 0 ? '+' : ''}${scoreDiff}`,
+      });
+    } catch (error) {
+      console.error('Error submitting score:', error);
+      toast({
+        title: "Xatolik",
+        description: "Ball qo'shishda xatolik yuz berdi",
+        variant: "destructive"
+      });
+    } finally {
+      setEditingScoreCell(null);
+      setScoreInputValue('');
+      setShowScoreChangeDialog(null);
+      setScoreChangeReason('');
+    }
+  };
+
+  const handleScoreKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, studentId: string) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      handleScoreSubmit(studentId);
+    } else if (e.key === 'Escape') {
+      setEditingScoreCell(null);
+      setScoreInputValue('');
+    }
+  };
   const handleStudentClick = (studentId: string) => {
     setSelectedStudentId(studentId);
     setIsStudentPopupOpen(true);
@@ -287,16 +382,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
     return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
   };
-  const getRewardDisplay = (points: number) => {
-    if (points === 0) return null;
-    return <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${points > 0 ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
-        {points > 0 ? '+' : ''}{points}
-      </span>;
-  };
-  const getRewardIcon = (points: number) => {
-    if (points === 0) return null;
-    if (points > 0) return <Star className="w-4 h-4 text-yellow-500" />;
-    return <AlertTriangle className="w-4 h-4 text-red-500" />;
+  const getScoreCellStyle = (points: number) => {
+    if (points === 0) return 'bg-gray-50 text-gray-400';
+    if (points > 0) return 'bg-green-50 text-green-700 border border-green-200';
+    return 'bg-red-50 text-red-700 border border-red-200';
   };
   if (loading) {
     return <div className="flex items-center justify-center p-12">
@@ -406,46 +495,103 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <Plus className="w-4 h-4 mr-2" />
               Birinchi o'quvchini qo'shish
             </Button>
-          </div> : <div className="divide-y divide-border/50">
-            {students.map(student => <div key={student.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <button onClick={() => handleStudentClick(student.id)} className="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer">
-                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center relative">
-                      <span className="text-sm font-medium">
-                        {student.name.split(' ').map(n => n[0]).join('')}
-                      </span>
-                      {student.rewardPenaltyPoints !== undefined && student.rewardPenaltyPoints !== 0 && <div className="absolute -top-1 -right-1">
-                          {getRewardIcon(student.rewardPenaltyPoints)}
-                        </div>}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{student.name}</h3>
-                        {student.rewardPenaltyPoints !== undefined && getRewardDisplay(student.rewardPenaltyPoints)}
-                      </div>
-                      {student.student_id && <p className="text-sm text-muted-foreground">ID: {student.student_id}</p>}
-                    </div>
-                  </button>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button size="sm" onClick={() => markAttendance(student.id, 'present')} className={getButtonStyle(student.id, 'present')}>
-                    <CheckCircle className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" onClick={() => markAttendance(student.id, 'late')} className={getButtonStyle(student.id, 'late')}>
-                    <Clock className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" onClick={() => {
-              setShowReasonInput(false);
-              setAbsentReason('');
-              setShowAbsentDialog(student.id);
-            }} className={getButtonStyle(student.id, 'absent')}>
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowRewardDialog(student.id)} title="Mukofot/Jarima berish">
-                    <Gift className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>)}
+          </div> : <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">O'quvchi</TableHead>
+                  <TableHead className="text-center w-[60px]">Keldi</TableHead>
+                  <TableHead className="text-center w-[60px]">Kech</TableHead>
+                  <TableHead className="text-center w-[60px]">Kelmadi</TableHead>
+                  <TableHead className="text-center w-[100px]">Baho/Mukofot/Jarima</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {students.map(student => {
+                  const currentScore = getCurrentScore(student.id);
+                  const isEditing = editingScoreCell === student.id;
+                  
+                  return (
+                    <TableRow key={student.id}>
+                      <TableCell>
+                        <button 
+                          onClick={() => handleStudentClick(student.id)} 
+                          className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer w-full text-left"
+                        >
+                          <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-medium">
+                              {student.name.split(' ').map(n => n[0]).join('')}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{student.name}</h3>
+                            {student.student_id && (
+                              <p className="text-xs text-muted-foreground">ID: {student.student_id}</p>
+                            )}
+                          </div>
+                        </button>
+                      </TableCell>
+                      
+                      <TableCell className="text-center">
+                        <Button 
+                          size="sm" 
+                          onClick={() => markAttendance(student.id, 'present')} 
+                          className={getButtonStyle(student.id, 'present')}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                      
+                      <TableCell className="text-center">
+                        <Button 
+                          size="sm" 
+                          onClick={() => markAttendance(student.id, 'late')} 
+                          className={getButtonStyle(student.id, 'late')}
+                        >
+                          <Clock className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                      
+                      <TableCell className="text-center">
+                        <Button 
+                          size="sm" 
+                          onClick={() => {
+                            setShowReasonInput(false);
+                            setAbsentReason('');
+                            setShowAbsentDialog(student.id);
+                          }} 
+                          className={getButtonStyle(student.id, 'absent')}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                      
+                      <TableCell className="text-center">
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={scoreInputValue}
+                            onChange={handleScoreInputChange}
+                            onKeyDown={(e) => handleScoreKeyDown(e, student.id)}
+                            onBlur={() => handleScoreSubmit(student.id)}
+                            className="w-16 h-10 text-center p-1 text-sm"
+                            placeholder="0"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handleScoreCellClick(student.id)}
+                            className={`w-16 h-10 rounded flex items-center justify-center text-sm font-semibold transition-colors hover:opacity-80 ${getScoreCellStyle(currentScore)}`}
+                          >
+                            {currentScore === 0 ? '—' : `${currentScore > 0 ? '+' : ''}${currentScore}`}
+                          </button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>}
       </Card>
 
@@ -507,40 +653,53 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           </div>
         </div>}
 
-      {/* Reward Dialog */}
-      {showRewardDialog && <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {/* Score Change Dialog */}
+      {showScoreChangeDialog && <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
+            <h3 className="text-lg font-semibold mb-4">Baho o'zgartirish</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Mavjud baho: {getCurrentScore(showScoreChangeDialog.studentId)}<br/>
+              Yangi baho: {showScoreChangeDialog.newScore}
+            </p>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <Button onClick={() => setRewardType('reward')} variant={rewardType === 'reward' ? 'default' : 'outline'} className="flex items-center justify-center gap-2">
-                  <Gift className="w-4 h-4" />
-                  Mukofot
-                </Button>
-                <Button onClick={() => setRewardType('penalty')} variant={rewardType === 'penalty' ? 'default' : 'outline'} className="flex items-center justify-center gap-2">
-                  <XCircle className="w-4 h-4" />
-                  Jarima
-                </Button>
-              </div>
               <div>
-                <label className="text-sm font-medium">
-                  Ball miqdori (maksimum {rewardType === 'reward' ? '+5' : '-5'})
-                </label>
-                <Input type="number" step="0.1" min="0.1" max="5" value={rewardPoints} onChange={e => {
-              const value = parseFloat(e.target.value);
-              if (value <= 5) {
-                setRewardPoints(e.target.value);
-              }
-            }} placeholder="Masalan: 3" />
+                <label className="text-sm font-medium block mb-2">Izoh (majburiy)</label>
+                <Input 
+                  type="text" 
+                  value={scoreChangeReason} 
+                  onChange={e => setScoreChangeReason(e.target.value)} 
+                  placeholder="Baho o'zgartirish sababini kiriting..." 
+                  autoFocus 
+                />
               </div>
               <div className="flex space-x-2">
-                <Button onClick={() => addReward(showRewardDialog)} className="flex-1" disabled={!rewardPoints || parseFloat(rewardPoints) > 5 || parseFloat(rewardPoints) <= 0}>
+                <Button 
+                  onClick={() => {
+                    if (!scoreChangeReason.trim()) {
+                      toast({
+                        title: "Xatolik",
+                        description: "Izoh kiritish majburiy",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    submitScore(showScoreChangeDialog.studentId, showScoreChangeDialog.newScore, scoreChangeReason.trim());
+                  }} 
+                  className="flex-1" 
+                  disabled={!scoreChangeReason.trim()}
+                >
                   Saqlash
                 </Button>
-                <Button onClick={() => {
-              setShowRewardDialog(null);
-              setRewardPoints('');
-            }} variant="outline" className="flex-1">
+                <Button 
+                  onClick={() => {
+                    setShowScoreChangeDialog(null);
+                    setScoreChangeReason('');
+                    setEditingScoreCell(null);
+                    setScoreInputValue('');
+                  }} 
+                  variant="outline" 
+                  className="flex-1"
+                >
                   Bekor qilish
                 </Button>
               </div>
