@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, Archive, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +21,12 @@ interface Student {
   teacher_id: string;
   created_at: string;
   rewardPenaltyPoints?: number;
+  averageScore?: number;
+  totalRewards?: number;
+  totalPenalties?: number;
+  bahoScore?: number;
+  mukofotScore?: number;
+  jarimaScore?: number;
 }
 type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
 interface AttendanceRecord {
@@ -96,11 +102,65 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (scoresError) throw scoresError;
 
-        // Merge reward points with student data
-        const studentsWithRewards = studentsData?.map(student => ({
-          ...student,
-          rewardPenaltyPoints: scoresData?.find(s => s.student_id === student.id)?.reward_penalty_points || 0
-        })) || [];
+        // Fetch reward/penalty history to get totals by type
+        const {
+          data: historyData,
+          error: historyError
+        } = await supabase.from('reward_penalty_history').select('student_id, points, reason').in('student_id', studentIds).eq('teacher_id', teacherId);
+        if (historyError) throw historyError;
+
+        // Fetch exam results to calculate average score
+        const {
+          data: examResults,
+          error: examError
+        } = await supabase.from('exam_results').select('student_id, score').in('student_id', studentIds).eq('teacher_id', teacherId);
+        if (examError) throw examError;
+
+        // Merge all data with student data
+        const studentsWithRewards = studentsData?.map(student => {
+          const scoreRecord = scoresData?.find(s => s.student_id === student.id);
+          const studentHistory = historyData?.filter(h => h.student_id === student.id) || [];
+          const studentExams = examResults?.filter(e => e.student_id === student.id) || [];
+          
+          // Calculate separate scores for baho, mukofot, jarima
+          let bahoScore = 0;
+          let mukofotScore = 0;
+          let jarimaScore = 0;
+          let totalRewards = 0;
+          let totalPenalties = 0;
+
+          studentHistory.forEach(record => {
+            if (record.reason === 'Baho') {
+              bahoScore += record.points;
+            } else if (record.reason === 'Mukofot') {
+              mukofotScore += record.points;
+            } else if (record.reason === 'Jarima') {
+              jarimaScore += record.points;
+            }
+
+            if (record.points > 0) {
+              totalRewards += record.points;
+            } else {
+              totalPenalties += record.points;
+            }
+          });
+
+          // Calculate average exam score
+          const averageScore = studentExams.length > 0
+            ? studentExams.reduce((sum, exam) => sum + exam.score, 0) / studentExams.length
+            : 0;
+
+          return {
+            ...student,
+            rewardPenaltyPoints: scoreRecord?.reward_penalty_points || 0,
+            averageScore,
+            bahoScore,
+            mukofotScore,
+            jarimaScore,
+            totalRewards,
+            totalPenalties
+          };
+        }) || [];
         setStudents(studentsWithRewards);
       } else {
         setStudents(studentsData || []);
@@ -501,20 +561,37 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">O'quvchi</TableHead>
-                  <TableHead className="text-center w-[50px] px-1">Keldi</TableHead>
-                  <TableHead className="text-center w-[50px] px-1">Kech</TableHead>
-                  <TableHead className="text-center w-[50px] px-1">Kelmadi</TableHead>
-                  <TableHead className="text-center w-[40px] px-1">B</TableHead>
-                  <TableHead className="text-center w-[40px] px-1">M</TableHead>
-                  <TableHead className="text-center w-[40px] px-1">J</TableHead>
+                  <TableHead className="text-center" colSpan={3}>Bugungi davomat</TableHead>
+                  <TableHead className="text-center" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center">O'rtacha baho</TableHead>
+                  <TableHead className="text-center">Jami mukofot</TableHead>
+                  <TableHead className="text-center">Jami jarima</TableHead>
+                  <TableHead className="text-center">Jami bal</TableHead>
+                  <TableHead className="text-center">Amallar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {students.map(student => {
                   const currentScore = getCurrentScore(student.id);
                   
-                  const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima', label: string) => {
+                  const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima', currentValue: number) => {
                     const isEditing = editingScoreCell?.studentId === student.id && editingScoreCell?.type === type;
+                    
+                    let bgColor = 'bg-white border border-gray-200';
+                    let textColor = 'text-gray-400';
+                    
+                    if (currentValue !== 0) {
+                      if (type === 'baho') {
+                        bgColor = 'bg-blue-100 border-blue-200';
+                        textColor = 'text-blue-700';
+                      } else if (type === 'mukofot') {
+                        bgColor = 'bg-green-100 border-green-200';
+                        textColor = 'text-green-700';
+                      } else if (type === 'jarima') {
+                        bgColor = 'bg-red-100 border-red-200';
+                        textColor = 'text-red-700';
+                      }
+                    }
                     
                     return (
                       <TableCell className="text-center px-1">
@@ -532,13 +609,39 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         ) : (
                           <button
                             onClick={() => handleScoreCellClick(student.id, type)}
-                            className={`w-10 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors hover:opacity-80 border border-border`}
+                            className={`w-10 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors hover:opacity-80 ${bgColor} ${textColor}`}
                           >
-                            {label}
+                            {currentValue !== 0 ? (currentValue > 0 ? `+${currentValue}` : currentValue) : (type === 'baho' ? 'B' : type === 'mukofot' ? 'M' : 'J')}
                           </button>
                         )}
                       </TableCell>
                     );
+                  };
+
+                  const handleArchive = async (studentId: string) => {
+                    try {
+                      await supabase.from('students').update({ is_active: false }).eq('id', studentId);
+                      await fetchStudents();
+                      toast({
+                        title: "Muvaffaqiyatli",
+                        description: "O'quvchi arxivlandi",
+                      });
+                    } catch (error) {
+                      console.error('Error archiving student:', error);
+                    }
+                  };
+
+                  const handleDelete = async (studentId: string) => {
+                    try {
+                      await supabase.from('students').delete().eq('id', studentId);
+                      await fetchStudents();
+                      toast({
+                        title: "Muvaffaqiyatli",
+                        description: "O'quvchi o'chirildi",
+                      });
+                    } catch (error) {
+                      console.error('Error deleting student:', error);
+                    }
                   };
                   
                   return (
@@ -548,16 +651,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                           onClick={() => handleStudentClick(student.id)} 
                           className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer w-full text-left"
                         >
-                          <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-medium">
-                              {student.name.split(' ').map(n => n[0]).join('')}
-                            </span>
-                          </div>
                           <div className="min-w-0">
                             <h3 className="font-semibold text-sm truncate">{student.name}</h3>
-                            {student.student_id && (
-                              <p className="text-xs text-muted-foreground">ID: {student.student_id}</p>
-                            )}
                           </div>
                         </button>
                       </TableCell>
@@ -596,9 +691,54 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      {renderScoreCell('baho', 'B')}
-                      {renderScoreCell('mukofot', 'M')}
-                      {renderScoreCell('jarima', 'J')}
+                      {renderScoreCell('baho', student.bahoScore || 0)}
+                      {renderScoreCell('mukofot', student.mukofotScore || 0)}
+                      {renderScoreCell('jarima', student.jarimaScore || 0)}
+
+                      <TableCell className="text-center">
+                        <span className="text-sm font-semibold text-blue-600">
+                          {(student.averageScore || 0).toFixed(1)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="text-sm font-semibold text-green-600">
+                          +{(student.totalRewards || 0).toFixed(1)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="text-sm font-semibold text-red-600">
+                          {(student.totalPenalties || 0).toFixed(1)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className={`text-sm font-semibold ${(student.rewardPenaltyPoints || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          {(student.rewardPenaltyPoints || 0).toFixed(1)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleArchive(student.id)}
+                            className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(student.id)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
