@@ -601,62 +601,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
   const handleDelete = async (studentId: string) => {
     try {
-      // Get full student data including related records
-      const { data: studentData, error: fetchError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', studentId)
-        .single();
-      
-      if (fetchError) throw fetchError;
-      
-      // Get reward/penalty history
-      const { data: historyData } = await supabase
-        .from('reward_penalty_history')
-        .select('*')
-        .eq('student_id', studentId);
-      
-      // Get attendance records
-      const { data: attendanceData } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('student_id', studentId);
-      
-      // Copy to deleted_students with all related data
-      const { error: deleteArchiveError } = await supabase
-        .from('deleted_students')
-        .insert({
-          original_student_id: studentData.id,
-          teacher_id: studentData.teacher_id,
-          name: studentData.name,
-          student_id: studentData.student_id,
-          email: studentData.email,
-          phone: studentData.phone,
-          group_name: studentData.group_name,
-          age: studentData.age,
-          parent_phone: studentData.parent_phone,
-          reward_penalty_points: studentData.reward_penalty_points
-        });
-      
-      if (deleteArchiveError) throw deleteArchiveError;
-      
-      // Delete related records first (to avoid foreign key issues)
-      await supabase.from('reward_penalty_history').delete().eq('student_id', studentId);
-      await supabase.from('attendance_records').delete().eq('student_id', studentId);
-      await supabase.from('exam_results').delete().eq('student_id', studentId);
-      await supabase.from('student_scores').delete().eq('student_id', studentId);
-      
-      // Delete from students table
-      await supabase.from('students').delete().eq('id', studentId);
-      
+      // Use backend function to atomically move ALL related records to deleted_* and delete student
+      const { error } = await supabase.rpc('soft_delete_student', {
+        p_teacher_id: teacherId,
+        p_student_id: studentId,
+      });
+      if (error) throw error;
+
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
-      
+
       toast({
         title: "Muvaffaqiyatli",
         description: "O'quvchi o'chirildi",
       });
-      
+
       setConfirmDelete(null);
     } catch (error) {
       console.error('Error deleting student:', error);

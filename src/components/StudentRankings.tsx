@@ -108,7 +108,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         const totalClasses = studentAttendance.length;
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
-        const absentCount = studentAttendance.filter(a => a.status === 'absent').length;
+        const absentCount = studentAttendance.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length;
         
         // Calculate attendance percentage: present and late both count as 100%, absent as 0%
         const attendedClasses = presentCount + lateCount;

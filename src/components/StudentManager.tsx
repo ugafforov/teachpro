@@ -214,20 +214,13 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
     try {
-      const student = students.find(s => s.id === studentId);
-      if (!student) return;
-      await supabase.from('deleted_students').insert({
-        original_student_id: studentId,
-        teacher_id: teacherId,
-        name: student.name,
-        student_id: student.student_id,
-        group_name: student.group_name,
-        email: student.email,
-        phone: student.phone
+      // Full soft-delete via backend function (moves all related data to deleted_* tables)
+      const { error } = await supabase.rpc('soft_delete_student', {
+        p_teacher_id: teacherId,
+        p_student_id: studentId,
       });
-      await supabase.from('students').update({
-        is_active: false
-      }).eq('id', studentId);
+      if (error) throw error;
+
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {

@@ -99,7 +99,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       const totalClasses = attendanceData?.length || 0;
       const presentCount = attendanceData?.filter(a => a.status === 'present').length || 0;
       const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
-      const absentCount = attendanceData?.filter(a => a.status === 'absent').length || 0;
+      const absentCount = attendanceData?.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length || 0;
       
       // Kechikib kelgan ham davomat sifatida hisoblansin
       const attendancePercentage = totalClasses > 0 ? Math.round(((presentCount + lateCount) / totalClasses) * 100) : 0;
@@ -147,7 +147,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
       const presentCount = attendanceData?.filter(a => a.status === 'present').length || 0;
       const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
-      const absentCount = attendanceData?.filter(a => a.status === 'absent').length || 0;
+      const absentCount = attendanceData?.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length || 0;
       
       // To'g'ri davomat ballari hisoblash
       // Present: +1, Late: -0.5, Absent: -1

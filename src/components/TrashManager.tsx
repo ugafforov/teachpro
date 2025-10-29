@@ -194,49 +194,19 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreStudent = async (deletedStudent: DeletedStudent) => {
     try {
-      // Check if student still exists (might have been permanently deleted)
-      const { data: existingStudent } = await supabase
-        .from('students')
-        .select('id')
-        .eq('id', deletedStudent.original_student_id)
-        .maybeSingle();
-
-      if (existingStudent) {
-        // Student still exists, just reactivate
-        await supabase
-          .from('students')
-          .update({ is_active: true })
-          .eq('id', deletedStudent.original_student_id);
-      } else {
-        // Student was permanently deleted, recreate with same ID
-        const { error: insertError } = await supabase
-          .from('students')
-          .insert({
-            id: deletedStudent.original_student_id,
-            teacher_id: deletedStudent.teacher_id,
-            name: deletedStudent.name,
-            student_id: deletedStudent.student_id,
-            email: deletedStudent.email,
-            phone: deletedStudent.phone,
-            group_name: deletedStudent.group_name,
-            is_active: true
-          });
-
-        if (insertError) throw insertError;
-      }
-
-      // Trash dan o'chirish
-      await supabase
-        .from('deleted_students')
-        .delete()
-        .eq('id', deletedStudent.id);
+      // Restore full history (attendance, rewards, scores, exam results) + student row
+      const { error } = await supabase.rpc('restore_student_full', {
+        p_teacher_id: teacherId,
+        p_original_student_id: deletedStudent.original_student_id,
+      });
+      if (error) throw error;
 
       await fetchTrashData();
       await onStatsUpdate();
 
       toast({
         title: "O'quvchi tiklandi",
-        description: `${deletedStudent.name} muvaffaqiyatli tiklandi`,
+        description: `${deletedStudent.name} barcha ma'lumotlari bilan tiklandi`,
       });
     } catch (error) {
       console.error('Error restoring student:', error);
