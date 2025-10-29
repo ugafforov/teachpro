@@ -106,53 +106,58 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         const {
           data: historyData,
           error: historyError
-        } = await supabase.from('reward_penalty_history').select('student_id, points, reason').in('student_id', studentIds).eq('teacher_id', teacherId);
+        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (historyError) throw historyError;
 
-        // Fetch exam results to calculate average score
+        // Fetch attendance records to calculate attendance points
         const {
-          data: examResults,
-          error: examError
-        } = await supabase.from('exam_results').select('student_id, score').in('student_id', studentIds).eq('teacher_id', teacherId);
-        if (examError) throw examError;
+          data: attendanceData,
+          error: attendanceError
+        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId);
+        if (attendanceError) throw attendanceError;
 
         // Merge all data with student data
         const studentsWithRewards = studentsData?.map(student => {
           const scoreRecord = scoresData?.find(s => s.student_id === student.id);
           const studentHistory = historyData?.filter(h => h.student_id === student.id) || [];
-          const studentExams = examResults?.filter(e => e.student_id === student.id) || [];
+          const studentAttendance = attendanceData?.filter(a => a.student_id === student.id) || [];
           
-          // Calculate separate scores for baho, mukofot, jarima
+          // Calculate separate scores for baho, mukofot, jarima based on type field
           let bahoScore = 0;
           let mukofotScore = 0;
           let jarimaScore = 0;
-          let totalRewards = 0;
-          let totalPenalties = 0;
 
           studentHistory.forEach(record => {
-            if (record.reason === 'Baho') {
+            if (record.type === 'Baho') {
               bahoScore += record.points;
-            } else if (record.reason === 'Mukofot') {
+            } else if (record.type === 'Mukofot') {
               mukofotScore += record.points;
-            } else if (record.reason === 'Jarima') {
+            } else if (record.type === 'Jarima') {
               jarimaScore += record.points;
-            }
-
-            if (record.points > 0) {
-              totalRewards += record.points;
-            } else {
-              totalPenalties += record.points;
             }
           });
 
-          // Calculate average exam score
-          const averageScore = studentExams.length > 0
-            ? studentExams.reduce((sum, exam) => sum + exam.score, 0) / studentExams.length
+          // Calculate average baho score
+          const bahoRecords = studentHistory.filter(h => h.type === 'Baho');
+          const averageScore = bahoRecords.length > 0
+            ? bahoRecords.reduce((sum, record) => sum + record.points, 0) / bahoRecords.length
             : 0;
+
+          // Calculate attendance points: present = +1, late = +0.5, absent = 0
+          const attendancePoints = studentAttendance.reduce((total, record) => {
+            if (record.status === 'present') return total + 1;
+            if (record.status === 'late') return total + 0.5;
+            return total;
+          }, 0);
+
+          // Calculate total score: (mukofot - jarima) + attendance points
+          const totalRewards = mukofotScore;
+          const totalPenalties = jarimaScore;
+          const totalScore = mukofotScore - jarimaScore + attendancePoints;
 
           return {
             ...student,
-            rewardPenaltyPoints: scoreRecord?.reward_penalty_points || 0,
+            rewardPenaltyPoints: totalScore,
             averageScore,
             bahoScore,
             mukofotScore,
@@ -353,30 +358,39 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return;
     }
 
-    const currentScore = getCurrentScore(studentId);
-    
-    // If changing existing score, require reason
-    if (currentScore !== 0) {
-      setShowScoreChangeDialog({ studentId, newScore, type });
+    // Validate score range (0-5)
+    if (newScore < 0 || newScore > 5) {
+      toast({
+        title: "Xatolik",
+        description: "Ball 0 dan 5 gacha bo'lishi kerak",
+        variant: "destructive"
+      });
       return;
     }
 
-    // New score, no reason needed
-    await submitScore(studentId, newScore, null, type);
+    // Always require reason for score changes
+    setShowScoreChangeDialog({ studentId, newScore, type });
   };
 
   const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima') => {
     try {
-      const currentScore = getCurrentScore(studentId);
-      const scoreDiff = newScore - currentScore;
+      if (!reason || reason.trim() === '') {
+        toast({
+          title: "Xatolik",
+          description: "Izoh kiritish majburiy",
+          variant: "destructive"
+        });
+        return;
+      }
 
       const typeLabel = type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima';
 
       await supabase.from('reward_penalty_history').insert([{
         student_id: studentId,
         teacher_id: teacherId,
-        points: scoreDiff,
-        reason: reason || typeLabel,
+        points: newScore,
+        reason: reason,
+        type: typeLabel,
         date: selectedDate
       }] as any);
 
@@ -385,7 +399,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       toast({
         title: "Muvaffaqiyatli",
-        description: `${typeLabel} qo'shildi: ${scoreDiff > 0 ? '+' : ''}${scoreDiff}`,
+        description: `${typeLabel} qo'shildi: ${newScore}`,
       });
     } catch (error) {
       console.error('Error submitting score:', error);
@@ -702,21 +716,33 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       </TableCell>
 
                       <TableCell className="text-center">
-                        <span className="text-sm font-semibold text-green-600">
-                          +{(student.totalRewards || 0).toFixed(1)}
-                        </span>
+                        {(student.totalRewards || 0) > 0 ? (
+                          <span className="text-sm font-semibold text-green-600">
+                            {(student.totalRewards || 0).toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-center">
-                        <span className="text-sm font-semibold text-red-600">
-                          {(student.totalPenalties || 0).toFixed(1)}
-                        </span>
+                        {(student.totalPenalties || 0) > 0 ? (
+                          <span className="text-sm font-semibold text-red-600">
+                            {(student.totalPenalties || 0).toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-center">
-                        <span className={`text-sm font-semibold ${(student.rewardPenaltyPoints || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                          {(student.rewardPenaltyPoints || 0).toFixed(1)}
-                        </span>
+                        {(student.rewardPenaltyPoints || 0) !== 0 ? (
+                          <span className={`text-sm font-semibold ${(student.rewardPenaltyPoints || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(student.rewardPenaltyPoints || 0) > 0 ? '+' : ''}{(student.rewardPenaltyPoints || 0).toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">0</span>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-center">

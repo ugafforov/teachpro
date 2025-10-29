@@ -109,7 +109,10 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
         const absentCount = studentAttendance.filter(a => a.status === 'absent').length;
-        const attendancePercentage = totalClasses > 0 ? (presentCount / totalClasses) * 100 : 0;
+        
+        // Calculate attendance percentage: present and late both count as 100%, absent as 0%
+        const attendedClasses = presentCount + lateCount;
+        const attendancePercentage = totalClasses > 0 ? (attendedClasses / totalClasses) * 100 : 0;
 
         return {
           id: `${student.id}-ranking`,
@@ -175,32 +178,35 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       if (attendanceError) throw attendanceError;
 
-      // Get reward/penalty points
+      // Get reward/penalty points with type
       const { data: rewards, error: rewardsError } = await supabase
         .from('reward_penalty_history')
-        .select('student_id, points')
+        .select('student_id, points, type')
         .eq('teacher_id', teacherId)
         .in('student_id', studentIds);
 
       if (rewardsError) throw rewardsError;
 
       const formattedScores = students.map((student, index) => {
-        // Calculate attendance points
+        // Calculate attendance points: present = +1, late = +0.5, absent = 0
         const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
         const attendancePoints = studentAttendance.reduce((total, record) => {
-          switch (record.status) {
-            case 'present': return total + 1;
-            case 'late': return total - 0.5;
-            case 'absent': return total - 1;
-            default: return total;
-          }
+          if (record.status === 'present') return total + 1;
+          if (record.status === 'late') return total + 0.5;
+          return total;
         }, 0);
 
-        // Calculate reward/penalty points
+        // Calculate reward/penalty points based on type
         const studentRewards = rewards?.filter(r => r.student_id === student.id) || [];
-        const rewardPenaltyPoints = studentRewards.reduce((total, reward) => total + (reward.points || 0), 0);
-
-        const totalScore = attendancePoints + rewardPenaltyPoints;
+        const mukofotPoints = studentRewards
+          .filter(r => r.type === 'Mukofot')
+          .reduce((total, r) => total + (r.points || 0), 0);
+        const jarimaPoints = studentRewards
+          .filter(r => r.type === 'Jarima')
+          .reduce((total, r) => total + (r.points || 0), 0);
+        
+        const rewardPenaltyPoints = mukofotPoints - jarimaPoints;
+        const totalScore = rewardPenaltyPoints + attendancePoints;
 
         return {
           id: student.id,
