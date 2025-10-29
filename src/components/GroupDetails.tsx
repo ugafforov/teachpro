@@ -57,9 +57,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
-  const [editingScoreCell, setEditingScoreCell] = useState<string | null>(null);
+  const [editingScoreCell, setEditingScoreCell] = useState<{studentId: string, type: 'baho' | 'mukofot' | 'jarima'} | null>(null);
   const [scoreInputValue, setScoreInputValue] = useState('');
-  const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number} | null>(null);
+  const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number, type: 'baho' | 'mukofot' | 'jarima'} | null>(null);
   const [scoreChangeReason, setScoreChangeReason] = useState('');
   const [newStudent, setNewStudent] = useState({
     name: '',
@@ -266,9 +266,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const handleScoreCellClick = (studentId: string) => {
-    const currentScore = getCurrentScore(studentId);
-    setEditingScoreCell(studentId);
+  const handleScoreCellClick = (studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
+    setEditingScoreCell({studentId, type});
     setScoreInputValue('');
   };
 
@@ -280,7 +279,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const handleScoreSubmit = async (studentId: string) => {
+  const handleScoreSubmit = async (studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
     if (scoreInputValue === '' || scoreInputValue === '-') {
       setEditingScoreCell(null);
       setScoreInputValue('');
@@ -298,24 +297,26 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     
     // If changing existing score, require reason
     if (currentScore !== 0) {
-      setShowScoreChangeDialog({ studentId, newScore });
+      setShowScoreChangeDialog({ studentId, newScore, type });
       return;
     }
 
     // New score, no reason needed
-    await submitScore(studentId, newScore, null);
+    await submitScore(studentId, newScore, null, type);
   };
 
-  const submitScore = async (studentId: string, newScore: number, reason: string | null) => {
+  const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima') => {
     try {
       const currentScore = getCurrentScore(studentId);
       const scoreDiff = newScore - currentScore;
+
+      const typeLabel = type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima';
 
       await supabase.from('reward_penalty_history').insert([{
         student_id: studentId,
         teacher_id: teacherId,
         points: scoreDiff,
-        reason: reason || (scoreDiff > 0 ? 'Baho/Mukofot' : 'Jarima'),
+        reason: reason || typeLabel,
         date: selectedDate
       }] as any);
 
@@ -324,7 +325,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       toast({
         title: "Muvaffaqiyatli",
-        description: `Ball qo'shildi: ${scoreDiff > 0 ? '+' : ''}${scoreDiff}`,
+        description: `${typeLabel} qo'shildi: ${scoreDiff > 0 ? '+' : ''}${scoreDiff}`,
       });
     } catch (error) {
       console.error('Error submitting score:', error);
@@ -341,10 +342,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
-  const handleScoreKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, studentId: string) => {
+  const handleScoreKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
     if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      handleScoreSubmit(studentId);
+      handleScoreSubmit(studentId, type);
     } else if (e.key === 'Escape') {
       setEditingScoreCell(null);
       setScoreInputValue('');
@@ -500,16 +501,45 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">O'quvchi</TableHead>
-                  <TableHead className="text-center w-[60px]">Keldi</TableHead>
-                  <TableHead className="text-center w-[60px]">Kech</TableHead>
-                  <TableHead className="text-center w-[60px]">Kelmadi</TableHead>
-                  <TableHead className="text-center w-[100px]">Baho/Mukofot/Jarima</TableHead>
+                  <TableHead className="text-center w-[50px] px-1">Keldi</TableHead>
+                  <TableHead className="text-center w-[50px] px-1">Kech</TableHead>
+                  <TableHead className="text-center w-[50px] px-1">Kelmadi</TableHead>
+                  <TableHead className="text-center w-[40px] px-1">B</TableHead>
+                  <TableHead className="text-center w-[40px] px-1">M</TableHead>
+                  <TableHead className="text-center w-[40px] px-1">J</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {students.map(student => {
                   const currentScore = getCurrentScore(student.id);
-                  const isEditing = editingScoreCell === student.id;
+                  
+                  const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima', label: string) => {
+                    const isEditing = editingScoreCell?.studentId === student.id && editingScoreCell?.type === type;
+                    
+                    return (
+                      <TableCell className="text-center px-1">
+                        {isEditing ? (
+                          <Input
+                            type="text"
+                            value={scoreInputValue}
+                            onChange={handleScoreInputChange}
+                            onKeyDown={(e) => handleScoreKeyDown(e, student.id, type)}
+                            onBlur={() => handleScoreSubmit(student.id, type)}
+                            className="w-10 h-10 text-center p-1 text-sm"
+                            placeholder="0"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handleScoreCellClick(student.id, type)}
+                            className={`w-10 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors hover:opacity-80 border border-border`}
+                          >
+                            {label}
+                          </button>
+                        )}
+                      </TableCell>
+                    );
+                  };
                   
                   return (
                     <TableRow key={student.id}>
@@ -532,7 +562,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </button>
                       </TableCell>
                       
-                      <TableCell className="text-center">
+                      <TableCell className="text-center px-1">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'present')} 
@@ -542,7 +572,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center">
+                      <TableCell className="text-center px-1">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'late')} 
@@ -552,7 +582,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center">
+                      <TableCell className="text-center px-1">
                         <Button 
                           size="sm" 
                           onClick={() => {
@@ -566,27 +596,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center">
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            value={scoreInputValue}
-                            onChange={handleScoreInputChange}
-                            onKeyDown={(e) => handleScoreKeyDown(e, student.id)}
-                            onBlur={() => handleScoreSubmit(student.id)}
-                            className="w-16 h-10 text-center p-1 text-sm"
-                            placeholder="0"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            onClick={() => handleScoreCellClick(student.id)}
-                            className={`w-16 h-10 rounded flex items-center justify-center text-sm font-semibold transition-colors hover:opacity-80 ${getScoreCellStyle(currentScore)}`}
-                          >
-                            {currentScore === 0 ? '—' : `${currentScore > 0 ? '+' : ''}${currentScore}`}
-                          </button>
-                        )}
-                      </TableCell>
+                      {renderScoreCell('baho', 'B')}
+                      {renderScoreCell('mukofot', 'M')}
+                      {renderScoreCell('jarima', 'J')}
                     </TableRow>
                   );
                 })}
@@ -683,8 +695,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       });
                       return;
                     }
-                    submitScore(showScoreChangeDialog.studentId, showScoreChangeDialog.newScore, scoreChangeReason.trim());
-                  }} 
+                    submitScore(showScoreChangeDialog.studentId, showScoreChangeDialog.newScore, scoreChangeReason.trim(), showScoreChangeDialog.type);
+                  }}
                   className="flex-1" 
                   disabled={!scoreChangeReason.trim()}
                 >
