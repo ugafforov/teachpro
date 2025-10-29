@@ -271,12 +271,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const {
         data: existingRecord
       } = await supabase.from('attendance_records').select('*').eq('teacher_id', teacherId).eq('student_id', studentId).eq('date', selectedDate).maybeSingle();
+      
+      // Optimistic update
       if (existingRecord) {
         if (existingRecord.status === status && (notes ?? existingRecord.notes ?? null) === (existingRecord.notes ?? null)) {
-          const {
-            error
-          } = await supabase.from('attendance_records').delete().eq('id', existingRecord.id);
-          if (error) throw error;
           setAttendance(prevAttendance => {
             const newAttendance = {
               ...prevAttendance
@@ -284,7 +282,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             delete newAttendance[studentId];
             return newAttendance;
           });
+          
+          const {
+            error
+          } = await supabase.from('attendance_records').delete().eq('id', existingRecord.id);
+          if (error) throw error;
         } else {
+          setAttendance(prevAttendance => ({
+            ...prevAttendance,
+            [studentId]: status
+          }));
+          
           const {
             error
           } = await supabase.from('attendance_records').update({
@@ -292,12 +300,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             notes: notes === undefined ? existingRecord.notes ?? null : notes
           }).eq('id', existingRecord.id);
           if (error) throw error;
-          setAttendance(prevAttendance => ({
-            ...prevAttendance,
-            [studentId]: status
-          }));
         }
       } else {
+        setAttendance(prevAttendance => ({
+          ...prevAttendance,
+          [studentId]: status
+        }));
+        
         const {
           error
         } = await supabase.from('attendance_records').insert({
@@ -308,14 +317,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           notes: notes ?? null
         });
         if (error) throw error;
-        setAttendance(prevAttendance => ({
-          ...prevAttendance,
-          [studentId]: status
-        }));
       }
-      await onStatsUpdate();
+      
+      // Background update without blocking
+      onStatsUpdate?.();
     } catch (error) {
       console.error('Error marking attendance:', error);
+      // Revert on error
+      await fetchAttendanceForDate(selectedDate);
     }
   };
   const markAllAsPresent = async () => {
@@ -438,6 +447,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           return;
         }
 
+        // Optimistic update
+        setDailyScores(prev => ({
+          ...prev,
+          [studentId]: {
+            ...prev[studentId],
+            [type]: { points: newScore, id: existingRecordId }
+          }
+        }));
+
         await supabase
           .from('reward_penalty_history')
           .update({
@@ -446,20 +464,56 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           })
           .eq('id', existingRecordId);
       } else {
+        // Optimistic update for new record
+        const tempId = `temp-${Date.now()}`;
+        setDailyScores(prev => ({
+          ...prev,
+          [studentId]: {
+            ...prev[studentId],
+            [type]: { points: newScore, id: tempId }
+          }
+        }));
+
         // Insert new record (no reason required for first entry)
-        await supabase.from('reward_penalty_history').insert([{
+        const { data: insertedData } = await supabase.from('reward_penalty_history').insert([{
           student_id: studentId,
           teacher_id: teacherId,
           points: newScore,
           reason: reason,
           type: typeLabel,
           date: selectedDate
-        }] as any);
+        }] as any).select('id').single();
+
+        // Update with real ID
+        if (insertedData) {
+          setDailyScores(prev => ({
+            ...prev,
+            [studentId]: {
+              ...prev[studentId],
+              [type]: { points: newScore, id: insertedData.id }
+            }
+          }));
+        }
       }
 
-      await fetchStudents();
-      await fetchDailyScores(selectedDate);
-      if (onStatsUpdate) await onStatsUpdate();
+      // Move to next student
+      const currentIndex = students.findIndex(s => s.id === studentId);
+      if (currentIndex < students.length - 1) {
+        const nextStudent = students[currentIndex + 1];
+        setTimeout(() => {
+          setEditingScoreCell({ studentId: nextStudent.id, type });
+          setScoreInputValue('');
+        }, 0);
+      } else {
+        setEditingScoreCell(null);
+        setScoreInputValue('');
+      }
+
+      // Background updates without blocking UI
+      Promise.all([
+        fetchStudents(),
+        onStatsUpdate?.()
+      ]);
 
       toast({
         title: "Muvaffaqiyatli",
@@ -472,16 +526,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         description: "Ball qo'shishda xatolik yuz berdi",
         variant: "destructive"
       });
+      // Revert optimistic update on error
+      await fetchDailyScores(selectedDate);
     } finally {
-      setEditingScoreCell(null);
-      setScoreInputValue('');
       setShowScoreChangeDialog(null);
       setScoreChangeReason('');
     }
   };
 
   const handleScoreKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
-    if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.key === 'Enter') {
       e.preventDefault();
       handleScoreSubmit(studentId, type);
     } else if (e.key === 'Escape') {
