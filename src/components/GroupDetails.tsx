@@ -634,27 +634,99 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
                   const handleArchive = async (studentId: string) => {
                     try {
+                      // Get full student data
+                      const { data: studentData, error: fetchError } = await supabase
+                        .from('students')
+                        .select('*')
+                        .eq('id', studentId)
+                        .single();
+                      
+                      if (fetchError) throw fetchError;
+                      
+                      // Copy to archived_students
+                      const { error: archiveError } = await supabase
+                        .from('archived_students')
+                        .insert({
+                          original_student_id: studentData.id,
+                          teacher_id: studentData.teacher_id,
+                          name: studentData.name,
+                          student_id: studentData.student_id,
+                          email: studentData.email,
+                          phone: studentData.phone,
+                          group_name: studentData.group_name,
+                          age: studentData.age,
+                          parent_phone: studentData.parent_phone,
+                          reward_penalty_points: studentData.reward_penalty_points
+                        });
+                      
+                      if (archiveError) throw archiveError;
+                      
+                      // Update student to inactive
                       await supabase.from('students').update({ is_active: false }).eq('id', studentId);
+                      
                       await fetchStudents();
+                      if (onStatsUpdate) await onStatsUpdate();
+                      
                       toast({
                         title: "Muvaffaqiyatli",
                         description: "O'quvchi arxivlandi",
                       });
                     } catch (error) {
                       console.error('Error archiving student:', error);
+                      toast({
+                        title: "Xatolik",
+                        description: "O'quvchini arxivlashda xatolik yuz berdi",
+                        variant: "destructive"
+                      });
                     }
                   };
 
                   const handleDelete = async (studentId: string) => {
                     try {
+                      // Get full student data
+                      const { data: studentData, error: fetchError } = await supabase
+                        .from('students')
+                        .select('*')
+                        .eq('id', studentId)
+                        .single();
+                      
+                      if (fetchError) throw fetchError;
+                      
+                      // Copy to deleted_students
+                      const { error: deleteArchiveError } = await supabase
+                        .from('deleted_students')
+                        .insert({
+                          original_student_id: studentData.id,
+                          teacher_id: studentData.teacher_id,
+                          name: studentData.name,
+                          student_id: studentData.student_id,
+                          email: studentData.email,
+                          phone: studentData.phone,
+                          group_name: studentData.group_name,
+                          age: studentData.age,
+                          parent_phone: studentData.parent_phone,
+                          reward_penalty_points: studentData.reward_penalty_points
+                        });
+                      
+                      if (deleteArchiveError) throw deleteArchiveError;
+                      
+                      // Delete from students table
                       await supabase.from('students').delete().eq('id', studentId);
+                      
                       await fetchStudents();
+                      if (onStatsUpdate) await onStatsUpdate();
+                      
                       toast({
                         title: "Muvaffaqiyatli",
                         description: "O'quvchi o'chirildi",
                       });
                     } catch (error) {
                       console.error('Error deleting student:', error);
+                      toast({
+                        title: "Xatolik",
+                        description: "O'quvchini o'chirishda xatolik yuz berdi",
+                        variant: "destructive"
+                      });
                     }
                   };
                   
