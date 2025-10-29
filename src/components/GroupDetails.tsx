@@ -66,10 +66,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [absentReason, setAbsentReason] = useState('');
   const [editingScoreCell, setEditingScoreCell] = useState<{studentId: string, type: 'baho' | 'mukofot' | 'jarima'} | null>(null);
   const [scoreInputValue, setScoreInputValue] = useState('');
-  const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number, type: 'baho' | 'mukofot' | 'jarima'} | null>(null);
+  const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number, type: 'baho' | 'mukofot' | 'jarima', existingRecordId?: string} | null>(null);
   const [scoreChangeReason, setScoreChangeReason] = useState('');
   const [confirmArchive, setConfirmArchive] = useState<{id: string, name: string} | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
+  const [dailyScores, setDailyScores] = useState<Record<string, {baho?: {points: number, id: string}, mukofot?: {points: number, id: string}, jarima?: {points: number, id: string}}>>({});
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -84,10 +85,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     fetchAttendanceForDate(selectedDate);
   }, [groupName, teacherId, selectedDate]);
 
-  // Get current score for student
-  const getCurrentScore = (studentId: string): number => {
-    return students.find(s => s.id === studentId)?.rewardPenaltyPoints || 0;
-  };
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchDailyScores(selectedDate);
+    }
+  }, [students.length, selectedDate]);
+
   const fetchStudents = async () => {
     try {
       const {
@@ -195,6 +198,43 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setAttendance(attendanceMap);
     } catch (error) {
       console.error('Error fetching attendance:', error);
+    }
+  };
+
+  const fetchDailyScores = async (date: string) => {
+    try {
+      const studentIds = students.map(s => s.id);
+      if (studentIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('reward_penalty_history')
+        .select('id, student_id, points, type')
+        .in('student_id', studentIds)
+        .eq('teacher_id', teacherId)
+        .eq('date', date);
+
+      if (error) throw error;
+
+      const scoresMap: Record<string, {baho?: {points: number, id: string}, mukofot?: {points: number, id: string}, jarima?: {points: number, id: string}}>= {};
+      
+      if (data) {
+        data.forEach((record: any) => {
+          if (!scoresMap[record.student_id]) {
+            scoresMap[record.student_id] = {};
+          }
+          if (record.type === 'Baho') {
+            scoresMap[record.student_id].baho = { points: record.points, id: record.id };
+          } else if (record.type === 'Mukofot') {
+            scoresMap[record.student_id].mukofot = { points: record.points, id: record.id };
+          } else if (record.type === 'Jarima') {
+            scoresMap[record.student_id].jarima = { points: record.points, id: record.id };
+          }
+        });
+      }
+
+      setDailyScores(scoresMap);
+    } catch (error) {
+      console.error('Error fetching daily scores:', error);
     }
   };
   const addStudent = async () => {
@@ -371,38 +411,59 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return;
     }
 
-    // Always require reason for score changes
-    setShowScoreChangeDialog({ studentId, newScore, type });
+    // Check if score already exists for this date
+    const existingScore = dailyScores[studentId]?.[type];
+    
+    if (existingScore) {
+      // Existing score - require reason for modification
+      setShowScoreChangeDialog({ studentId, newScore, type, existingRecordId: existingScore.id });
+    } else {
+      // New score - no reason required
+      await submitScore(studentId, newScore, null, type);
+    }
   };
 
-  const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima') => {
+  const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima', existingRecordId?: string) => {
     try {
-      if (!reason || reason.trim() === '') {
-        toast({
-          title: "Xatolik",
-          description: "Izoh kiritish majburiy",
-          variant: "destructive"
-        });
-        return;
-      }
-
       const typeLabel = type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima';
 
-      await supabase.from('reward_penalty_history').insert([{
-        student_id: studentId,
-        teacher_id: teacherId,
-        points: newScore,
-        reason: reason,
-        type: typeLabel,
-        date: selectedDate
-      }] as any);
+      if (existingRecordId) {
+        // Update existing record
+        if (!reason || reason.trim() === '') {
+          toast({
+            title: "Xatolik",
+            description: "Izoh kiritish majburiy",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        await supabase
+          .from('reward_penalty_history')
+          .update({
+            points: newScore,
+            reason: reason
+          })
+          .eq('id', existingRecordId);
+      } else {
+        // Insert new record (no reason required for first entry)
+        await supabase.from('reward_penalty_history').insert([{
+          student_id: studentId,
+          teacher_id: teacherId,
+          points: newScore,
+          reason: reason,
+          type: typeLabel,
+          date: selectedDate
+        }] as any);
+      }
 
       await fetchStudents();
+      await fetchDailyScores(selectedDate);
       if (onStatsUpdate) await onStatsUpdate();
 
       toast({
         title: "Muvaffaqiyatli",
-        description: `${typeLabel} qo'shildi: ${newScore}`,
+        description: `${typeLabel} ${existingRecordId ? "o'zgartirildi" : "qo'shildi"}: ${newScore}`,
       });
     } catch (error) {
       console.error('Error submitting score:', error);
@@ -606,6 +667,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => {
           fetchStudents();
           fetchAttendanceForDate(selectedDate);
+          fetchDailyScores(selectedDate);
           if (onStatsUpdate) onStatsUpdate();
         }} />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -711,8 +773,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableBody>
                 {students.map(student => {
                   
-                  const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima', currentValue: number) => {
+                  const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima') => {
                     const isEditing = editingScoreCell?.studentId === student.id && editingScoreCell?.type === type;
+                    const dailyScore = dailyScores[student.id]?.[type];
+                    const currentValue = dailyScore?.points || 0;
                     
                     let bgColor = 'bg-white border border-gray-200';
                     let textColor = 'text-gray-400';
@@ -802,9 +866,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      {renderScoreCell('baho', student.bahoScore || 0)}
-                      {renderScoreCell('mukofot', student.mukofotScore || 0)}
-                      {renderScoreCell('jarima', student.jarimaScore || 0)}
+                      {renderScoreCell('baho')}
+                      {renderScoreCell('mukofot')}
+                      {renderScoreCell('jarima')}
 
                       <TableCell className="text-center">
                         <span className="text-sm font-semibold text-blue-600">
@@ -933,7 +997,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Baho o'zgartirish</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Mavjud baho: {getCurrentScore(showScoreChangeDialog.studentId)}<br/>
+              Mavjud baho: {dailyScores[showScoreChangeDialog.studentId]?.[showScoreChangeDialog.type]?.points || 0}<br/>
               Yangi baho: {showScoreChangeDialog.newScore}
             </p>
             <div className="space-y-4">
@@ -958,7 +1022,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       });
                       return;
                     }
-                    submitScore(showScoreChangeDialog.studentId, showScoreChangeDialog.newScore, scoreChangeReason.trim(), showScoreChangeDialog.type);
+                    submitScore(showScoreChangeDialog.studentId, showScoreChangeDialog.newScore, scoreChangeReason.trim(), showScoreChangeDialog.type, showScoreChangeDialog.existingRecordId);
                   }}
                   className="flex-1" 
                   disabled={!scoreChangeReason.trim()}
