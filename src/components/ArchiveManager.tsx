@@ -135,18 +135,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       const archivedStudent = archivedStudents.find(s => s.id === studentId);
       if (!archivedStudent) return;
 
-      // Restore to students table
+      // Restore by setting is_active to true (student still exists in students table)
       await supabase
         .from('students')
-        .insert({
-          teacher_id: teacherId,
-          name: archivedStudent.name,
-          student_id: archivedStudent.student_id,
-          group_name: archivedStudent.group_name,
-          email: archivedStudent.email,
-          phone: archivedStudent.phone,
-          is_active: true
-        });
+        .update({ is_active: true })
+        .eq('id', archivedStudent.original_student_id);
 
       // Remove from archived_students
       await supabase

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, Archive, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
@@ -67,6 +68,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [scoreInputValue, setScoreInputValue] = useState('');
   const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{studentId: string, newScore: number, type: 'baho' | 'mukofot' | 'jarima'} | null>(null);
   const [scoreChangeReason, setScoreChangeReason] = useState('');
+  const [confirmArchive, setConfirmArchive] = useState<{id: string, name: string} | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -429,6 +432,127 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     setSelectedStudentId(studentId);
     setIsStudentPopupOpen(true);
   };
+
+  const handleArchive = async (studentId: string) => {
+    try {
+      // Get full student data
+      const { data: studentData, error: fetchError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Update student to inactive (keeps all related data)
+      await supabase.from('students').update({ is_active: false }).eq('id', studentId);
+      
+      // Copy to archived_students for tracking
+      const { error: archiveError } = await supabase
+        .from('archived_students')
+        .insert({
+          original_student_id: studentData.id,
+          teacher_id: studentData.teacher_id,
+          name: studentData.name,
+          student_id: studentData.student_id,
+          email: studentData.email,
+          phone: studentData.phone,
+          group_name: studentData.group_name,
+          age: studentData.age,
+          parent_phone: studentData.parent_phone,
+          reward_penalty_points: studentData.reward_penalty_points
+        });
+      
+      if (archiveError) throw archiveError;
+      
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      toast({
+        title: "Muvaffaqiyatli",
+        description: "O'quvchi arxivlandi",
+      });
+      
+      setConfirmArchive(null);
+    } catch (error) {
+      console.error('Error archiving student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini arxivlashda xatolik yuz berdi",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDelete = async (studentId: string) => {
+    try {
+      // Get full student data including related records
+      const { data: studentData, error: fetchError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Get reward/penalty history
+      const { data: historyData } = await supabase
+        .from('reward_penalty_history')
+        .select('*')
+        .eq('student_id', studentId);
+      
+      // Get attendance records
+      const { data: attendanceData } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('student_id', studentId);
+      
+      // Copy to deleted_students with all related data
+      const { error: deleteArchiveError } = await supabase
+        .from('deleted_students')
+        .insert({
+          original_student_id: studentData.id,
+          teacher_id: studentData.teacher_id,
+          name: studentData.name,
+          student_id: studentData.student_id,
+          email: studentData.email,
+          phone: studentData.phone,
+          group_name: studentData.group_name,
+          age: studentData.age,
+          parent_phone: studentData.parent_phone,
+          reward_penalty_points: studentData.reward_penalty_points
+        });
+      
+      if (deleteArchiveError) throw deleteArchiveError;
+      
+      // Delete related records first (to avoid foreign key issues)
+      await supabase.from('reward_penalty_history').delete().eq('student_id', studentId);
+      await supabase.from('attendance_records').delete().eq('student_id', studentId);
+      await supabase.from('exam_results').delete().eq('student_id', studentId);
+      await supabase.from('student_scores').delete().eq('student_id', studentId);
+      
+      // Delete from students table
+      await supabase.from('students').delete().eq('id', studentId);
+      
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+      
+      toast({
+        title: "Muvaffaqiyatli",
+        description: "O'quvchi o'chirildi",
+      });
+      
+      setConfirmDelete(null);
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini o'chirishda xatolik yuz berdi",
+        variant: "destructive"
+      });
+    }
+  };
+
   const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
     const currentStatus = attendance[studentId];
     const normalized = (currentStatus === 'absent' ? 'absent_without_reason' : currentStatus) as AttendanceStatus | undefined;
@@ -586,7 +710,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               </TableHeader>
               <TableBody>
                 {students.map(student => {
-                  const currentScore = getCurrentScore(student.id);
                   
                   const renderScoreCell = (type: 'baho' | 'mukofot' | 'jarima', currentValue: number) => {
                     const isEditing = editingScoreCell?.studentId === student.id && editingScoreCell?.type === type;
@@ -630,104 +753,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         )}
                       </TableCell>
                     );
-                  };
-
-                  const handleArchive = async (studentId: string) => {
-                    try {
-                      // Get full student data
-                      const { data: studentData, error: fetchError } = await supabase
-                        .from('students')
-                        .select('*')
-                        .eq('id', studentId)
-                        .single();
-                      
-                      if (fetchError) throw fetchError;
-                      
-                      // Copy to archived_students
-                      const { error: archiveError } = await supabase
-                        .from('archived_students')
-                        .insert({
-                          original_student_id: studentData.id,
-                          teacher_id: studentData.teacher_id,
-                          name: studentData.name,
-                          student_id: studentData.student_id,
-                          email: studentData.email,
-                          phone: studentData.phone,
-                          group_name: studentData.group_name,
-                          age: studentData.age,
-                          parent_phone: studentData.parent_phone,
-                          reward_penalty_points: studentData.reward_penalty_points
-                        });
-                      
-                      if (archiveError) throw archiveError;
-                      
-                      // Update student to inactive
-                      await supabase.from('students').update({ is_active: false }).eq('id', studentId);
-                      
-                      await fetchStudents();
-                      if (onStatsUpdate) await onStatsUpdate();
-                      
-                      toast({
-                        title: "Muvaffaqiyatli",
-                        description: "O'quvchi arxivlandi",
-                      });
-                    } catch (error) {
-                      console.error('Error archiving student:', error);
-                      toast({
-                        title: "Xatolik",
-                        description: "O'quvchini arxivlashda xatolik yuz berdi",
-                        variant: "destructive"
-                      });
-                    }
-                  };
-
-                  const handleDelete = async (studentId: string) => {
-                    try {
-                      // Get full student data
-                      const { data: studentData, error: fetchError } = await supabase
-                        .from('students')
-                        .select('*')
-                        .eq('id', studentId)
-                        .single();
-                      
-                      if (fetchError) throw fetchError;
-                      
-                      // Copy to deleted_students
-                      const { error: deleteArchiveError } = await supabase
-                        .from('deleted_students')
-                        .insert({
-                          original_student_id: studentData.id,
-                          teacher_id: studentData.teacher_id,
-                          name: studentData.name,
-                          student_id: studentData.student_id,
-                          email: studentData.email,
-                          phone: studentData.phone,
-                          group_name: studentData.group_name,
-                          age: studentData.age,
-                          parent_phone: studentData.parent_phone,
-                          reward_penalty_points: studentData.reward_penalty_points
-                        });
-                      
-                      if (deleteArchiveError) throw deleteArchiveError;
-                      
-                      // Delete from students table
-                      await supabase.from('students').delete().eq('id', studentId);
-                      
-                      await fetchStudents();
-                      if (onStatsUpdate) await onStatsUpdate();
-                      
-                      toast({
-                        title: "Muvaffaqiyatli",
-                        description: "O'quvchi o'chirildi",
-                      });
-                    } catch (error) {
-                      console.error('Error deleting student:', error);
-                      toast({
-                        title: "Xatolik",
-                        description: "O'quvchini o'chirishda xatolik yuz berdi",
-                        variant: "destructive"
-                      });
-                    }
                   };
                   
                   return (
@@ -822,7 +847,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleArchive(student.id)}
+                            onClick={() => setConfirmArchive({id: student.id, name: student.name})}
                             className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                           >
                             <Archive className="w-4 h-4" />
@@ -830,7 +855,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDelete(student.id)}
+                            onClick={() => setConfirmDelete({id: student.id, name: student.name})}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -962,6 +987,42 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setIsStudentPopupOpen(false);
       setSelectedStudentId(null);
     }} teacherId={teacherId} />
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={!!confirmArchive} onOpenChange={(open) => !open && setConfirmArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>O'quvchini arxivlash</AlertDialogTitle>
+            <AlertDialogDescription>
+              Rostdan ham "{confirmArchive?.name}" ni arxivlamoqchimisiz? Arxivlangan o'quvchini keyin qayta tiklash mumkin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmArchive && handleArchive(confirmArchive.id)}>
+              Arxivlash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>O'quvchini o'chirish</AlertDialogTitle>
+            <AlertDialogDescription>
+              Rostdan ham "{confirmDelete?.name}" ni o'chirmoqchimisiz? O'chirilgan o'quvchini Chiqindilar qutisidan qayta tiklash mumkin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmDelete && handleDelete(confirmDelete.id)} className="bg-red-600 hover:bg-red-700">
+              O'chirish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>;
 };
 export default GroupDetails;
