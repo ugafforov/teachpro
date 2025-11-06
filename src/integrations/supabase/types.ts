@@ -183,6 +183,78 @@ export type Database = {
           },
         ]
       }
+      deleted_attendance_records: {
+        Row: {
+          created_at: string | null
+          date: string
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          original_record_id: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          status: string
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          status?: string
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
+      deleted_exam_results: {
+        Row: {
+          created_at: string | null
+          deleted_at: string | null
+          exam_id: string
+          id: string
+          notes: string | null
+          original_record_id: string | null
+          score: number
+          student_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_at?: string | null
+          exam_id: string
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          score: number
+          student_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string | null
+          deleted_at?: string | null
+          exam_id?: string
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          score?: number
+          student_id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       deleted_exams: {
         Row: {
           deleted_at: string
@@ -253,6 +325,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      deleted_reward_penalty_history: {
+        Row: {
+          created_at: string | null
+          date: string
+          deleted_at: string | null
+          id: string
+          original_record_id: string | null
+          points: number
+          reason: string | null
+          student_id: string
+          teacher_id: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          deleted_at?: string | null
+          id?: string
+          original_record_id?: string | null
+          points: number
+          reason?: string | null
+          student_id: string
+          teacher_id: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          original_record_id?: string | null
+          points?: number
+          reason?: string | null
+          student_id?: string
+          teacher_id?: string
+          type?: string | null
+        }
+        Relationships: []
+      }
+      deleted_student_scores: {
+        Row: {
+          created_at: string | null
+          date: string
+          deleted_at: string | null
+          id: string
+          notes: string | null
+          original_record_id: string | null
+          reward_penalty_points: number | null
+          score: number
+          student_id: string
+          subject: string
+          teacher_id: string
+          total_score: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          reward_penalty_points?: number | null
+          score: number
+          student_id: string
+          subject: string
+          teacher_id: string
+          total_score?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          deleted_at?: string | null
+          id?: string
+          notes?: string | null
+          original_record_id?: string | null
+          reward_penalty_points?: number | null
+          score?: number
+          student_id?: string
+          subject?: string
+          teacher_id?: string
+          total_score?: number | null
+        }
+        Relationships: []
       }
       deleted_students: {
         Row: {
@@ -675,7 +831,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      restore_student_full: {
+        Args: { p_deleted_student_id: string }
+        Returns: string
+      }
+      soft_delete_student: {
+        Args: { p_student_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -210,20 +210,30 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
   const deleteStudent = async (studentId: string, studentName: string) => {
-    if (!confirm(`Rostdan ham "${studentName}" ni o'chirmoqchimisiz? Bu amal bekor qilib bo'lmaydi.`)) {
+    if (!confirm(`Rostdan ham "${studentName}" ni o'chirmoqchimisiz?`)) {
       return;
     }
     try {
-      // Full soft-delete via backend function (moves all related data to deleted_* tables)
       const { error } = await (supabase as any).rpc('soft_delete_student', {
         p_student_id: studentId
       });
+      
       if (error) throw error;
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyatli",
+        description: "O'quvchi chiqindilar qutisiga o'tkazildi",
+      });
     } catch (error) {
       console.error('Error deleting student:', error);
+      toast({
+        title: "Xatolik",
+        description: "O'quvchini o'chirishda xatolik yuz berdi",
+        variant: "destructive"
+      });
     }
   };
   const addReward = async (studentId: string) => {
