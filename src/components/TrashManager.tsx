@@ -195,9 +195,8 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
   const restoreStudent = async (deletedStudent: DeletedStudent) => {
     try {
       // Restore full history (attendance, rewards, scores, exam results) + student row
-      const { error } = await supabase.rpc('restore_student_full', {
-        p_teacher_id: teacherId,
-        p_original_student_id: deletedStudent.original_student_id,
+      const { error } = await (supabase as any).rpc('restore_student_full', {
+        p_deleted_student_id: deletedStudent.id
       });
       if (error) throw error;
 

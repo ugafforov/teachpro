@@ -215,9 +215,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
     try {
       // Full soft-delete via backend function (moves all related data to deleted_* tables)
-      const { error } = await supabase.rpc('soft_delete_student', {
-        p_teacher_id: teacherId,
-        p_student_id: studentId,
+      const { error } = await (supabase as any).rpc('soft_delete_student', {
+        p_student_id: studentId
       });
       if (error) throw error;
 

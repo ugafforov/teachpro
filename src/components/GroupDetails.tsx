@@ -602,7 +602,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const handleDelete = async (studentId: string) => {
     try {
       // Use backend function to atomically move ALL related records to deleted_* and delete student
-      const { error } = await supabase.rpc('soft_delete_student', {
+      const { error } = await (supabase as any).rpc('soft_delete_student', {
         p_teacher_id: teacherId,
         p_student_id: studentId,
       });
