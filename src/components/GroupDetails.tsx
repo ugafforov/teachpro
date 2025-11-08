@@ -773,11 +773,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">O'quvchi</TableHead>
-                  <TableHead className="text-center px-0" colSpan={3}>Bugungi davomat</TableHead>
-                  <TableHead className="text-center px-0" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
-                  <TableHead className="text-center">O'rtacha / Mukofot / Jarima</TableHead>
-                  <TableHead className="text-center font-bold">Jami bal</TableHead>
-                  <TableHead className="text-center">Amallar</TableHead>
+                  <TableHead className="text-center px-0 w-[132px]" colSpan={3}>Bugungi davomat</TableHead>
+                  <TableHead className="text-center px-0 w-[132px] pl-8" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center w-[140px]">O'rtacha / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center font-bold w-[100px]">Jami bal</TableHead>
+                  <TableHead className="text-center w-[100px]">Amallar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -805,7 +805,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     }
                     
                     return (
-                      <TableCell className="text-center px-0.5">
+                      <TableCell className={`text-center px-0.5 w-11 ${type === 'baho' ? 'pl-8' : ''}`}>
                         {isEditing ? (
                           <Input
                             type="text"
@@ -842,7 +842,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5">
+                      <TableCell className="text-center px-0.5 w-11">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'present')} 
@@ -852,7 +852,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5">
+                      <TableCell className="text-center px-0.5 w-11">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'late')} 
@@ -862,7 +862,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5">
+                      <TableCell className="text-center px-0.5 w-11">
                         <Button 
                           size="sm" 
                           onClick={() => {
@@ -880,8 +880,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       {renderScoreCell('mukofot')}
                       {renderScoreCell('jarima')}
 
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1 text-sm">
+                      <TableCell className="text-center w-[140px]">
+                        <div className="flex items-center justify-center gap-1 text-sm whitespace-nowrap">
                           <span className="font-semibold text-blue-600">
                             {(student.averageScore || 0).toFixed(1)}
                           </span>
@@ -896,7 +896,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </div>
                       </TableCell>
 
-                      <TableCell className="text-center">
+                      <TableCell className="text-center w-[100px]">
                         <div className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/10">
                           {(student.rewardPenaltyPoints || 0) !== 0 ? (
                             <span className={`text-sm font-bold ${(student.rewardPenaltyPoints || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -908,7 +908,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </div>
                       </TableCell>
 
-                      <TableCell className="text-center">
+                      <TableCell className="text-center w-[100px]">
                         <div className="flex items-center justify-center gap-2">
                           <Button
                             size="sm"
