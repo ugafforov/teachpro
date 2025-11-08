@@ -773,11 +773,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">O'quvchi</TableHead>
-                  <TableHead className="text-center px-0" style={{ width: '132px', minWidth: '132px', maxWidth: '132px' }} colSpan={3}>Bugungi davomat</TableHead>
-                  <TableHead className="text-center px-0 pl-8" style={{ width: '146px', minWidth: '146px', maxWidth: '146px' }} colSpan={3}>Baho / Mukofot / Jarima</TableHead>
-                  <TableHead className="text-center w-[140px]">O'rtacha / Mukofot / Jarima</TableHead>
-                  <TableHead className="text-center font-bold w-[100px]">Jami bal</TableHead>
-                  <TableHead className="text-center w-[100px]">Amallar</TableHead>
+                  <TableHead className="text-center px-0" colSpan={3}>Bugungi davomat</TableHead>
+                  <TableHead className="text-center px-0" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center">O'rtacha / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center font-bold">Jami bal</TableHead>
+                  <TableHead className="text-center">Amallar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -805,7 +805,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     }
                     
                     return (
-                      <TableCell className={`text-center px-0 ${type === 'baho' ? 'pl-8' : ''}`} style={{ width: '38px', minWidth: '38px', maxWidth: '38px' }}>
+                      <TableCell className="text-center px-0.5">
                         {isEditing ? (
                           <Input
                             type="text"
@@ -813,14 +813,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                             onChange={handleScoreInputChange}
                             onKeyDown={(e) => handleScoreKeyDown(e, student.id, type)}
                             onBlur={() => handleScoreSubmit(student.id, type)}
-                            className="w-9 h-9 text-center p-0 text-sm"
+                            className="w-10 h-10 text-center p-1 text-sm"
                             placeholder="0"
                             autoFocus
                           />
                         ) : (
                           <button
                             onClick={() => handleScoreCellClick(student.id, type)}
-                            className={`w-9 h-9 rounded flex items-center justify-center text-xs font-semibold transition-colors hover:opacity-80 ${bgColor} ${textColor}`}
+                            className={`w-10 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors hover:opacity-80 ${bgColor} ${textColor}`}
                           >
                             {currentValue !== 0 ? (currentValue > 0 ? `+${currentValue}` : currentValue) : (type === 'baho' ? 'B' : type === 'mukofot' ? 'M' : 'J')}
                           </button>
@@ -842,7 +842,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5" style={{ width: '44px', minWidth: '44px', maxWidth: '44px' }}>
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'present')} 
@@ -852,7 +852,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5" style={{ width: '44px', minWidth: '44px', maxWidth: '44px' }}>
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'late')} 
@@ -862,7 +862,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-0.5" style={{ width: '44px', minWidth: '44px', maxWidth: '44px' }}>
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => {
@@ -880,8 +880,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       {renderScoreCell('mukofot')}
                       {renderScoreCell('jarima')}
 
-                      <TableCell className="text-center w-[140px]">
-                        <div className="flex items-center justify-center gap-1 text-sm whitespace-nowrap">
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1 text-sm">
                           <span className="font-semibold text-blue-600">
                             {(student.averageScore || 0).toFixed(1)}
                           </span>
@@ -896,7 +896,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </div>
                       </TableCell>
 
-                      <TableCell className="text-center w-[100px]">
+                      <TableCell className="text-center">
                         <div className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/10">
                           {(student.rewardPenaltyPoints || 0) !== 0 ? (
                             <span className={`text-sm font-bold ${(student.rewardPenaltyPoints || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -908,7 +908,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </div>
                       </TableCell>
 
-                      <TableCell className="text-center w-[100px]">
+                      <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Button
                             size="sm"
