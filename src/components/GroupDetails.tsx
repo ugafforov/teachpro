@@ -773,12 +773,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[200px]">O'quvchi</TableHead>
-                  <TableHead className="text-center" colSpan={3}>Bugungi davomat</TableHead>
-                  <TableHead className="text-center" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
-                  <TableHead className="text-center">O'rtacha baho</TableHead>
-                  <TableHead className="text-center">Jami mukofot</TableHead>
-                  <TableHead className="text-center">Jami jarima</TableHead>
-                  <TableHead className="text-center">Jami bal</TableHead>
+                  <TableHead className="text-center px-0" colSpan={3}>Bugungi davomat</TableHead>
+                  <TableHead className="text-center px-0" colSpan={3}>Baho / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center">O'rtacha / Mukofot / Jarima</TableHead>
+                  <TableHead className="text-center font-bold">Jami bal</TableHead>
                   <TableHead className="text-center">Amallar</TableHead>
                 </TableRow>
               </TableHeader>
@@ -807,7 +805,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     }
                     
                     return (
-                      <TableCell className="text-center px-1">
+                      <TableCell className="text-center px-0.5">
                         {isEditing ? (
                           <Input
                             type="text"
@@ -844,7 +842,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-1">
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'present')} 
@@ -854,7 +852,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-1">
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => markAttendance(student.id, 'late')} 
@@ -864,7 +862,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         </Button>
                       </TableCell>
                       
-                      <TableCell className="text-center px-1">
+                      <TableCell className="text-center px-0.5">
                         <Button 
                           size="sm" 
                           onClick={() => {
@@ -883,39 +881,31 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                       {renderScoreCell('jarima')}
 
                       <TableCell className="text-center">
-                        <span className="text-sm font-semibold text-blue-600">
-                          {(student.averageScore || 0).toFixed(1)}
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        {(student.totalRewards || 0) > 0 ? (
-                          <span className="text-sm font-semibold text-green-600">
+                        <div className="flex items-center justify-center gap-1 text-sm">
+                          <span className="font-semibold text-blue-600">
+                            {(student.averageScore || 0).toFixed(1)}
+                          </span>
+                          <span className="text-gray-400">/</span>
+                          <span className={`font-semibold ${(student.totalRewards || 0) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                             {(student.totalRewards || 0).toFixed(1)}
                           </span>
-                        ) : (
-                          <span className="text-gray-400">0</span>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        {(student.totalPenalties || 0) > 0 ? (
-                          <span className="text-sm font-semibold text-red-600">
+                          <span className="text-gray-400">/</span>
+                          <span className={`font-semibold ${(student.totalPenalties || 0) > 0 ? 'text-red-600' : 'text-gray-400'}`}>
                             {(student.totalPenalties || 0).toFixed(1)}
                           </span>
-                        ) : (
-                          <span className="text-gray-400">0</span>
-                        )}
+                        </div>
                       </TableCell>
 
                       <TableCell className="text-center">
-                        {(student.rewardPenaltyPoints || 0) !== 0 ? (
-                          <span className={`text-sm font-semibold ${(student.rewardPenaltyPoints || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {(student.rewardPenaltyPoints || 0) > 0 ? '+' : ''}{(student.rewardPenaltyPoints || 0).toFixed(1)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">0</span>
-                        )}
+                        <div className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/10">
+                          {(student.rewardPenaltyPoints || 0) !== 0 ? (
+                            <span className={`text-sm font-bold ${(student.rewardPenaltyPoints || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {(student.rewardPenaltyPoints || 0) > 0 ? '+' : ''}{(student.rewardPenaltyPoints || 0).toFixed(1)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 font-bold">0</span>
+                          )}
+                        </div>
                       </TableCell>
 
                       <TableCell className="text-center">
