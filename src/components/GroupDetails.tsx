@@ -805,7 +805,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     }
                     
                     return (
-                      <TableCell className={`text-center px-0 ${type === 'baho' ? 'pl-8' : ''}`} style={{ width: '38px', minWidth: '38px', maxWidth: '38px' }}>
+                      <TableCell className={`text-center px-0.5 ${type === 'baho' ? 'pl-8' : ''}`} style={{ width: '38px', minWidth: '38px', maxWidth: '38px' }}>
                         {isEditing ? (
                           <Input
                             type="text"
