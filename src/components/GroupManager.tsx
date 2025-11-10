@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2 } from 'lucide-react';
+import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
@@ -35,6 +35,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [newGroup, setNewGroup] = useState({
     name: '',
     description: ''
@@ -468,14 +469,33 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>
           <p className="text-gray-600">Sinflaringizni yarating va boshqaring</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
-              <Plus className="w-4 h-4 mr-2" />
-              Yangi guruh
+        <div className="flex items-center gap-2">
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className={`rounded-none px-3 ${viewMode === 'list' ? 'bg-gray-100' : ''}`}
+            >
+              <List className="w-4 h-4" />
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className={`rounded-none px-3 ${viewMode === 'grid' ? 'bg-gray-100' : ''}`}
+            >
+              <Grid3x3 className="w-4 h-4" />
+            </Button>
+          </div>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
+                <Plus className="w-4 h-4 mr-2" />
+                Yangi guruh
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Yangi guruh yaratish</DialogTitle>
               <DialogDescription>
@@ -531,7 +551,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {groups.length === 0 ? (
@@ -546,6 +567,76 @@ const GroupManager: React.FC<GroupManagerProps> = ({
             Birinchi guruhni yaratish
           </Button>
         </Card>
+      ) : viewMode === 'list' ? (
+        <div className="space-y-3">
+          {groups.map(group => (
+            <Card 
+              key={group.id} 
+              className="p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => handleGroupClick(group.name)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-bold text-gray-900">{group.name}</h3>
+                  </div>
+                  
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-500" />
+                      <div>
+                        <span className="text-gray-600 text-xs">O'quvchilar</span>
+                        <div className="text-sm font-semibold">{group.student_count}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-green-500" />
+                      <div>
+                        <span className="text-gray-600 text-xs">Davomat</span>
+                        <div className="text-sm font-semibold text-green-600">{group.attendance_percentage}%</div>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-gray-500">
+                      {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-1 ml-4">
+                  <Button
+                    onClick={(e) => handleEditGroup(e, group)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                    title="Tahrirlash"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                    title="Arxivlash"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+                    title="O'chirish"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => (
