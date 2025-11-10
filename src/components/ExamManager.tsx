@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, FileText, TrendingUp, Trash2, Archive } from 'lucide-react';
+import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
@@ -74,6 +74,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [loading, setLoading] = useState(true);
   const [deleteExamId, setDeleteExamId] = useState<string | null>(null);
   const [archiveExamId, setArchiveExamId] = useState<string | null>(null);
+  const [editingResult, setEditingResult] = useState<{id: string, studentName: string, currentScore: number} | null>(null);
+  const [editScore, setEditScore] = useState('');
+  const [editReason, setEditReason] = useState('');
 
   useEffect(() => {
     fetchGroups();
@@ -412,7 +415,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           students!inner(id, name, group_name)
         `)
         .eq('exam_id', examId)
-        .order('name', { ascending: true, foreignTable: 'students' });
+        .order('score', { ascending: false });
 
       if (error) {
         console.error('Error fetching exam details:', error);
@@ -427,6 +430,51 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       toast({
         title: 'Xato',
         description: 'Imtihon natijalarini yuklashda xatolik',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const updateExamResult = async () => {
+    if (!editingResult || !editScore || !editReason.trim()) {
+      toast({
+        title: 'Xato',
+        description: 'Ball va izohni kiriting',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('exam_results')
+        .update({
+          score: parseFloat(editScore),
+          notes: editReason.trim()
+        })
+        .eq('id', editingResult.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Muvaffaqiyatli',
+        description: 'Natija yangilandi',
+      });
+
+      // Refresh exam details
+      const currentExam = examDetailsData[0]?.exam_id;
+      if (currentExam) {
+        await fetchExamDetails(currentExam);
+      }
+
+      setEditingResult(null);
+      setEditScore('');
+      setEditReason('');
+    } catch (error) {
+      console.error('Error updating result:', error);
+      toast({
+        title: 'Xato',
+        description: 'Natijani yangilashda xatolik',
         variant: 'destructive',
       });
     }
@@ -628,37 +676,43 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Object.entries(analysisData).map(([studentId, results]) => {
-                      const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
-                      const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
-                      
-                      return (
-                        <TableRow key={studentId}>
-                          <TableCell className="font-medium">{results[0]?.studentName}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
-                          {allDates.map((date, idx) => {
-                            const score = scoresByDate.get(date);
-                            return (
-                              <TableCell key={idx} className="text-center">
-                                {score !== undefined ? (
-                                  <span className={`inline-block px-3 py-1 rounded-md font-semibold ${
-                                    score >= 90 ? 'bg-green-100 text-green-700' :
-                                    score >= 70 ? 'bg-blue-100 text-blue-700' :
-                                    score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-red-100 text-red-700'
-                                  }`}>
-                                    {score}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            );
-                          })}
-                          <TableCell className="text-center font-bold text-primary">{avgScore}</TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {Object.entries(analysisData)
+                      .sort(([, aResults], [, bResults]) => {
+                        const aAvg = aResults.reduce((sum, r) => sum + r.score, 0) / aResults.length;
+                        const bAvg = bResults.reduce((sum, r) => sum + r.score, 0) / bResults.length;
+                        return bAvg - aAvg;
+                      })
+                      .map(([studentId, results]) => {
+                        const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
+                        const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
+                        
+                        return (
+                          <TableRow key={studentId}>
+                            <TableCell className="font-medium">{results[0]?.studentName}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
+                            {allDates.map((date, idx) => {
+                              const score = scoresByDate.get(date);
+                              return (
+                                <TableCell key={idx} className="text-center">
+                                  {score !== undefined ? (
+                                    <span className={`inline-block px-3 py-1 rounded-md font-semibold ${
+                                      score >= 90 ? 'bg-green-100 text-green-700' :
+                                      score >= 70 ? 'bg-blue-100 text-blue-700' :
+                                      score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                    }`}>
+                                      {score}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-center font-bold text-primary">{avgScore}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               );
@@ -966,6 +1020,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                       <TableHead>O'quvchi</TableHead>
                       <TableHead>Guruh</TableHead>
                       <TableHead className="text-right">Natija</TableHead>
+                      <TableHead className="text-right">Amallar</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -975,6 +1030,23 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                         <TableCell>{result.students.group_name}</TableCell>
                         <TableCell className="text-right">
                           <span className="text-lg font-bold text-primary">{result.score}</span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingResult({
+                                id: result.id,
+                                studentName: result.students.name,
+                                currentScore: result.score
+                              });
+                              setEditScore(result.score.toString());
+                              setEditReason('');
+                            }}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -989,6 +1061,56 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           <ExamAnalysis />
         </TabsContent>
       </Tabs>
+
+      {/* Edit Result Dialog */}
+      <Dialog open={!!editingResult} onOpenChange={(open) => !open && setEditingResult(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Natijani tahrirlash</DialogTitle>
+            <DialogDescription>
+              {editingResult?.studentName} - Joriy ball: {editingResult?.currentScore}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="editScore">Yangi ball</Label>
+              <Input
+                id="editScore"
+                type="number"
+                step="0.1"
+                value={editScore}
+                onChange={(e) => setEditScore(e.target.value)}
+                placeholder="Ball kiriting"
+              />
+            </div>
+            <div>
+              <Label htmlFor="editReason">Izoh (majburiy)</Label>
+              <Input
+                id="editReason"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="O'zgartirish sababini kiriting"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={updateExamResult} className="flex-1">
+                Saqlash
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setEditingResult(null);
+                  setEditScore('');
+                  setEditReason('');
+                }} 
+                className="flex-1"
+              >
+                Bekor qilish
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
