@@ -473,6 +473,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         teacherId={teacherId}
         onBack={handleBackToGroups}
         onStatsUpdate={onStatsUpdate}
+        availableGroups={groups.map(g => ({ id: g.id, name: g.name }))}
+        onGroupChange={(newGroupName) => setSelectedGroup(newGroupName)}
       />
     );
   }

@@ -5,8 +5,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, Archive, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, Archive, Trash2, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,12 +47,16 @@ interface GroupDetailsProps {
   teacherId: string;
   onBack: () => void;
   onStatsUpdate: () => Promise<void>;
+  availableGroups?: Array<{id: string; name: string}>;
+  onGroupChange?: (groupName: string) => void;
 }
 const GroupDetails: React.FC<GroupDetailsProps> = ({
   groupName,
   teacherId,
   onBack,
-  onStatsUpdate
+  onStatsUpdate,
+  availableGroups = [],
+  onGroupChange
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
@@ -688,9 +693,33 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           <Button onClick={onBack} variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <div>
-            <h2 className="text-2xl font-bold">{groupName}</h2>
-            <p className="text-muted-foreground">{students.length} o'quvchi</p>
+          <div className="flex items-center gap-4">
+            {availableGroups && availableGroups.length > 1 && onGroupChange ? (
+              <Select value={groupName} onValueChange={onGroupChange}>
+                <SelectTrigger className="w-[250px] h-auto border-2 border-gray-200 hover:border-gray-300">
+                  <div className="flex flex-col items-start py-1">
+                    <span className="text-xs text-gray-500">To'garak</span>
+                    <SelectValue>
+                      <span className="text-xl font-bold">{groupName}</span>
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.name} className="cursor-pointer">
+                      <span className="font-medium">{group.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div>
+                <h2 className="text-2xl font-bold">{groupName}</h2>
+              </div>
+            )}
+            <div className="text-sm text-gray-600">
+              {students.length} o'quvchi
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
