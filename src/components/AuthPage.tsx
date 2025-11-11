@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, User, School, Mail, Phone } from 'lucide-react';
+import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage: React.FC = () => {
@@ -17,7 +17,9 @@ const AuthPage: React.FC = () => {
     password: '',
     name: '',
     school: '',
-    phone: ''
+    phone: '',
+    institution_name: '',
+    institution_address: ''
   });
   const { toast } = useToast();
 
@@ -53,7 +55,7 @@ const AuthPage: React.FC = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.school) {
+    if (!formData.name || !formData.school || !formData.institution_name) {
       toast({
         title: "Ma'lumot yetishmayapti",
         description: "Iltimos, barcha majburiy maydonlarni to'ldiring.",
@@ -72,7 +74,9 @@ const AuthPage: React.FC = () => {
           data: {
             name: formData.name,
             school: formData.school,
-            phone: formData.phone
+            phone: formData.phone,
+            institution_name: formData.institution_name,
+            institution_address: formData.institution_address
           }
         }
       });
@@ -81,8 +85,8 @@ const AuthPage: React.FC = () => {
 
       if (data.user) {
         toast({
-          title: "Hisob yaratildi",
-          description: "TeachPro ga xush kelibsiz! Hisobingiz muvaffaqiyatli yaratildi.",
+          title: "Ariza yuborildi",
+          description: "Hisobingiz administratorlar tomonidan ko'rib chiqiladi. Bu 24-48 soat ichida amalga oshiriladi.",
         });
       }
     } catch (error: any) {
@@ -179,6 +183,37 @@ const AuthPage: React.FC = () => {
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+998 (90) 123-45-67"
+                    className="pl-10 border-gray-300 focus:border-black focus:ring-black"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="institution_name" className="text-black">Muassasa nomi *</Label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    id="institution_name"
+                    type="text"
+                    value={formData.institution_name}
+                    onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
+                    placeholder="Ta'lim muassasasi nomi"
+                    className="pl-10 border-gray-300 focus:border-black focus:ring-black"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="institution_address" className="text-black">Muassasa manzili</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Input
+                    id="institution_address"
+                    type="text"
+                    value={formData.institution_address}
+                    onChange={(e) => setFormData({ ...formData, institution_address: e.target.value })}
+                    placeholder="Shahar, ko'cha, bino"
                     className="pl-10 border-gray-300 focus:border-black focus:ring-black"
                   />
                 </div>

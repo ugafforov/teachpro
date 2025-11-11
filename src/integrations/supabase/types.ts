@@ -798,30 +798,80 @@ export type Database = {
       }
       teachers: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           email: string
           id: string
+          institution_address: string | null
+          institution_name: string | null
           name: string
           phone: string | null
+          rejection_reason: string | null
+          requested_at: string | null
           school: string | null
           user_id: string
+          verification_status: Database["public"]["Enums"]["verification_status"]
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           email: string
           id?: string
+          institution_address?: string | null
+          institution_name?: string | null
           name: string
           phone?: string | null
+          rejection_reason?: string | null
+          requested_at?: string | null
           school?: string | null
           user_id: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           email?: string
           id?: string
+          institution_address?: string | null
+          institution_name?: string | null
           name?: string
           phone?: string | null
+          rejection_reason?: string | null
+          requested_at?: string | null
           school?: string | null
+          user_id?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teachers_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: []
@@ -831,6 +881,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_teacher_approved: { Args: { _user_id: string }; Returns: boolean }
       restore_student_full: {
         Args: { p_deleted_student_id: string }
         Returns: string
@@ -841,7 +899,8 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "teacher"
+      verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -968,6 +1027,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "teacher"],
+      verification_status: ["pending", "approved", "rejected"],
+    },
   },
 } as const
