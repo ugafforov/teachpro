@@ -11,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { examSchema, examResultSchema, formatValidationError } from '@/lib/validations';
+import { z } from 'zod';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -173,18 +175,27 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   };
 
   const createExam = async () => {
-    if (!selectedGroup || !examDate || (!selectedExamType && !customExamName)) {
-      toast({
-        title: 'Xato',
-        description: 'Barcha maydonlarni to\'ldiring',
-        variant: 'destructive',
+    const examName = customExamName || examTypes.find(t => t.id === selectedExamType)?.name || '';
+    
+    // Validate with zod
+    try {
+      examSchema.parse({
+        exam_name: examName,
+        exam_date: examDate,
+        group_id: selectedGroup
       });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: 'Validatsiya xatosi',
+          description: formatValidationError(error),
+          variant: 'destructive',
+        });
+      }
       return;
     }
 
     try {
-      const examName = customExamName || examTypes.find(t => t.id === selectedExamType)?.name || '';
-      
       // Save custom exam type if entered
       let examTypeId = selectedExamType;
       if (customExamName) {

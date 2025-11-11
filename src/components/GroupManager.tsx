@@ -9,6 +9,8 @@ import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
+import { groupSchema, formatValidationError } from '@/lib/validations';
+import { z } from 'zod';
 
 interface Group {
   id: string;
@@ -156,8 +158,21 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   };
 
   const addGroup = async () => {
-    if (!newGroup.name.trim()) {
-      setNameError('Guruh nomi kiritilishi shart');
+    // Validate with zod
+    try {
+      groupSchema.parse({
+        name: newGroup.name,
+        description: newGroup.description || ''
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        setNameError(formatValidationError(error));
+        toast({
+          title: "Validatsiya xatosi",
+          description: formatValidationError(error),
+          variant: "destructive"
+        });
+      }
       return;
     }
 

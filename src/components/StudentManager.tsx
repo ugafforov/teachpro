@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
+import { studentSchema, formatValidationError } from '@/lib/validations';
+import { z } from 'zod';
 interface Student {
   id: string;
   name: string;
@@ -106,14 +108,34 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     setFilteredStudents(filtered);
   };
   const addStudent = async () => {
-    if (!newStudent.name.trim() || !newStudent.group_name) {
+    if (!newStudent.group_name) {
       toast({
         title: "Ma'lumot yetishmayapti",
-        description: "O'quvchi nomi va guruhni tanlashingiz shart",
+        description: "Guruhni tanlashingiz shart",
         variant: "destructive"
       });
       return;
     }
+
+    // Validate student data with zod
+    try {
+      studentSchema.parse({
+        name: newStudent.name,
+        student_id: newStudent.student_id || '',
+        email: newStudent.email || '',
+        phone: newStudent.phone || ''
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validatsiya xatosi",
+          description: formatValidationError(error),
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
     try {
       const {
         error

@@ -12,6 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import { studentSchema, formatValidationError } from '@/lib/validations';
+import { z } from 'zod';
 interface Student {
   id: string;
   name: string;
@@ -238,9 +240,25 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
   const addStudent = async () => {
-    if (!newStudent.name.trim()) {
+    // Validate student data with zod
+    try {
+      studentSchema.parse({
+        name: newStudent.name,
+        student_id: newStudent.student_id || '',
+        email: newStudent.email || '',
+        phone: newStudent.phone || ''
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validatsiya xatosi",
+          description: formatValidationError(error),
+          variant: "destructive"
+        });
+      }
       return;
     }
+
     try {
       const {
         error
