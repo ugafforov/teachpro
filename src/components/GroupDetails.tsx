@@ -696,13 +696,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           <div className="flex items-center gap-4">
             {availableGroups && availableGroups.length > 1 && onGroupChange ? (
               <Select value={groupName} onValueChange={onGroupChange}>
-                <SelectTrigger className="w-[250px] h-auto border-2 border-gray-200 hover:border-gray-300">
-                  <div className="flex flex-col items-start py-1">
-                    <span className="text-xs text-gray-500">To'garak</span>
-                    <SelectValue>
-                      <span className="text-xl font-bold">{groupName}</span>
-                    </SelectValue>
-                  </div>
+                <SelectTrigger className="w-[200px] border-0 hover:bg-gray-50 p-0 h-auto">
+                  <SelectValue>
+                    <h2 className="text-2xl font-bold">{groupName}</h2>
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {availableGroups.map((group) => (
