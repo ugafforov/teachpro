@@ -5,16 +5,21 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar, RotateCcw, Star, AlertTriangle, Archive, Trash2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, Trash2, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
+import { format, parseISO } from 'date-fns';
+import { uz } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 interface Student {
   id: string;
   name: string;
@@ -78,6 +83,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [confirmArchive, setConfirmArchive] = useState<{id: string, name: string} | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{id: string, name: string} | null>(null);
   const [dailyScores, setDailyScores] = useState<Record<string, {baho?: {points: number, id: string}, mukofot?: {points: number, id: string}, jarima?: {points: number, id: string}}>>({});
+  const [attendanceDates, setAttendanceDates] = useState<Date[]>([]);
   const [newStudent, setNewStudent] = useState({
     name: '',
     student_id: '',
@@ -90,6 +96,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   useEffect(() => {
     fetchStudents();
     fetchAttendanceForDate(selectedDate);
+    fetchAttendanceDates();
   }, [groupName, teacherId, selectedDate]);
 
   useEffect(() => {
@@ -97,6 +104,38 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       fetchDailyScores(selectedDate);
     }
   }, [students.length, selectedDate]);
+
+  const fetchAttendanceDates = async () => {
+    try {
+      const { data: studentsList, error: studentsError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('group_name', groupName)
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true);
+
+      if (studentsError) throw studentsError;
+
+      const studentIds = studentsList?.map(s => s.id) || [];
+      if (studentIds.length === 0) {
+        setAttendanceDates([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('date')
+        .in('student_id', studentIds)
+        .eq('teacher_id', teacherId);
+
+      if (error) throw error;
+
+      const uniqueDates = [...new Set(data?.map(record => record.date) || [])];
+      setAttendanceDates(uniqueDates.map(date => parseISO(date)));
+    } catch (error) {
+      console.error('Error fetching attendance dates:', error);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -787,10 +826,39 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-40" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(parseISO(selectedDate), "PPP", { locale: uz }) : <span>Sana tanlang</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseISO(selectedDate)}
+                    onSelect={(date) => {
+                      if (date) {
+                        setSelectedDate(format(date, 'yyyy-MM-dd'));
+                      }
+                    }}
+                    modifiers={{
+                      hasAttendance: attendanceDates
+                    }}
+                    modifiersClassNames={{
+                      hasAttendance: "bg-green-500 text-white hover:bg-green-600 font-bold rounded-md"
+                    }}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
               <Button onClick={markAllAsPresent} variant="outline" size="sm" className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
                 Barchani kelgan deb belgilash
