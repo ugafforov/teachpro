@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,11 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2 } from 'lucide-react';
+import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2, Search, Calendar, Users, BookOpen, Filter } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { examSchema, examResultSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
+import { Badge } from '@/components/ui/badge';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -79,6 +80,12 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [editingResult, setEditingResult] = useState<{id: string, studentName: string, currentScore: number} | null>(null);
   const [editScore, setEditScore] = useState('');
   const [editReason, setEditReason] = useState('');
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGroup, setFilterGroup] = useState<string>('all');
+  const [filterExamType, setFilterExamType] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all'); // all, today, week, month, custom
 
   useEffect(() => {
     fetchGroups();
@@ -97,6 +104,90 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       fetchStudents(selectedGroup);
     }
   }, [showResultsDialog, selectedGroup]);
+
+  // Filtered and grouped exams
+  const filteredExams = useMemo(() => {
+    return exams.filter(exam => {
+      // Search filter
+      if (searchQuery && !exam.exam_name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      // Group filter
+      if (filterGroup !== 'all' && exam.group_id !== filterGroup) {
+        return false;
+      }
+      
+      // Exam type filter
+      if (filterExamType !== 'all' && exam.exam_name !== filterExamType) {
+        return false;
+      }
+      
+      // Date filter
+      const examDate = new Date(exam.exam_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (dateFilter === 'today') {
+        const examDateOnly = new Date(examDate);
+        examDateOnly.setHours(0, 0, 0, 0);
+        return examDateOnly.getTime() === today.getTime();
+      } else if (dateFilter === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return examDate >= weekAgo;
+      } else if (dateFilter === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        return examDate >= monthAgo;
+      }
+      
+      return true;
+    });
+  }, [exams, searchQuery, filterGroup, filterExamType, dateFilter]);
+
+  // Group exams by month
+  const groupedExams = useMemo(() => {
+    const groups: Record<string, Exam[]> = {};
+    
+    filteredExams.forEach(exam => {
+      const date = new Date(exam.exam_date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!groups[monthKey]) {
+        groups[monthKey] = [];
+      }
+      groups[monthKey].push(exam);
+    });
+    
+    // Sort by date descending
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+    });
+    
+    return groups;
+  }, [filteredExams]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const total = exams.length;
+    const thisMonth = exams.filter(e => {
+      const date = new Date(e.exam_date);
+      const now = new Date();
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }).length;
+    
+    const uniqueTypes = new Set(exams.map(e => e.exam_name)).size;
+    const groupsWithExams = new Set(exams.map(e => e.group_id)).size;
+    
+    return { total, thisMonth, uniqueTypes, groupsWithExams };
+  }, [exams]);
+
+  const getMonthName = (monthKey: string) => {
+    const [year, month] = monthKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1);
+    return date.toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' });
+  };
 
   const fetchGroups = async () => {
     try {
@@ -838,6 +929,128 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         </Dialog>
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Jami imtihonlar</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Barcha imtihonlar</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Bu oy</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.thisMonth}</div>
+            <p className="text-xs text-muted-foreground">Joriy oyda o'tkazilgan</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Imtihon turlari</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.uniqueTypes}</div>
+            <p className="text-xs text-muted-foreground">Turli imtihon turlari</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Guruhlar</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.groupsWithExams}</div>
+            <p className="text-xs text-muted-foreground">Imtihonlar o'tkazilgan</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters Section */}
+      <Card className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Imtihon nomini qidiring..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          
+          <Select value={filterGroup} onValueChange={setFilterGroup}>
+            <SelectTrigger>
+              <SelectValue placeholder="Guruh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha guruhlar</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterExamType} onValueChange={setFilterExamType}>
+            <SelectTrigger>
+              <SelectValue placeholder="Imtihon turi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha turlar</SelectItem>
+              {Array.from(new Set(exams.map(e => e.exam_name))).map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Sana" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha sanalar</SelectItem>
+              <SelectItem value="today">Bugun</SelectItem>
+              <SelectItem value="week">So'nggi hafta</SelectItem>
+              <SelectItem value="month">So'nggi oy</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {(searchQuery || filterGroup !== 'all' || filterExamType !== 'all' || dateFilter !== 'all') && (
+          <div className="mt-3 flex items-center gap-2">
+            <Badge variant="secondary">{filteredExams.length} ta natija topildi</Badge>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                setSearchQuery('');
+                setFilterGroup('all');
+                setFilterExamType('all');
+                setDateFilter('all');
+              }}
+            >
+              Filterni tozalash
+            </Button>
+          </div>
+        )}
+      </Card>
+
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -917,63 +1130,85 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="space-y-4">
-          {exams.length === 0 ? (
+        <TabsContent value="list" className="space-y-6">
+          {filteredExams.length === 0 ? (
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground">Hozircha imtihonlar yo'q</p>
+              <p className="text-muted-foreground">
+                {exams.length === 0 
+                  ? "Hozircha imtihonlar yo'q" 
+                  : "Hech qanday natija topilmadi. Filterni o'zgartiring."}
+              </p>
             </Card>
           ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Imtihon nomi</TableHead>
-                    <TableHead>Sana</TableHead>
-                    <TableHead>Guruh</TableHead>
-                    <TableHead className="text-right">Amallar</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {exams.map((exam) => (
-                    <TableRow 
-                      key={exam.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => fetchExamDetails(exam.id)}
-                    >
-                      <TableCell className="font-medium">{exam.exam_name}</TableCell>
-                      <TableCell>{new Date(exam.exam_date).toLocaleDateString('uz-UZ')}</TableCell>
-                      <TableCell>
-                        {groups.find(g => g.id === exam.group_id)?.name || 'Noma\'lum'}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setArchiveExamId(exam.id);
-                          }}
-                        >
-                          <Archive className="w-4 h-4 mr-2" />
-                          Arxivlash
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteExamId(exam.id);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          O'chirish
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+            Object.keys(groupedExams)
+              .sort((a, b) => b.localeCompare(a))
+              .map((monthKey) => (
+                <div key={monthKey} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{getMonthName(monthKey)}</h3>
+                    <Badge variant="secondary">{groupedExams[monthKey].length} ta</Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupedExams[monthKey].map((exam) => (
+                      <Card 
+                        key={exam.id} 
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => fetchExamDetails(exam.id)}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <CardTitle className="text-base line-clamp-2">{exam.exam_name}</CardTitle>
+                              <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(exam.exam_date).toLocaleDateString('uz-UZ', { 
+                                  day: 'numeric',
+                                  month: 'short'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              {groups.find(g => g.id === exam.group_id)?.name || 'Noma\'lum'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setArchiveExamId(exam.id);
+                              }}
+                            >
+                              <Archive className="w-3 h-3 mr-1" />
+                              Arxiv
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteExamId(exam.id);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              O'chirish
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))
           )}
         </TabsContent>
 
