@@ -253,10 +253,10 @@ const AuthPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-black"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-black p-1"
                 aria-label={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
               </button>
             </div>
           </div>
