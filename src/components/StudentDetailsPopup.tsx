@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Trophy, Calendar, Gift, AlertTriangle, TrendingUp, Users, Clock, Award, User, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDateUz } from '@/lib/utils';
 
 interface StudentDetailsPopupProps {
   studentId: string;
@@ -382,7 +383,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                         {reward.points > 0 ? '+' : ''}{reward.points}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(reward.created_at).toLocaleDateString('uz-UZ')}
+                        {formatDateUz(reward.created_at)}
                       </span>
                     </div>
                   </div>

@@ -212,7 +212,9 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
       const monthlyStats: { [key: string]: { classes: Set<string>, present: number } } = {};
 
       monthlyAttendance?.forEach(record => {
-        const month = new Date(record.date).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' });
+        const date = new Date(record.date);
+        const uzbekMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+        const month = `${uzbekMonths[date.getMonth()]}, ${date.getFullYear()}`;
         
         if (!monthlyStats[month]) {
           monthlyStats[month] = { classes: new Set(), present: 0 };

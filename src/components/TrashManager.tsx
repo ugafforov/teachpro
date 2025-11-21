@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDateUz } from '@/lib/utils';
 
 interface DeletedStudent {
   id: string;
@@ -477,7 +478,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span>{student.group_name}</span>
                           {student.student_id && <span>ID: {student.student_id}</span>}
-                          <span>O'chirilgan: {new Date(student.deleted_at).toLocaleDateString()}</span>
+                          <span>O'chirilgan: {formatDateUz(student.deleted_at)}</span>
                         </div>
                       </div>
                     </div>
@@ -537,7 +538,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
                         <p className="font-medium">{group.name}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           {group.description && <span>{group.description}</span>}
-                          <span>O'chirilgan: {new Date(group.deleted_at).toLocaleDateString()}</span>
+                          <span>O'chirilgan: {formatDateUz(group.deleted_at)}</span>
                         </div>
                       </div>
                     </div>
@@ -597,8 +598,8 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
                         <p className="font-medium">{exam.exam_name}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span>{exam.group_name}</span>
-                          <span>{new Date(exam.exam_date).toLocaleDateString('uz-UZ')}</span>
-                          <span>O'chirilgan: {new Date(exam.deleted_at).toLocaleDateString()}</span>
+                          <span>{formatDateUz(exam.exam_date)}</span>
+                          <span>O'chirilgan: {formatDateUz(exam.deleted_at)}</span>
                         </div>
                       </div>
                     </div>

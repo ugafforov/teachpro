@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Calendar, Users, Check, X, Clock, Download, Gift, AlertTriangle, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import { formatDateUz } from '@/lib/utils';
 
 interface Student {
   id: string;
@@ -436,12 +437,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
             {selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `Guruh: ${selectedGroup}`}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {new Date(selectedDate).toLocaleDateString('uz-UZ', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+            {formatDateUz(selectedDate)}
           </p>
         </div>
         

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Clock, Building2, Mail, Phone, School } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { formatDateUz } from '@/lib/utils';
 
 interface PendingApprovalProps {
   teacher: {
@@ -107,13 +108,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
           <div className="p-3 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 uppercase mb-1">Yuborilgan vaqt</p>
             <p className="text-sm font-medium text-gray-900">
-              {new Date(teacher.requested_at).toLocaleDateString('uz-UZ', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+              {formatDateUz(teacher.requested_at)}
             </p>
           </div>
         </div>

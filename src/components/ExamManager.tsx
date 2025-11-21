@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { examSchema, examResultSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
+import { formatDateUz } from '@/lib/utils';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -185,8 +186,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const getMonthName = (monthKey: string) => {
     const [year, month] = monthKey.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' });
+    const uzbekMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+    return `${uzbekMonths[parseInt(month) - 1]}, ${year}`;
   };
 
   const fetchGroups = async () => {
@@ -767,11 +768,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                       <TableHead className="min-w-[120px]">Guruh</TableHead>
                       {allDates.map((date, idx) => (
                         <TableHead key={idx} className="text-center min-w-[100px]">
-                          {new Date(date).toLocaleDateString('uz-UZ', { 
-                            day: '2-digit', 
-                            month: 'short',
-                            year: '2-digit'
-                          })}
+                          {formatDateUz(date, 'short')}
                         </TableHead>
                       ))}
                       <TableHead className="text-center min-w-[80px]">O'rtacha</TableHead>
@@ -1162,10 +1159,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                               <CardTitle className="text-base line-clamp-2">{exam.exam_name}</CardTitle>
                               <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                                 <Calendar className="h-3 w-3" />
-                                {new Date(exam.exam_date).toLocaleDateString('uz-UZ', { 
-                                  day: 'numeric',
-                                  month: 'short'
-                                })}
+                                {formatDateUz(exam.exam_date, 'short')}
                               </div>
                             </div>
                           </div>
