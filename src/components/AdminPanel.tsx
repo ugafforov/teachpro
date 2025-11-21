@@ -143,7 +143,7 @@ const AdminPanel: React.FC = () => {
   const rejectedTeachers = teachers.filter(t => t.verification_status === 'rejected');
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <main className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
         <p className="text-gray-600">O'qituvchilarni tasdiqlash va boshqarish</p>
@@ -306,7 +306,7 @@ const AdminPanel: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 };
 

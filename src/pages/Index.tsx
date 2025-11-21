@@ -151,7 +151,7 @@ const Index = () => {
   // Show rejection message if teacher was rejected
   if (teacher.verification_status === 'rejected') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
+      <main className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
           <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <XCircle className="w-8 h-8 text-red-600" />
@@ -170,7 +170,7 @@ const Index = () => {
             Chiqish
           </Button>
         </div>
-      </div>
+      </main>
     );
   }
 

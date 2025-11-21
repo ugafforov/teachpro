@@ -27,7 +27,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-100 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl bg-white border border-gray-300 shadow-lg rounded-2xl p-8 animate-fade-in">
         <div className="text-center mb-6">
           <div className="mx-auto w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-4">
@@ -128,7 +128,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
           </Button>
         </div>
       </Card>
-    </div>
+    </main>
   );
 };
 
