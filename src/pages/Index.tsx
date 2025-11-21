@@ -9,7 +9,6 @@ import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
-import { AIChatInterface } from '@/components/AIChatInterface';
 
 interface Teacher {
   id: string;
@@ -176,14 +175,7 @@ const Index = () => {
   }
 
   // Show dashboard for approved teachers
-  return (
-    <div>
-      <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />
-      <div className="container mx-auto px-4 py-8">
-        <AIChatInterface />
-      </div>
-    </div>
-  );
+  return <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />;
 };
 
 export default Index;
