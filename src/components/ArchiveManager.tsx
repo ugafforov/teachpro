@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, BookOpen, Search, RotateCcw, Trash2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDateUz } from '@/lib/utils';
 
 interface ArchivedStudent {
   id: string;
@@ -387,7 +388,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-xs text-muted-foreground">
-                    {new Date(student.archived_at).toLocaleDateString('uz-UZ')}
+                    {formatDateUz(student.archived_at)}
                   </span>
                   <div className="flex space-x-2">
                     <Button
@@ -447,7 +448,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-xs text-muted-foreground">
-                    {new Date(group.archived_at).toLocaleDateString('uz-UZ')}
+                    {formatDateUz(group.archived_at)}
                   </span>
                   <div className="flex space-x-2">
                     <Button
@@ -500,7 +501,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   <div className="flex-1">
                     <h3 className="font-semibold">{exam.exam_name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(exam.exam_date).toLocaleDateString('uz-UZ')}
+                      {formatDateUz(exam.exam_date)}
                     </p>
                     <Badge variant="secondary" className="text-xs">
                       {exam.group_name}
@@ -510,7 +511,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-xs text-muted-foreground">
-                    Arxivlandi: {new Date(exam.archived_at).toLocaleDateString('uz-UZ')}
+                    Arxivlandi: {formatDateUz(exam.archived_at)}
                   </span>
                   <div className="flex space-x-2">
                     <Button

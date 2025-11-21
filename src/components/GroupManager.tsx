@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import GroupDetails from './GroupDetails';
 import { groupSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
+import { formatDateUz } from '@/lib/utils';
 
 interface Group {
   id: string;
@@ -616,7 +617,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     </div>
 
                     <div className="text-xs text-gray-500">
-                      {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                      {formatDateUz(group.created_at)}
                     </div>
                   </div>
                 </div>
@@ -686,7 +687,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 </div>
                 
                 <div className="text-sm text-gray-500">
-                  {new Date(group.created_at).toLocaleDateString('uz-UZ')}
+                  {formatDateUz(group.created_at)}
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">

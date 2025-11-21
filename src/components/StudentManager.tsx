@@ -12,6 +12,7 @@ import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
+import { formatDateUz } from '@/lib/utils';
 interface Student {
   id: string;
   name: string;
@@ -381,7 +382,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
             <div className="flex items-center justify-between pt-2 border-t">
               <span className="text-xs text-muted-foreground">
-                {new Date(student.created_at).toLocaleDateString('uz-UZ')}
+                {formatDateUz(student.created_at)}
               </span>
               <div className="flex items-center space-x-1">
                 <Button size="sm" variant="ghost" onClick={() => setShowRewardDialog(student.id)} title="Mukofot/Jarima berish">

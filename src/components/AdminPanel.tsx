@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle, XCircle, Clock, Building2, Mail, Phone, School, MapPin, Calendar } from 'lucide-react';
+import { formatDateUz } from '@/lib/utils';
 
 interface Teacher {
   id: string;
@@ -192,7 +193,7 @@ const AdminPanel: React.FC = () => {
                   </div>
                   <div className="text-sm text-gray-500">
                     <Calendar className="w-4 h-4 inline mr-1" />
-                    {new Date(teacher.requested_at).toLocaleDateString('uz-UZ')}
+                    {formatDateUz(teacher.requested_at)}
                   </div>
                 </div>
 
