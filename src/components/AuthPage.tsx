@@ -101,7 +101,7 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <main className="min-h-screen bg-white flex items-center justify-center p-4">
       <Card className="w-full max-w-lg bg-white border border-gray-300 shadow-lg rounded-2xl p-8 animate-fade-in">
         <div className="text-center mb-8">
           <div className="mx-auto w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4">
@@ -273,7 +273,7 @@ const AuthPage: React.FC = () => {
           </Button>
         </form>
       </Card>
-    </div>
+    </main>
   );
 };
 
