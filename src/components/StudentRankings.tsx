@@ -95,16 +95,22 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      const { data: attendance, error: attendanceError } = await supabase
+      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations
+      const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
         .select('student_id, status')
-        .eq('teacher_id', teacherId)
-        .in('student_id', studentIds);
+        .eq('teacher_id', teacherId);
 
       if (attendanceError) throw attendanceError;
 
+      // Create a Set of student IDs for faster lookup
+      const studentIdSet = new Set(studentIds);
+
+      // Filter attendance to only include selected students
+      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
+
       const studentStats = students.map(student => {
-        const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
+        const studentAttendance = attendance.filter(a => a.student_id === student.id);
         const totalClasses = studentAttendance.length;
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
@@ -169,27 +175,32 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Get attendance points
-      const { data: attendance, error: attendanceError } = await supabase
+      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations
+      const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
         .select('student_id, status')
-        .eq('teacher_id', teacherId)
-        .in('student_id', studentIds);
+        .eq('teacher_id', teacherId);
 
       if (attendanceError) throw attendanceError;
 
-      // Get reward/penalty points with type
-      const { data: rewards, error: rewardsError } = await supabase
+      // Fetch ALL reward/penalty records for the teacher
+      const { data: allRewards, error: rewardsError } = await supabase
         .from('reward_penalty_history')
         .select('student_id, points, type')
-        .eq('teacher_id', teacherId)
-        .in('student_id', studentIds);
+        .eq('teacher_id', teacherId);
 
       if (rewardsError) throw rewardsError;
 
+      // Create a Set of student IDs for faster lookup
+      const studentIdSet = new Set(studentIds);
+
+      // Filter attendance and rewards to only include selected students
+      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
+      const rewards = allRewards?.filter(r => studentIdSet.has(r.student_id)) || [];
+
       const formattedScores = students.map((student, index) => {
         // Calculate attendance points: present = +1, late = +0.5, absent = 0
-        const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
+        const studentAttendance = attendance.filter(a => a.student_id === student.id);
         const attendancePoints = studentAttendance.reduce((total, record) => {
           if (record.status === 'present') return total + 1;
           if (record.status === 'late') return total + 0.5;
@@ -197,13 +208,13 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         }, 0);
 
         // Calculate reward/penalty points based on type
-        const studentRewards = rewards?.filter(r => r.student_id === student.id) || [];
+        const studentRewards = rewards.filter(r => r.student_id === student.id);
         const mukofotPoints = studentRewards
           .filter(r => r.type === 'Mukofot')
-          .reduce((total, r) => total + (r.points || 0), 0);
+          .reduce((total, r) => total + Number(r.points || 0), 0);
         const jarimaPoints = studentRewards
           .filter(r => r.type === 'Jarima')
-          .reduce((total, r) => total + (r.points || 0), 0);
+          .reduce((total, r) => total + Number(r.points || 0), 0);
         
         const rewardPenaltyPoints = mukofotPoints - jarimaPoints;
         const totalScore = rewardPenaltyPoints + attendancePoints;
