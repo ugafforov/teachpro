@@ -118,7 +118,8 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
           .eq('teacher_id', teacherId)
           .eq('students.group_name', group.name)
           .eq('students.is_active', true)
-          .gte('date', startDate);
+          .gte('date', startDate)
+          .range(0, 10000);
 
         if (attendanceError) throw attendanceError;
 
