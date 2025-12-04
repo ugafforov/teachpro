@@ -151,21 +151,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         const {
           data: scoresData,
           error: scoresError
-        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId);
+        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
         if (scoresError) throw scoresError;
 
         // Fetch reward/penalty history to get totals by type
         const {
           data: historyData,
           error: historyError
-        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId);
+        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
         if (historyError) throw historyError;
 
         // Fetch attendance records to calculate attendance points
         const {
           data: attendanceData,
           error: attendanceError
-        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId);
+        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
         if (attendanceError) throw attendanceError;
 
         // Merge all data with student data

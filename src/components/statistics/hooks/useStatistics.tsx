@@ -96,7 +96,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         `)
         .eq('teacher_id', teacherId)
         .eq('students.is_active', true)
-        .gte('date', startDate);
+        .gte('date', startDate)
+        .range(0, 10000);
 
       if (selectedGroup !== 'all') {
         attendanceQuery = attendanceQuery.eq('students.group_name', selectedGroup);
@@ -121,7 +122,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
           .eq('teacher_id', teacherId)
           .eq('students.is_active', true)
           .in('status', ['present', 'late']) // Include both present and late as attendance
-          .gte('date', startDate);
+          .gte('date', startDate)
+          .range(0, 10000);
 
         if (selectedGroup !== 'all') {
           presentQuery = presentQuery.eq('students.group_name', selectedGroup);
@@ -198,7 +200,8 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         `)
         .eq('teacher_id', teacherId)
         .eq('students.is_active', true)
-        .gte('date', startDate);
+        .gte('date', startDate)
+        .range(0, 10000);
 
       if (selectedGroup !== 'all') {
         monthlyQuery = monthlyQuery.eq('students.group_name', selectedGroup);

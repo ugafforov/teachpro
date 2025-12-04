@@ -76,7 +76,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             students!inner(is_active)
           `)
           .eq('teacher_id', teacherId)
-          .eq('students.is_active', true);
+          .eq('students.is_active', true)
+          .range(0, 10000);
 
         if (attendanceError) throw attendanceError;
 

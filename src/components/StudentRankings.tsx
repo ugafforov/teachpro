@@ -95,11 +95,12 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations
+      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations and default 1000 row limit
       const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
         .select('student_id, status')
-        .eq('teacher_id', teacherId);
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
 
       if (attendanceError) throw attendanceError;
 
@@ -175,11 +176,12 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations
+      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations and default 1000 row limit
       const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
         .select('student_id, status')
-        .eq('teacher_id', teacherId);
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
 
       if (attendanceError) throw attendanceError;
 
@@ -187,7 +189,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       const { data: allRewards, error: rewardsError } = await supabase
         .from('reward_penalty_history')
         .select('student_id, points, type')
-        .eq('teacher_id', teacherId);
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
 
       if (rewardsError) throw rewardsError;
 
