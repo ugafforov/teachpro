@@ -95,10 +95,10 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations and default 1000 row limit
+      // Fetch ALL attendance records for the teacher with date to calculate unique class days per group
       const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('student_id, status')
+        .select('student_id, status, date')
         .eq('teacher_id', teacherId)
         .range(0, 10000);
 
@@ -110,12 +110,30 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       // Filter attendance to only include selected students
       const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
 
+      // Calculate unique class dates per group
+      const groupClassDates = new Map<string, Set<string>>();
+      students.forEach(student => {
+        if (!groupClassDates.has(student.group_name)) {
+          groupClassDates.set(student.group_name, new Set());
+        }
+      });
+
+      // Collect all unique dates per group from attendance records
+      attendance.forEach(record => {
+        const student = students.find(s => s.id === record.student_id);
+        if (student) {
+          groupClassDates.get(student.group_name)?.add(record.date);
+        }
+      });
+
       const studentStats = students.map(student => {
         const studentAttendance = attendance.filter(a => a.student_id === student.id);
-        const totalClasses = studentAttendance.length;
+        // Use group's total unique class dates, not individual student's attendance count
+        const totalClasses = groupClassDates.get(student.group_name)?.size || 0;
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
-        const absentCount = studentAttendance.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length;
+        // Calculate absent as total classes minus attended classes
+        const absentCount = totalClasses - presentCount - lateCount;
         
         // Calculate attendance percentage: present and late both count as 100%, absent as 0%
         const attendedClasses = presentCount + lateCount;
@@ -176,10 +194,10 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher to avoid 'in' clause limitations and default 1000 row limit
+      // Fetch ALL attendance records for the teacher with date to calculate properly
       const { data: allAttendance, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('student_id, status')
+        .select('student_id, status, date')
         .eq('teacher_id', teacherId)
         .range(0, 10000);
 
