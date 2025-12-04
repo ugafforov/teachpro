@@ -77,7 +77,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       
       let studentsQuery = supabase
         .from('students')
-        .select('id, name, group_name')
+        .select('id, name, group_name, created_at')
         .eq('teacher_id', teacherId)
         .eq('is_active', true);
 
@@ -128,8 +128,17 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentStats = students.map(student => {
         const studentAttendance = attendance.filter(a => a.student_id === student.id);
-        // Use group's total unique class dates, not individual student's attendance count
-        const totalClasses = groupClassDates.get(student.group_name)?.size || 0;
+        
+        // Get student's creation date (when they joined)
+        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
+        
+        // Calculate total classes for this student - only count dates on or after they joined
+        const groupDates = groupClassDates.get(student.group_name);
+        const relevantClassDates = groupDates 
+          ? Array.from(groupDates).filter(date => date >= studentCreatedAt)
+          : [];
+        const totalClasses = relevantClassDates.length;
+        
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
         // Calculate absent as total classes minus attended classes
@@ -175,7 +184,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
     try {
       let studentsQuery = supabase
         .from('students')
-        .select('id, name, group_name')
+        .select('id, name, group_name, created_at')
         .eq('teacher_id', teacherId)
         .eq('is_active', true);
 
