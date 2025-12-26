@@ -137,7 +137,8 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
             record.status === 'late'
           ).length;
           const absentRecords = attendanceData.filter(record => 
-            record.status === 'absent'
+            record.status === 'absent_with_reason' || 
+            record.status === 'absent_without_reason'
           ).length;
 
           const attendancePercentage = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;

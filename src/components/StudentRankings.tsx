@@ -229,8 +229,14 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       const rewards = allRewards?.filter(r => studentIdSet.has(r.student_id)) || [];
 
       const formattedScores = students.map((student, index) => {
+        // Get student's creation date (when they joined)
+        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
+        
         // Calculate attendance points: present = +1, late = +0.5, absent = 0
-        const studentAttendance = attendance.filter(a => a.student_id === student.id);
+        // Only count attendance records on or after the student joined
+        const studentAttendance = attendance.filter(a => 
+          a.student_id === student.id && a.date >= studentCreatedAt
+        );
         const attendancePoints = studentAttendance.reduce((total, record) => {
           if (record.status === 'present') return total + 1;
           if (record.status === 'late') return total + 0.5;
