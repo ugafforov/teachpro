@@ -86,22 +86,53 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         averageAttendance = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
       }
 
-      // Eng yaxshi o'quvchini topish (faqat faol o'quvchilar orasidan)
-      const { data: topStudentData, error: topStudentError } = await supabase
-        .from('student_scores')
-        .select(`
-          student_id, 
-          total_score, 
-          students!inner(name, is_active)
-        `)
+      // Eng yaxshi o'quvchini topish - dinamik hisoblash
+      const { data: allStudents } = await supabase
+        .from('students')
+        .select('id, name, created_at')
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true)
-        .order('total_score', { ascending: false })
-        .limit(1);
+        .eq('is_active', true)
+        .range(0, 10000);
 
-      if (topStudentError) throw topStudentError;
+      const { data: allAttendance } = await supabase
+        .from('attendance_records')
+        .select('student_id, status, date')
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
 
-      const topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
+      const { data: allRewards } = await supabase
+        .from('reward_penalty_history')
+        .select('student_id, points, type')
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
+
+      let topStudent = 'Ma\'lumot yo\'q';
+      let maxScore = -Infinity;
+
+      allStudents?.forEach(student => {
+        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
+        
+        // Faqat qo'shilgan sanadan keyingi davomat
+        const sAttendance = allAttendance?.filter(a => 
+          a.student_id === student.id && a.date >= studentCreatedAt
+        ) || [];
+        const attendancePoints = sAttendance.reduce((total, a) => {
+          if (a.status === 'present') return total + 1;
+          if (a.status === 'late') return total + 0.5;
+          return total;
+        }, 0);
+        
+        const sRewards = allRewards?.filter(r => r.student_id === student.id) || [];
+        const mukofot = sRewards.filter(r => r.type === 'Mukofot').reduce((sum, r) => sum + Number(r.points), 0);
+        const jarima = sRewards.filter(r => r.type === 'Jarima').reduce((sum, r) => sum + Number(r.points), 0);
+        
+        const totalScore = attendancePoints + mukofot - jarima;
+        
+        if (totalScore > maxScore) {
+          maxScore = totalScore;
+          topStudent = student.name;
+        }
+      });
 
       setStats({
         totalStudents,
