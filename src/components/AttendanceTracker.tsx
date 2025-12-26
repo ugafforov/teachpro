@@ -251,17 +251,36 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
 
     try {
+      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
+      const payload = {
+        student_id: studentId,
+        teacher_id: teacherId,
+        // points stored as positive, direction comes from type
+        points: Math.abs(points),
+        type,
+        reason: type,
+        date: new Date().toISOString().split('T')[0]
+      };
+
       const { error } = await supabase
         .from('reward_penalty_history')
-        .insert([{
-          student_id: studentId,
-          teacher_id: teacherId,
-          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          date: new Date().toISOString().split('T')[0]
-        }] as any);
+        .insert([payload] as any);
 
-      if (error) throw error;
+      if (error) {
+        // Unique constraint: only one record per student/date/type
+        // (o'zgartirish uchun ball kiritish jadvalidan foydalaniladi)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const code = (error as any)?.code;
+        if (code === '23505') {
+          toast({
+            title: 'Cheklov',
+            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        throw error;
+      }
 
       await onStatsUpdate();
       setShowRewardDialog(null);

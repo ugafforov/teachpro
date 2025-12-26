@@ -426,16 +426,33 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return;
     }
     try {
-      const {
-        error
-      } = await supabase.from('reward_penalty_history').insert([{
+      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
+      const payload = {
         student_id: studentId,
         teacher_id: teacherId,
-        points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
-        reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
+        points: Math.abs(points),
+        type,
+        reason: type,
         date: new Date().toISOString().split('T')[0]
-      }] as any);
-      if (error) throw error;
+      };
+
+      const { error } = await supabase
+        .from('reward_penalty_history')
+        .insert([payload] as any);
+
+      if (error) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const code = (error as any)?.code;
+        if (code === '23505') {
+          toast({
+            title: "Cheklov",
+            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
+            variant: "destructive"
+          });
+          return;
+        }
+        throw error;
+      }
       setShowRewardDialog(null);
       setRewardPoints('');
       await fetchStudents(); // Refresh to show updated reward points
