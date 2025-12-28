@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { sanitizeError, logError } from '@/lib/errorUtils';
 
 const AuthPage: React.FC = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -41,12 +41,10 @@ const AuthPage: React.FC = () => {
           description: "Tizimga muvaffaqiyatli kirdingiz.",
         });
       }
-    } catch (error: unknown) {
-      logError('AuthPage.handleSignIn', error);
-      const { message } = sanitizeError(error, 'auth');
+    } catch (error: any) {
       toast({
         title: "Kirish muvaffaqiyatsiz",
-        description: message,
+        description: error.message || "Noto'g'ri email yoki parol",
         variant: "destructive",
       });
     } finally {
@@ -91,12 +89,10 @@ const AuthPage: React.FC = () => {
           description: "Hisobingiz administratorlar tomonidan ko'rib chiqiladi. Bu 24-48 soat ichida amalga oshiriladi.",
         });
       }
-    } catch (error: unknown) {
-      logError('AuthPage.handleSignUp', error);
-      const { message } = sanitizeError(error, 'auth');
+    } catch (error: any) {
       toast({
         title: "Ro'yxatdan o'tish muvaffaqiyatsiz",
-        description: message,
+        description: error.message || "Hisob yaratishda xatolik",
         variant: "destructive",
       });
     } finally {

@@ -118,8 +118,7 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
           .eq('teacher_id', teacherId)
           .eq('students.group_name', group.name)
           .eq('students.is_active', true)
-          .gte('date', startDate)
-          .range(0, 10000);
+          .gte('date', startDate);
 
         if (attendanceError) throw attendanceError;
 
@@ -137,8 +136,7 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
             record.status === 'late'
           ).length;
           const absentRecords = attendanceData.filter(record => 
-            record.status === 'absent_with_reason' || 
-            record.status === 'absent_without_reason'
+            record.status === 'absent'
           ).length;
 
           const attendancePercentage = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;

@@ -7,7 +7,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle, XCircle, Clock, Building2, Mail, Phone, School, MapPin, Calendar } from 'lucide-react';
 import { formatDateUz } from '@/lib/utils';
-import { sanitizeError, logError } from '@/lib/errorUtils';
 
 interface Teacher {
   id: string;
@@ -39,12 +38,10 @@ const AdminPanel: React.FC = () => {
 
       if (error) throw error;
       setTeachers(data || []);
-    } catch (error: unknown) {
-      logError('AdminPanel.fetchTeachers', error);
-      const { message } = sanitizeError(error, 'fetch');
+    } catch (error: any) {
       toast({
         title: "Xatolik",
-        description: message,
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -74,12 +71,10 @@ const AdminPanel: React.FC = () => {
       });
       
       fetchTeachers();
-    } catch (error: unknown) {
-      logError('AdminPanel.handleApprove', error);
-      const { message } = sanitizeError(error, 'update');
+    } catch (error: any) {
       toast({
         title: "Xatolik",
-        description: message,
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -114,12 +109,10 @@ const AdminPanel: React.FC = () => {
       
       setRejectionReason({ ...rejectionReason, [teacherId]: '' });
       fetchTeachers();
-    } catch (error: unknown) {
-      logError('AdminPanel.handleReject', error);
-      const { message } = sanitizeError(error, 'update');
+    } catch (error: any) {
       toast({
         title: "Xatolik",
-        description: message,
+        description: error.message,
         variant: "destructive",
       });
     }

@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Trophy, Medal, Award, Users, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import StudentDetailsPopup from './StudentDetailsPopup';
-import { logError } from '@/lib/errorUtils';
 
 interface StudentRanking {
   id: string;
@@ -68,7 +67,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       const uniqueGroups = [...new Set(students?.map(s => s.group_name) || [])];
       setGroups(uniqueGroups);
     } catch (error) {
-      logError('StudentRankings.fetchGroups', error);
+      console.error('Error fetching groups:', error);
     }
   };
 
@@ -78,7 +77,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       
       let studentsQuery = supabase
         .from('students')
-        .select('id, name, group_name, created_at')
+        .select('id, name, group_name')
         .eq('teacher_id', teacherId)
         .eq('is_active', true);
 
@@ -96,54 +95,20 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher with date to calculate unique class days per group
-      const { data: allAttendance, error: attendanceError } = await supabase
+      const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('student_id, status, date')
+        .select('student_id, status')
         .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .in('student_id', studentIds);
 
       if (attendanceError) throw attendanceError;
 
-      // Create a Set of student IDs for faster lookup
-      const studentIdSet = new Set(studentIds);
-
-      // Filter attendance to only include selected students
-      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
-
-      // Calculate unique class dates per group
-      const groupClassDates = new Map<string, Set<string>>();
-      students.forEach(student => {
-        if (!groupClassDates.has(student.group_name)) {
-          groupClassDates.set(student.group_name, new Set());
-        }
-      });
-
-      // Collect all unique dates per group from attendance records
-      attendance.forEach(record => {
-        const student = students.find(s => s.id === record.student_id);
-        if (student) {
-          groupClassDates.get(student.group_name)?.add(record.date);
-        }
-      });
-
       const studentStats = students.map(student => {
-        const studentAttendance = attendance.filter(a => a.student_id === student.id);
-        
-        // Get student's creation date (when they joined)
-        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
-        
-        // Calculate total classes for this student - only count dates on or after they joined
-        const groupDates = groupClassDates.get(student.group_name);
-        const relevantClassDates = groupDates 
-          ? Array.from(groupDates).filter(date => date >= studentCreatedAt)
-          : [];
-        const totalClasses = relevantClassDates.length;
-        
+        const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
+        const totalClasses = studentAttendance.length;
         const presentCount = studentAttendance.filter(a => a.status === 'present').length;
         const lateCount = studentAttendance.filter(a => a.status === 'late').length;
-        // Calculate absent as total classes minus attended classes
-        const absentCount = totalClasses - presentCount - lateCount;
+        const absentCount = studentAttendance.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length;
         
         // Calculate attendance percentage: present and late both count as 100%, absent as 0%
         const attendedClasses = presentCount + lateCount;
@@ -177,7 +142,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       setAttendanceRankings(sortedStats);
     } catch (error) {
-      logError('StudentRankings.fetchAttendanceRankings', error);
+      console.error('Error fetching attendance rankings:', error);
     }
   };
 
@@ -185,7 +150,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
     try {
       let studentsQuery = supabase
         .from('students')
-        .select('id, name, group_name, created_at')
+        .select('id, name, group_name')
         .eq('teacher_id', teacherId)
         .eq('is_active', true);
 
@@ -204,40 +169,27 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher with date to calculate properly
-      const { data: allAttendance, error: attendanceError } = await supabase
+      // Get attendance points
+      const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('student_id, status, date')
+        .select('student_id, status')
         .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .in('student_id', studentIds);
 
       if (attendanceError) throw attendanceError;
 
-      // Fetch ALL reward/penalty records for the teacher
-      const { data: allRewards, error: rewardsError } = await supabase
+      // Get reward/penalty points with type
+      const { data: rewards, error: rewardsError } = await supabase
         .from('reward_penalty_history')
         .select('student_id, points, type')
         .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .in('student_id', studentIds);
 
       if (rewardsError) throw rewardsError;
 
-      // Create a Set of student IDs for faster lookup
-      const studentIdSet = new Set(studentIds);
-
-      // Filter attendance and rewards to only include selected students
-      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
-      const rewards = allRewards?.filter(r => studentIdSet.has(r.student_id)) || [];
-
       const formattedScores = students.map((student, index) => {
-        // Get student's creation date (when they joined)
-        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
-        
         // Calculate attendance points: present = +1, late = +0.5, absent = 0
-        // Only count attendance records on or after the student joined
-        const studentAttendance = attendance.filter(a => 
-          a.student_id === student.id && a.date >= studentCreatedAt
-        );
+        const studentAttendance = attendance?.filter(a => a.student_id === student.id) || [];
         const attendancePoints = studentAttendance.reduce((total, record) => {
           if (record.status === 'present') return total + 1;
           if (record.status === 'late') return total + 0.5;
@@ -245,13 +197,13 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         }, 0);
 
         // Calculate reward/penalty points based on type
-        const studentRewards = rewards.filter(r => r.student_id === student.id);
+        const studentRewards = rewards?.filter(r => r.student_id === student.id) || [];
         const mukofotPoints = studentRewards
           .filter(r => r.type === 'Mukofot')
-          .reduce((total, r) => total + Number(r.points || 0), 0);
+          .reduce((total, r) => total + (r.points || 0), 0);
         const jarimaPoints = studentRewards
           .filter(r => r.type === 'Jarima')
-          .reduce((total, r) => total + Number(r.points || 0), 0);
+          .reduce((total, r) => total + (r.points || 0), 0);
         
         const rewardPenaltyPoints = mukofotPoints - jarimaPoints;
         const totalScore = rewardPenaltyPoints + attendancePoints;
@@ -277,7 +229,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       setScoreRankings(sortedScores);
     } catch (error) {
-      logError('StudentRankings.fetchScoreRankings', error);
+      console.error('Error fetching score rankings:', error);
     } finally {
       setLoading(false);
     }
@@ -294,7 +246,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       if (error) throw error;
       setSelectedStudent(student);
     } catch (error) {
-      logError('StudentRankings.handleStudentClick', error);
+      console.error('Error fetching student details:', error);
     }
   };
 

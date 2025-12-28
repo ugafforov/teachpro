@@ -20,7 +20,6 @@ import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { logError } from '@/lib/errorUtils';
 interface Student {
   id: string;
   name: string;
@@ -134,7 +133,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const uniqueDates = [...new Set(data?.map(record => record.date) || [])];
       setAttendanceDates(uniqueDates.map(date => parseISO(date)));
     } catch (error) {
-      logError('GroupDetails.fetchAttendanceDates', error);
+      console.error('Error fetching attendance dates:', error);
     }
   };
 
@@ -152,21 +151,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         const {
           data: scoresData,
           error: scoresError
-        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
+        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (scoresError) throw scoresError;
 
         // Fetch reward/penalty history to get totals by type
         const {
           data: historyData,
           error: historyError
-        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
+        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (historyError) throw historyError;
 
         // Fetch attendance records to calculate attendance points
         const {
           data: attendanceData,
           error: attendanceError
-        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
+        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId);
         if (attendanceError) throw attendanceError;
 
         // Merge all data with student data
@@ -224,7 +223,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         setStudents(studentsData || []);
       }
     } catch (error) {
-      logError('GroupDetails.fetchStudents', error);
+      console.error('Error fetching students:', error);
     } finally {
       setLoading(false);
     }
@@ -244,7 +243,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
       setAttendance(attendanceMap);
     } catch (error) {
-      logError('GroupDetails.fetchAttendanceForDate', error);
+      console.error('Error fetching attendance:', error);
     }
   };
 
@@ -281,7 +280,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       setDailyScores(scoresMap);
     } catch (error) {
-      logError('GroupDetails.fetchDailyScores', error);
+      console.error('Error fetching daily scores:', error);
     }
   };
   const addStudent = async () => {
@@ -326,7 +325,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       });
       setIsAddDialogOpen(false);
     } catch (error) {
-      logError('GroupDetails.addStudent', error);
+      console.error('Error adding student:', error);
     }
   };
   const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
@@ -385,7 +384,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       // Background update without blocking
       onStatsUpdate?.();
     } catch (error) {
-      logError('GroupDetails.markAttendance', error);
+      console.error('Error marking attendance:', error);
       // Revert on error
       await fetchAttendanceForDate(selectedDate);
     }
@@ -395,7 +394,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const attendancePromises = students.map(student => markAttendance(student.id, 'present'));
       await Promise.all(attendancePromises);
     } catch (error) {
-      logError('GroupDetails.markAllAsPresent', error);
+      console.error('Error marking all as present:', error);
     }
   };
   const clearAllAttendance = async () => {
@@ -407,7 +406,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setAttendance({});
       await onStatsUpdate();
     } catch (error) {
-      logError('GroupDetails.clearAllAttendance', error);
+      console.error('Error clearing attendance:', error);
     }
   };
   const addReward = async (studentId: string) => {
@@ -427,39 +426,22 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return;
     }
     try {
-      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
-      const payload = {
+      const {
+        error
+      } = await supabase.from('reward_penalty_history').insert([{
         student_id: studentId,
         teacher_id: teacherId,
-        points: Math.abs(points),
-        type,
-        reason: type,
+        points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+        reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
         date: new Date().toISOString().split('T')[0]
-      };
-
-      const { error } = await supabase
-        .from('reward_penalty_history')
-        .insert([payload] as any);
-
-      if (error) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const code = (error as any)?.code;
-        if (code === '23505') {
-          toast({
-            title: "Cheklov",
-            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
-            variant: "destructive"
-          });
-          return;
-        }
-        throw error;
-      }
+      }] as any);
+      if (error) throw error;
       setShowRewardDialog(null);
       setRewardPoints('');
       await fetchStudents(); // Refresh to show updated reward points
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      logError('GroupDetails.addReward', error);
+      console.error('Error adding reward/penalty:', error);
     }
   };
 

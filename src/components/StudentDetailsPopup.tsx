@@ -88,61 +88,26 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchAttendanceStats = async (studentData: StudentDetails) => {
     try {
-      // O'quvchining qo'shilgan sanasi
-      const studentCreatedAt = new Date(studentData.created_at).toISOString().split('T')[0];
-
-      // Guruhning barcha darslarini olish (noyob sanalar)
-      const { data: groupStudents } = await supabase
-        .from('students')
-        .select('id')
-        .eq('teacher_id', teacherId)
-        .eq('group_name', studentData.group_name)
-        .eq('is_active', true)
-        .range(0, 10000);
-
-      const groupStudentIds = groupStudents?.map(s => s.id) || [];
-      
-      // Guruhdagi barcha davomat yozuvlarini olish
-      const { data: groupAttendance } = await supabase
-        .from('attendance_records')
-        .select('date, student_id')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      // Faqat shu guruhdagi o'quvchilarning davomatini filtrlash
-      const groupStudentIdSet = new Set(groupStudentIds);
-      const filteredGroupAttendance = groupAttendance?.filter(a => groupStudentIdSet.has(a.student_id)) || [];
-      
-      // Guruhning noyob dars sanalarini olish
-      const groupClassDates = [...new Set(filteredGroupAttendance.map(a => a.date))];
-      
-      // Faqat o'quvchi qo'shilgandan keyingi darslarni hisoblash
-      const relevantClassDates = groupClassDates.filter(date => date >= studentCreatedAt);
-      const totalClasses = relevantClassDates.length;
-
-      // O'quvchining davomat yozuvlarini olish
+      // Umumiy davomat hisobi (faqat faol o'quvchi uchun)
       const { data: attendanceData, error } = await supabase
         .from('attendance_records')
-        .select('status, date')
+        .select('status')
         .eq('student_id', studentData.id)
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .eq('teacher_id', teacherId);
 
       if (error) throw error;
 
-      // Faqat qo'shilgan sanadan keyingi davomatni hisoblash
-      const relevantAttendance = attendanceData?.filter(a => a.date >= studentCreatedAt) || [];
-      
-      const presentCount = relevantAttendance.filter(a => a.status === 'present').length;
-      const lateCount = relevantAttendance.filter(a => a.status === 'late').length;
-      // Yo'qlik = Jami darslar - Kelganlar - Kech qolganlar
-      const absentCount = totalClasses - presentCount - lateCount;
+      const totalClasses = attendanceData?.length || 0;
+      const presentCount = attendanceData?.filter(a => a.status === 'present').length || 0;
+      const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
+      const absentCount = attendanceData?.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length || 0;
       
       // Kechikib kelgan ham davomat sifatida hisoblansin
       const attendancePercentage = totalClasses > 0 ? Math.round(((presentCount + lateCount) / totalClasses) * 100) : 0;
 
-      // Davomat ballari - TO'G'RI FORMULA: Present: +1, Late: +0.5, Absent: 0
-      const attendancePoints = presentCount * 1 + lateCount * 0.5;
+      // Davomat ballari - to'g'ri hisoblash
+      // Present: +1, Late: -0.5, Absent: -1
+      const attendancePoints = presentCount * 1 + lateCount * (-0.5) + absentCount * (-1);
 
       setStats(prev => ({
         ...prev!,
@@ -161,138 +126,77 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchScoreStats = async (studentData: StudentDetails) => {
     try {
-      const studentCreatedAt = new Date(studentData.created_at).toISOString().split('T')[0];
-
-      // Mukofot/jarima ballari - turlar bo'yicha ajratish
+      // Mukofot/jarima ballari
       const { data: rewardData, error: rewardError } = await supabase
         .from('reward_penalty_history')
-        .select('points, type')
+        .select('points')
         .eq('student_id', studentData.id)
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .eq('teacher_id', teacherId);
 
       if (rewardError) throw rewardError;
 
-      // Mukofot va Jarima turlarini alohida hisoblash (Baho ni chiqarib tashlash)
-      const mukofotPoints = rewardData?.filter(r => r.type === 'Mukofot')
-        .reduce((sum, r) => sum + Number(r.points || 0), 0) || 0;
-      const jarimaPoints = rewardData?.filter(r => r.type === 'Jarima')
-        .reduce((sum, r) => sum + Number(r.points || 0), 0) || 0;
-      const rewardPenaltyPoints = mukofotPoints - jarimaPoints;
+      const rewardPenaltyPoints = rewardData?.reduce((sum, record) => sum + (record.points || 0), 0) || 0;
 
-      // Guruhning barcha darslarini olish
-      const { data: groupStudents } = await supabase
-        .from('students')
-        .select('id')
-        .eq('teacher_id', teacherId)
-        .eq('group_name', studentData.group_name)
-        .eq('is_active', true)
-        .range(0, 10000);
-
-      const groupStudentIds = groupStudents?.map(s => s.id) || [];
-      
-      const { data: groupAttendance } = await supabase
-        .from('attendance_records')
-        .select('date, student_id')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      const groupStudentIdSet = new Set(groupStudentIds);
-      const filteredGroupAttendance = groupAttendance?.filter(a => groupStudentIdSet.has(a.student_id)) || [];
-      const groupClassDates = [...new Set(filteredGroupAttendance.map(a => a.date))];
-      const relevantClassDates = groupClassDates.filter(date => date >= studentCreatedAt);
-
-      // Davomat yozuvlarini olish
+      // Davomat ballari
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance_records')
-        .select('status, date')
+        .select('status')
         .eq('student_id', studentData.id)
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
+        .eq('teacher_id', teacherId);
 
       if (attendanceError) throw attendanceError;
 
-      const relevantAttendance = attendanceData?.filter(a => a.date >= studentCreatedAt) || [];
-      const presentCount = relevantAttendance.filter(a => a.status === 'present').length;
-      const lateCount = relevantAttendance.filter(a => a.status === 'late').length;
+      const presentCount = attendanceData?.filter(a => a.status === 'present').length || 0;
+      const lateCount = attendanceData?.filter(a => a.status === 'late').length || 0;
+      const absentCount = attendanceData?.filter(a => a.status === 'absent' || a.status === 'absent_with_reason' || a.status === 'absent_without_reason').length || 0;
       
-      // TO'G'RI FORMULA: Present: +1, Late: +0.5, Absent: 0
-      const attendancePoints = presentCount * 1 + lateCount * 0.5;
+      // To'g'ri davomat ballari hisoblash
+      // Present: +1, Late: -0.5, Absent: -1
+      const attendancePoints = presentCount * 1 + lateCount * (-0.5) + absentCount * (-1);
 
-      // Jami ball = davomat ballari + (mukofot - jarima)
+      // Jami ball = davomat ballari + mukofot/jarima ballari
       const totalScore = attendancePoints + rewardPenaltyPoints;
 
       // Reyting pozitsiyasini hisoblash
       const { data: allStudentsData, error: allStudentsError } = await supabase
         .from('students')
-        .select('id, created_at, group_name')
+        .select('id')
         .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .range(0, 10000);
+        .eq('is_active', true);
 
       if (allStudentsError) throw allStudentsError;
 
       let rank = 1;
       if (allStudentsData && allStudentsData.length > 1) {
         // Barcha o'quvchilarning ballarini hisoblash
-        const { data: allRewardData } = await supabase
-          .from('reward_penalty_history')
-          .select('student_id, points, type')
-          .eq('teacher_id', teacherId)
-          .range(0, 10000);
+        const studentScores = await Promise.all(
+          allStudentsData.map(async (s) => {
+            const { data: sRewardData } = await supabase
+              .from('reward_penalty_history')
+              .select('points')
+              .eq('student_id', s.id)
+              .eq('teacher_id', teacherId);
 
-        const { data: allAttendanceData } = await supabase
-          .from('attendance_records')
-          .select('student_id, status, date')
-          .eq('teacher_id', teacherId)
-          .range(0, 10000);
+            const { data: sAttendanceData } = await supabase
+              .from('attendance_records')
+              .select('status')
+              .eq('student_id', s.id)
+              .eq('teacher_id', teacherId);
 
-        // Guruhlar bo'yicha noyob dars sanalarini hisoblash
-        const groupClassDatesMap = new Map<string, Set<string>>();
-        allStudentsData.forEach(s => {
-          if (!groupClassDatesMap.has(s.group_name)) {
-            groupClassDatesMap.set(s.group_name, new Set());
-          }
-        });
-
-        allAttendanceData?.forEach(a => {
-          const student = allStudentsData.find(s => s.id === a.student_id);
-          if (student && groupClassDatesMap.has(student.group_name)) {
-            groupClassDatesMap.get(student.group_name)!.add(a.date);
-          }
-        });
-
-        const studentScores = allStudentsData.map(s => {
-          const sCreatedAt = new Date(s.created_at).toISOString().split('T')[0];
-          
-          // Guruhning dars sanalarini olish va filtrlash
-          const sGroupDates = groupClassDatesMap.get(s.group_name);
-          const sRelevantDates = sGroupDates 
-            ? Array.from(sGroupDates).filter(date => date >= sCreatedAt)
-            : [];
-
-          // Mukofot/Jarima
-          const sMukofot = allRewardData?.filter(r => r.student_id === s.id && r.type === 'Mukofot')
-            .reduce((sum, r) => sum + Number(r.points || 0), 0) || 0;
-          const sJarima = allRewardData?.filter(r => r.student_id === s.id && r.type === 'Jarima')
-            .reduce((sum, r) => sum + Number(r.points || 0), 0) || 0;
-          const sRewardPoints = sMukofot - sJarima;
-
-          // Davomat
-          const sAttendance = allAttendanceData?.filter(a => 
-            a.student_id === s.id && a.date >= sCreatedAt
-          ) || [];
-          const sPresentCount = sAttendance.filter(a => a.status === 'present').length;
-          const sLateCount = sAttendance.filter(a => a.status === 'late').length;
-          
-          // TO'G'RI FORMULA: Present: +1, Late: +0.5, Absent: 0
-          const sAttendancePoints = sPresentCount * 1 + sLateCount * 0.5;
-          
-          return {
-            studentId: s.id,
-            totalScore: sAttendancePoints + sRewardPoints
-          };
-        });
+            const sRewardPoints = sRewardData?.reduce((sum, record) => sum + (record.points || 0), 0) || 0;
+            const sPresentCount = sAttendanceData?.filter(a => a.status === 'present').length || 0;
+            const sLateCount = sAttendanceData?.filter(a => a.status === 'late').length || 0;
+            const sAbsentCount = sAttendanceData?.filter(a => a.status === 'absent').length || 0;
+            
+            // To'g'ri davomat ballari hisoblash
+            const sAttendancePoints = sPresentCount * 1 + sLateCount * (-0.5) + sAbsentCount * (-1);
+            
+            return {
+              studentId: s.id,
+              totalScore: sAttendancePoints + sRewardPoints
+            };
+          })
+        );
 
         // Ballar bo'yicha tartiblash va reyting topish
         studentScores.sort((a, b) => b.totalScore - a.totalScore);
@@ -325,7 +229,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         .select('points, reason, created_at, type')
         .eq('student_id', studentData.id)
         .eq('teacher_id', teacherId)
-        .in('type', ['Mukofot', 'Jarima']) // Faqat Mukofot va Jarima
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -466,7 +369,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                 {stats.recentRewards.slice(0, 3).map((reward, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                     <div className="flex items-center gap-2">
-                      {reward.type === 'Mukofot' ? (
+                      {reward.type === 'reward' ? (
                         <Gift className="w-4 h-4 text-green-500" />
                       ) : (
                         <AlertTriangle className="w-4 h-4 text-red-500" />
@@ -475,9 +378,9 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-medium ${
-                        reward.type === 'Mukofot' ? 'text-green-600' : 'text-red-600'
+                        reward.points > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {reward.type === 'Mukofot' ? '+' : '-'}{reward.points}
+                        {reward.points > 0 ? '+' : ''}{reward.points}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {formatDateUz(reward.created_at)}

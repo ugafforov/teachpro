@@ -13,7 +13,6 @@ import StudentImport from './StudentImport';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { formatDateUz } from '@/lib/utils';
-import { logError } from '@/lib/errorUtils';
 interface Student {
   id: string;
   name: string;
@@ -77,7 +76,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
-      logError('StudentManager.fetchStudents', error);
+      console.error('Error fetching students:', error);
       toast({
         title: "Xatolik",
         description: "O'quvchilarni yuklashda xatolik yuz berdi",
@@ -96,7 +95,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       if (error) throw error;
       setGroups(data || []);
     } catch (error) {
-      logError('StudentManager.fetchGroups', error);
+      console.error('Error fetching groups:', error);
     }
   };
   const filterStudents = () => {
@@ -165,7 +164,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         description: `"${newStudent.name}" muvaffaqiyatli qo'shildi`
       });
     } catch (error) {
-      logError('StudentManager.addStudent', error);
+      console.error('Error adding student:', error);
       toast({
         title: "Xatolik",
         description: "O'quvchi qo'shishda xatolik yuz berdi",
@@ -202,7 +201,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         description: "O'quvchi ma'lumotlari muvaffaqiyatli yangilandi"
       });
     } catch (error) {
-      logError('StudentManager.editStudent', error);
+      console.error('Error updating student:', error);
       toast({
         title: "Xatolik",
         description: "O'quvchini yangilashda xatolik yuz berdi",
@@ -230,7 +229,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      logError('StudentManager.archiveStudent', error);
+      console.error('Error archiving student:', error);
     }
   };
   const deleteStudent = async (studentId: string, studentName: string) => {
@@ -252,7 +251,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         description: "O'quvchi chiqindilar qutisiga o'tkazildi",
       });
     } catch (error) {
-      logError('StudentManager.deleteStudent', error);
+      console.error('Error deleting student:', error);
       toast({
         title: "Xatolik",
         description: "O'quvchini o'chirishda xatolik yuz berdi",
@@ -279,34 +278,16 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       return;
     }
     try {
-      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
-      const payload = {
+      const {
+        error
+      } = await supabase.from('reward_penalty_history').insert([{
         student_id: studentId,
         teacher_id: teacherId,
-        points: Math.abs(points),
-        type,
-        reason: type,
+        points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
+        reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
         date: new Date().toISOString().split('T')[0]
-      };
-
-      const { error } = await supabase
-        .from('reward_penalty_history')
-        .insert([payload] as any);
-
-      if (error) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const code = (error as any)?.code;
-        if (code === '23505') {
-          toast({
-            title: 'Cheklov',
-            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
-            variant: 'destructive'
-          });
-          return;
-        }
-        throw error;
-      }
-
+      }] as any);
+      if (error) throw error;
       setShowRewardDialog(null);
       setRewardPoints('');
       if (onStatsUpdate) await onStatsUpdate();
@@ -316,7 +297,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`
       });
     } catch (error) {
-      logError('StudentManager.addReward', error);
+      console.error('Error adding reward/penalty:', error);
       toast({
         title: "Xatolik",
         description: "Ball qo'shishda xatolik yuz berdi",
