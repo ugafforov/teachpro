@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { fetchAllRecordsForExport, calculateChecksum } from '@/lib/supabaseHelpers';
 
 interface DataManagerProps {
   teacherId: string;
@@ -24,6 +25,8 @@ interface ExportData {
   exportDate: string;
   version: string;
   teacherId: string;
+  checksum: string;
+  recordCounts: Record<string, number>;
   data: {
     teachers: any[];
     students: any[];
@@ -83,30 +86,29 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       ];
 
       const data: any = {};
+      const recordCounts: Record<string, number> = {};
       
       for (let i = 0; i < tables.length; i++) {
         const table = tables[i];
         setProgress(Math.round((i / tables.length) * 100));
         
-        const { data: tableData, error } = await supabase
-          .from(table as any)
-          .select('*')
-          .eq('teacher_id', teacherId);
-        
-        if (error) {
-          console.error(`Error fetching ${table}:`, error);
-          data[table] = [];
-        } else {
-          data[table] = tableData || [];
-        }
+        // Use pagination to fetch ALL records without limits
+        const tableData = await fetchAllRecordsForExport<any>(table, teacherId);
+        data[table] = tableData;
+        recordCounts[table] = tableData.length;
       }
 
       setProgress(100);
 
+      // Calculate checksum for verification
+      const checksum = calculateChecksum(data);
+
       const exportObject: ExportData = {
         exportDate: new Date().toISOString(),
-        version: '1.0',
+        version: '2.0',
         teacherId: teacherId,
+        checksum,
+        recordCounts,
         data
       };
 
@@ -125,7 +127,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       const totalRecords = Object.values(data).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
       
       toast.success(`Ma'lumotlar muvaffaqiyatli eksport qilindi!`, {
-        description: `Jami ${totalRecords} ta yozuv yuklab olindi`
+        description: `Jami ${totalRecords} ta yozuv yuklab olindi. Tekshirish kodi: ${checksum}`
       });
     } catch (error) {
       console.error('Export error:', error);
@@ -236,7 +238,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
   const getImportSummary = () => {
     if (!importData) return null;
     
-    const { data } = importData;
+    const { data, checksum, recordCounts, version } = importData;
     return {
       students: data.students?.length || 0,
       groups: data.groups?.length || 0,
@@ -244,6 +246,9 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       rewards: data.reward_penalty_history?.length || 0,
       exams: data.exams?.length || 0,
       examResults: data.exam_results?.length || 0,
+      checksum: checksum || 'N/A',
+      version: version || '1.0',
+      recordCounts: recordCounts || {}
     };
   };
 
@@ -379,6 +384,10 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
                 
                 {summary && (
                   <div className="bg-muted p-4 rounded-lg space-y-2 text-sm">
+                    <div className="flex justify-between border-b pb-2 mb-2">
+                      <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Versiya:</span>
+                      <span className="font-medium">{summary.version}</span>
+                    </div>
                     <div className="flex justify-between">
                       <span>O'quvchilar:</span>
                       <span className="font-medium">{summary.students} ta</span>
@@ -402,6 +411,10 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
                     <div className="flex justify-between">
                       <span>Imtihon natijalari:</span>
                       <span className="font-medium">{summary.examResults} ta</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2 mt-2">
+                      <span>Tekshirish kodi:</span>
+                      <span className="font-mono text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{summary.checksum}</span>
                     </div>
                   </div>
                 )}
