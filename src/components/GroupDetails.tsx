@@ -15,11 +15,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import GroupStatisticsCard from './GroupStatisticsCard';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { fetchAllRecords, calculateGroupStatistics, GroupStatistics } from '@/lib/supabaseHelpers';
 interface Student {
   id: string;
   name: string;
@@ -71,6 +73,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [groupStats, setGroupStats] = useState<GroupStatistics | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
   const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
@@ -148,29 +152,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       // Fetch reward/penalty points for each student
       const studentIds = studentsData?.map(s => s.id) || [];
       if (studentIds.length > 0) {
-        const {
-          data: scoresData,
-          error: scoresError
-        } = await supabase.from('student_scores').select('student_id, reward_penalty_points').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
-        if (scoresError) throw scoresError;
+        // Use pagination to fetch ALL records without limits
+        const [historyData, attendanceData] = await Promise.all([
+          fetchAllRecords<{student_id: string; points: number; type: string}>('reward_penalty_history', teacherId, undefined, studentIds),
+          fetchAllRecords<{student_id: string; status: string}>('attendance_records', teacherId, undefined, studentIds)
+        ]);
 
-        // Fetch reward/penalty history to get totals by type
-        const {
-          data: historyData,
-          error: historyError
-        } = await supabase.from('reward_penalty_history').select('student_id, points, type').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
-        if (historyError) throw historyError;
-
-        // Fetch attendance records to calculate attendance points
-        const {
-          data: attendanceData,
-          error: attendanceError
-        } = await supabase.from('attendance_records').select('student_id, status').in('student_id', studentIds).eq('teacher_id', teacherId).range(0, 10000);
-        if (attendanceError) throw attendanceError;
+        // Also fetch group statistics
+        setStatsLoading(true);
+        calculateGroupStatistics(teacherId, groupName, studentIds).then(stats => {
+          setGroupStats(stats);
+          setStatsLoading(false);
+        });
 
         // Merge all data with student data
         const studentsWithRewards = studentsData?.map(student => {
-          const scoreRecord = scoresData?.find(s => s.student_id === student.id);
           const studentHistory = historyData?.filter(h => h.student_id === student.id) || [];
           const studentAttendance = attendanceData?.filter(a => a.student_id === student.id) || [];
           
@@ -221,6 +217,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         setStudents(studentsWithRewards);
       } else {
         setStudents(studentsData || []);
+        setGroupStats(null);
+        setStatsLoading(false);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -744,6 +742,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       </div>;
   }
   return <div className="space-y-6">
+      {/* Group Statistics Card */}
+      <GroupStatisticsCard
+        totalLessons={groupStats?.totalLessons || 0}
+        totalRewards={groupStats?.totalRewards || 0}
+        totalPenalties={groupStats?.totalPenalties || 0}
+        lastActivityDate={groupStats?.lastActivityDate || null}
+        totalStudents={groupStats?.totalStudents || students.length}
+        totalAttendanceRecords={groupStats?.totalAttendanceRecords || 0}
+        loading={statsLoading}
+      />
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button onClick={onBack} variant="ghost" size="sm">
