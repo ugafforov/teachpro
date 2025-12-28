@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { XCircle } from 'lucide-react';
@@ -30,7 +30,6 @@ const Index = () => {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
     // Set up auth state listener
@@ -52,11 +51,7 @@ const Index = () => {
 
               if (teacherError && teacherError.code !== 'PGRST116') {
                 console.error('Error fetching teacher:', teacherError);
-                toast({
-                  title: "Error",
-                  description: "Failed to load teacher profile",
-                  variant: "destructive",
-                });
+                toast.error("Failed to load teacher profile");
               } else if (teacherData) {
                 setTeacher(teacherData);
               }
@@ -93,7 +88,7 @@ const Index = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [toast]);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -101,17 +96,10 @@ const Index = () => {
       setUser(null);
       setSession(null);
       setTeacher(null);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
+      toast.success("You have been successfully logged out");
     } catch (error) {
       console.error('Error signing out:', error);
-      toast({
-        title: "Error",
-        description: "Failed to log out",
-        variant: "destructive",
-      });
+      toast.error("Failed to log out");
     }
   };
 
