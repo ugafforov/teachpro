@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
@@ -11,6 +11,7 @@ import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
 import ExamManager from './ExamManager';
+import DataManager from './DataManager';
 
 interface DashboardProps {
   teacherId: string;
@@ -162,6 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     { id: 'statistics', label: 'Statistika', icon: BarChart3 },
     { id: 'archive', label: 'Arxiv', icon: Archive },
     { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
+    { id: 'data', label: 'Ma\'lumotlar', icon: Database },
   ];
 
   const renderContent = () => {
@@ -180,6 +182,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
       case 'trash':
         return <TrashManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'data':
+        return <DataManager teacherId={teacherId} />;
       default:
         return (
           <div className="space-y-6">
