@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +8,7 @@ import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
+import { sanitizeError, logError } from '@/lib/errorUtils';
 
 interface Teacher {
   id: string;
@@ -50,8 +50,9 @@ const Index = () => {
                 .single();
 
               if (teacherError && teacherError.code !== 'PGRST116') {
-                console.error('Error fetching teacher:', teacherError);
-                toast.error("Failed to load teacher profile");
+                logError('Index.fetchTeacher', teacherError);
+                const { message } = sanitizeError(teacherError, 'fetch');
+                toast.error(message);
               } else if (teacherData) {
                 setTeacher(teacherData);
               }
@@ -66,7 +67,7 @@ const Index = () => {
 
               setIsAdmin(!!roleData);
             } catch (error) {
-              console.error('Error fetching teacher profile:', error);
+              logError('Index.fetchProfile', error);
             }
             setLoading(false);
           }, 0);
@@ -98,8 +99,8 @@ const Index = () => {
       setTeacher(null);
       toast.success("You have been successfully logged out");
     } catch (error) {
-      console.error('Error signing out:', error);
-      toast.error("Failed to log out");
+      logError('Index.handleLogout', error);
+      toast.error("Chiqishda xatolik yuz berdi");
     }
   };
 
