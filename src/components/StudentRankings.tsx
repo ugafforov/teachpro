@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Trophy, Medal, Award, Users, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import StudentDetailsPopup from './StudentDetailsPopup';
-import { fetchAllRecords } from '@/lib/supabaseHelpers';
+import { calculateAllStudentScores, StudentWithScore } from '@/lib/studentScoreCalculator';
 
 interface StudentRanking {
   id: string;
@@ -48,14 +48,11 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
   useEffect(() => {
     fetchGroups();
-    fetchAttendanceRankings();
-    fetchScoreRankings();
   }, [teacherId]);
 
   useEffect(() => {
-    fetchAttendanceRankings();
-    fetchScoreRankings();
-  }, [selectedGroup]);
+    fetchAllRankings();
+  }, [teacherId, selectedGroup]);
 
   const fetchGroups = async () => {
     try {
@@ -74,91 +71,37 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
     }
   };
 
-  const fetchAttendanceRankings = async () => {
+  const fetchAllRankings = async () => {
     try {
       setLoading(true);
       
-      let studentsQuery = supabase
-        .from('students')
-        .select('id, name, group_name, created_at')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
+      // Use centralized score calculator (same as GroupDetails)
+      const allStudents = await calculateAllStudentScores(
+        teacherId,
+        selectedGroup !== 'all' ? selectedGroup : undefined
+      );
 
-      if (selectedGroup !== 'all') {
-        studentsQuery = studentsQuery.eq('group_name', selectedGroup);
-      }
-
-      const { data: students, error: studentsError } = await studentsQuery;
-      if (studentsError) throw studentsError;
-
-      if (!students || students.length === 0) {
+      if (allStudents.length === 0) {
         setAttendanceRankings([]);
+        setScoreRankings([]);
+        setLoading(false);
         return;
       }
 
-      const studentIds = students.map(s => s.id);
-
-      // Fetch ALL attendance records using pagination helper (same as GroupDetails)
-      const allAttendance = await fetchAllRecords<{student_id: string; status: string; date: string}>(
-        'attendance_records',
-        teacherId,
-        undefined,
-        studentIds
-      );
-
-      // Calculate unique class dates per group
-      const groupClassDates = new Map<string, Set<string>>();
-      students.forEach(student => {
-        if (student.group_name && !groupClassDates.has(student.group_name)) {
-          groupClassDates.set(student.group_name, new Set());
-        }
-      });
-
-      // Collect all unique dates per group from attendance records
-      allAttendance.forEach(record => {
-        const student = students.find(s => s.id === record.student_id);
-        if (student && student.group_name) {
-          groupClassDates.get(student.group_name)?.add(record.date);
-        }
-      });
-
-      const studentStats = students.map(student => {
-        const studentAttendance = allAttendance.filter(a => a.student_id === student.id);
-        
-        // Get student's creation date (when they joined)
-        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
-        
-        // Calculate total classes for this student - only count dates on or after they joined
-        const groupDates = student.group_name ? groupClassDates.get(student.group_name) : undefined;
-        const relevantClassDates = groupDates 
-          ? Array.from(groupDates).filter(date => date >= studentCreatedAt)
-          : [];
-        const totalClasses = relevantClassDates.length;
-        
-        const presentCount = studentAttendance.filter(a => a.status === 'present').length;
-        const lateCount = studentAttendance.filter(a => a.status === 'late').length;
-        // Calculate absent as total classes minus attended classes
-        const absentCount = totalClasses - presentCount - lateCount;
-        
-        // Calculate attendance percentage: present and late both count as 100%, absent as 0%
-        const attendedClasses = presentCount + lateCount;
-        const attendancePercentage = totalClasses > 0 ? (attendedClasses / totalClasses) * 100 : 0;
-
-        return {
+      // Build attendance rankings from calculated scores
+      const attendanceStats = allStudents
+        .map((student, index) => ({
           id: `${student.id}-ranking`,
           student_id: student.id,
           student_name: student.name,
-          group_name: student.group_name || '',
-          total_classes: totalClasses,
-          present_count: presentCount,
-          late_count: lateCount,
-          absent_count: Math.max(0, absentCount),
-          attendance_percentage: Math.round(attendancePercentage * 100) / 100,
+          group_name: student.group_name,
+          total_classes: student.score.totalClasses,
+          present_count: student.score.presentCount,
+          late_count: student.score.lateCount,
+          absent_count: student.score.absentCount,
+          attendance_percentage: student.score.attendancePercentage,
           rank_position: 0
-        };
-      });
-
-      const sortedStats = studentStats
+        }))
         .sort((a, b) => {
           if (b.attendance_percentage !== a.attendance_percentage) {
             return b.attendance_percentage - a.attendance_percentage;
@@ -170,112 +113,31 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
           rank_position: index + 1
         }));
 
-      setAttendanceRankings(sortedStats);
-    } catch (error) {
-      console.error('Error fetching attendance rankings:', error);
-    }
-  };
+      setAttendanceRankings(attendanceStats);
 
-  const fetchScoreRankings = async () => {
-    try {
-      let studentsQuery = supabase
-        .from('students')
-        .select('id, name, group_name, created_at')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (selectedGroup !== 'all') {
-        studentsQuery = studentsQuery.eq('group_name', selectedGroup);
-      }
-
-      const { data: students, error: studentsError } = await studentsQuery;
-      if (studentsError) throw studentsError;
-
-      if (!students || students.length === 0) {
-        setScoreRankings([]);
-        setLoading(false);
-        return;
-      }
-
-      const studentIds = students.map(s => s.id);
-
-      // Fetch ALL records using pagination helper (SAME as GroupDetails)
-      const [allAttendance, allRewards] = await Promise.all([
-        fetchAllRecords<{student_id: string; status: string; date: string}>(
-          'attendance_records',
-          teacherId,
-          undefined,
-          studentIds
-        ),
-        fetchAllRecords<{student_id: string; points: number; type: string}>(
-          'reward_penalty_history',
-          teacherId,
-          undefined,
-          studentIds
-        )
-      ]);
-
-      const formattedScores = students.map((student) => {
-        const studentAttendance = allAttendance.filter(a => a.student_id === student.id);
-        const studentRewards = allRewards.filter(r => r.student_id === student.id);
-
-        // Calculate attendance points: present = +1, late = +0.5, absent = 0
-        // EXACTLY same as GroupDetails
-        const attendancePoints = studentAttendance.reduce((total, record) => {
-          if (record.status === 'present') return total + 1;
-          if (record.status === 'late') return total + 0.5;
-          return total;
-        }, 0);
-
-        // Calculate scores by type - EXACTLY same as GroupDetails
-        let bahoScore = 0;
-        let mukofotPoints = 0;
-        let jarimaPoints = 0;
-        let bahoCount = 0;
-
-        studentRewards.forEach(record => {
-          const points = Number(record.points || 0);
-          if (record.type === 'Baho') {
-            bahoScore += points;
-            bahoCount++;
-          } else if (record.type === 'Mukofot') {
-            mukofotPoints += points;
-          } else if (record.type === 'Jarima') {
-            jarimaPoints += points;
-          }
-        });
-
-        // Average baho score
-        const bahoAverage = bahoCount > 0 ? bahoScore / bahoCount : 0;
-
-        // Total score = (mukofot - jarima) + attendance points
-        // EXACTLY same formula as GroupDetails
-        const totalScore = (mukofotPoints - jarimaPoints) + attendancePoints;
-
-        return {
+      // Build score rankings from calculated scores
+      const scoreStats = allStudents
+        .map(student => ({
           id: student.id,
           student_id: student.id,
           student_name: student.name,
-          group_name: student.group_name || '',
-          total_score: totalScore,
-          attendance_points: attendancePoints,
-          mukofot_points: mukofotPoints,
-          jarima_points: jarimaPoints,
-          baho_average: Math.round(bahoAverage * 100) / 100,
+          group_name: student.group_name,
+          total_score: student.score.totalScore,
+          attendance_points: student.score.attendancePoints,
+          mukofot_points: student.score.mukofotPoints,
+          jarima_points: student.score.jarimaPoints,
+          baho_average: Math.round(student.score.bahoAverage * 100) / 100,
           class_rank: 0
-        };
-      });
-
-      const sortedScores = formattedScores
+        }))
         .sort((a, b) => b.total_score - a.total_score)
         .map((score, index) => ({
           ...score,
           class_rank: index + 1
         }));
 
-      setScoreRankings(sortedScores);
+      setScoreRankings(scoreStats);
     } catch (error) {
-      console.error('Error fetching score rankings:', error);
+      console.error('Error fetching rankings:', error);
     } finally {
       setLoading(false);
     }
