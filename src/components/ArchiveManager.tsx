@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, BookOpen, Search, RotateCcw, Trash2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDateUz } from '@/lib/utils';
+import { logError } from '@/lib/errorUtils';
 
 interface ArchivedStudent {
   id: string;
@@ -96,7 +97,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       if (examsError) throw examsError;
       setArchivedExams(examsData || []);
     } catch (error) {
-      console.error('Error fetching archived data:', error);
+      logError('ArchiveManager.fetchArchivedData', error);
     } finally {
       setLoading(false);
     }
@@ -151,7 +152,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring student:', error);
+      logError('ArchiveManager.restoreStudent', error);
     }
   };
 
@@ -183,7 +184,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring group:', error);
+      logError('ArchiveManager.restoreGroup', error);
     }
   };
 
@@ -218,7 +219,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error moving archived student to trash:', error);
+      logError('ArchiveManager.deleteArchivedStudent', error);
     }
   };
 
@@ -250,7 +251,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error moving archived group to trash:', error);
+      logError('ArchiveManager.deleteArchivedGroup', error);
     }
   };
 
@@ -305,7 +306,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring exam:', error);
+      logError('ArchiveManager.restoreExam', error);
     }
   };
 
@@ -339,7 +340,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error moving archived exam to trash:', error);
+      logError('ArchiveManager.deleteArchivedExam', error);
     }
   };
 

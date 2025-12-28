@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Trophy, Medal, Award, Users, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import { logError } from '@/lib/errorUtils';
 
 interface StudentRanking {
   id: string;
@@ -67,7 +68,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       const uniqueGroups = [...new Set(students?.map(s => s.group_name) || [])];
       setGroups(uniqueGroups);
     } catch (error) {
-      console.error('Error fetching groups:', error);
+      logError('StudentRankings.fetchGroups', error);
     }
   };
 
@@ -176,7 +177,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       setAttendanceRankings(sortedStats);
     } catch (error) {
-      console.error('Error fetching attendance rankings:', error);
+      logError('StudentRankings.fetchAttendanceRankings', error);
     }
   };
 
@@ -276,7 +277,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       setScoreRankings(sortedScores);
     } catch (error) {
-      console.error('Error fetching score rankings:', error);
+      logError('StudentRankings.fetchScoreRankings', error);
     } finally {
       setLoading(false);
     }
@@ -293,7 +294,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       if (error) throw error;
       setSelectedStudent(student);
     } catch (error) {
-      console.error('Error fetching student details:', error);
+      logError('StudentRankings.handleStudentClick', error);
     }
   };
 
