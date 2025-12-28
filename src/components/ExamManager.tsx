@@ -15,6 +15,7 @@ import { examSchema, examResultSchema, formatValidationError } from '@/lib/valid
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
 import { formatDateUz } from '@/lib/utils';
+import { logError } from '@/lib/errorUtils';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -201,7 +202,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       if (error) throw error;
       setGroups(data || []);
     } catch (error) {
-      console.error('Error fetching groups:', error);
+      logError('ExamManager.fetchGroups', error);
       toast({
         title: 'Xato',
         description: 'Guruhlarni yuklashda xatolik',
@@ -232,7 +233,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('ExamManager.fetchStudents', error);
       setStudents([]);
     }
   };
@@ -247,7 +248,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       if (error) throw error;
       setExamTypes(data || []);
     } catch (error) {
-      console.error('Error fetching exam types:', error);
+      logError('ExamManager.fetchExamTypes', error);
     }
   };
 
@@ -262,7 +263,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       if (error) throw error;
       setExams(data || []);
     } catch (error) {
-      console.error('Error fetching exams:', error);
+      logError('ExamManager.fetchExams', error);
     }
   };
 
@@ -330,7 +331,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Imtihon yaratildi',
       });
     } catch (error) {
-      console.error('Error creating exam:', error);
+      logError('ExamManager.createExam', error);
       toast({
         title: 'Xato',
         description: 'Imtihon yaratishda xatolik',
@@ -380,7 +381,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       setCustomExamName('');
       setExamDate('');
     } catch (error) {
-      console.error('Error saving results:', error);
+      logError('ExamManager.saveExamResults', error);
       toast({
         title: 'Xato',
         description: 'Natijalarni saqlashda xatolik',
@@ -439,7 +440,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       await fetchExams();
       setDeleteExamId(null);
     } catch (error) {
-      console.error('Error deleting exam:', error);
+      logError('ExamManager.deleteExam', error);
       toast({
         title: 'Xato',
         description: 'Imtihonni o\'chirishda xatolik',
@@ -498,7 +499,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       await fetchExams();
       setArchiveExamId(null);
     } catch (error) {
-      console.error('Error archiving exam:', error);
+      logError('ExamManager.archiveExam', error);
       toast({
         title: 'Xato',
         description: 'Imtihonni arxivlashda xatolik',

@@ -8,6 +8,7 @@ import { Calendar, Users, Check, X, Clock, Download, Gift, AlertTriangle, Plus }
 import { supabase } from '@/integrations/supabase/client';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import { formatDateUz } from '@/lib/utils';
+import { logError } from '@/lib/errorUtils';
 
 interface Student {
   id: string;
@@ -62,7 +63,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       if (error) throw error;
       setStudents(data || []);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('AttendanceTracker.fetchStudents', error);
       toast({
         title: "Xatolik",
         description: "O'quvchilarni yuklashda xatolik yuz berdi",
@@ -101,7 +102,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       
       setAttendanceRecords(typedData);
     } catch (error) {
-      console.error('Error fetching attendance records:', error);
+      logError('AttendanceTracker.fetchAttendanceRecords', error);
     }
   };
 
@@ -145,7 +146,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `O'quvchi ${statusText} deb belgilandi`,
       });
     } catch (error) {
-      console.error('Error marking attendance:', error);
+      logError('AttendanceTracker.markAttendance', error);
       toast({
         title: "Xatolik",
         description: "Davomatni yangilashda xatolik yuz berdi",
@@ -206,7 +207,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `Barcha ${filteredStudents.length} o'quvchi kelgan deb belgilandi`,
       });
     } catch (error) {
-      console.error('Error marking all present:', error);
+      logError('AttendanceTracker.markAllPresent', error);
       toast({
         title: "Xatolik",
         description: "Davomatni yangilashda xatolik yuz berdi",
@@ -226,7 +227,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       if (error) throw error;
       setSelectedStudent(student);
     } catch (error) {
-      console.error('Error fetching student details:', error);
+      logError('AttendanceTracker.handleStudentClick', error);
     }
   };
 
@@ -251,17 +252,36 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
 
     try {
+      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
+      const payload = {
+        student_id: studentId,
+        teacher_id: teacherId,
+        // points stored as positive, direction comes from type
+        points: Math.abs(points),
+        type,
+        reason: type,
+        date: new Date().toISOString().split('T')[0]
+      };
+
       const { error } = await supabase
         .from('reward_penalty_history')
-        .insert([{
-          student_id: studentId,
-          teacher_id: teacherId,
-          points: rewardType === 'penalty' ? -Math.abs(points) : Math.abs(points),
-          reason: rewardType === 'reward' ? 'Mukofot' : 'Jarima',
-          date: new Date().toISOString().split('T')[0]
-        }] as any);
+        .insert([payload] as any);
 
-      if (error) throw error;
+      if (error) {
+        // Unique constraint: only one record per student/date/type
+        // (o'zgartirish uchun ball kiritish jadvalidan foydalaniladi)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const code = (error as any)?.code;
+        if (code === '23505') {
+          toast({
+            title: 'Cheklov',
+            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        throw error;
+      }
 
       await onStatsUpdate();
       setShowRewardDialog(null);
@@ -273,7 +293,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
       });
     } catch (error) {
-      console.error('Error adding reward/penalty:', error);
+      logError('AttendanceTracker.addReward', error);
       toast({
         title: "Xatolik",
         description: "Ball qo'shishda xatolik yuz berdi",
@@ -325,7 +345,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: "Davomat ma'lumotlari yuklab olindi",
       });
     } catch (error) {
-      console.error('Error exporting CSV:', error);
+      logError('AttendanceTracker.exportToCSV', error);
       toast({
         title: "Xatolik",
         description: "Ma'lumotlarni eksport qilishda xatolik yuz berdi",

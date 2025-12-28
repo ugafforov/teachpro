@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { XCircle } from 'lucide-react';
@@ -9,6 +8,7 @@ import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
+import { sanitizeError, logError } from '@/lib/errorUtils';
 
 interface Teacher {
   id: string;
@@ -30,7 +30,6 @@ const Index = () => {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
     // Set up auth state listener
@@ -51,12 +50,9 @@ const Index = () => {
                 .single();
 
               if (teacherError && teacherError.code !== 'PGRST116') {
-                console.error('Error fetching teacher:', teacherError);
-                toast({
-                  title: "Error",
-                  description: "Failed to load teacher profile",
-                  variant: "destructive",
-                });
+                logError('Index.fetchTeacher', teacherError);
+                const { message } = sanitizeError(teacherError, 'fetch');
+                toast.error(message);
               } else if (teacherData) {
                 setTeacher(teacherData);
               }
@@ -71,7 +67,7 @@ const Index = () => {
 
               setIsAdmin(!!roleData);
             } catch (error) {
-              console.error('Error fetching teacher profile:', error);
+              logError('Index.fetchProfile', error);
             }
             setLoading(false);
           }, 0);
@@ -93,7 +89,7 @@ const Index = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [toast]);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -101,17 +97,10 @@ const Index = () => {
       setUser(null);
       setSession(null);
       setTeacher(null);
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
-      });
+      toast.success("You have been successfully logged out");
     } catch (error) {
-      console.error('Error signing out:', error);
-      toast({
-        title: "Error",
-        description: "Failed to log out",
-        variant: "destructive",
-      });
+      logError('Index.handleLogout', error);
+      toast.error("Chiqishda xatolik yuz berdi");
     }
   };
 

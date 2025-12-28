@@ -9,6 +9,7 @@ import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X, F
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDateUz } from '@/lib/utils';
+import { logError } from '@/lib/errorUtils';
 
 interface DeletedStudent {
   id: string;
@@ -75,7 +76,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         .order('deleted_at', { ascending: false });
 
       if (studentsError) {
-        console.error('Error fetching deleted students:', studentsError);
+        logError('TrashManager.fetchTrashData.students', studentsError);
         setDeletedStudents([]);
       } else {
         setDeletedStudents(students || []);
@@ -89,7 +90,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         .order('deleted_at', { ascending: false });
 
       if (groupsError) {
-        console.error('Error fetching deleted groups:', groupsError);
+        logError('TrashManager.fetchTrashData.groups', groupsError);
         setDeletedGroups([]);
       } else {
         setDeletedGroups(groups || []);
@@ -103,13 +104,13 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         .order('deleted_at', { ascending: false });
 
       if (examsError) {
-        console.error('Error fetching deleted exams:', examsError);
+        logError('TrashManager.fetchTrashData.exams', examsError);
         setDeletedExams([]);
       } else {
         setDeletedExams(exams || []);
       }
     } catch (error) {
-      console.error('Error fetching deleted data:', error);
+      logError('TrashManager.fetchTrashData', error);
       toast({
         title: "Xatolik",
         description: "O'chirilgan ma'lumotlarni yuklashda xatolik yuz berdi",
@@ -153,7 +154,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
       await fetchTrashData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error clearing all trash:', error);
+      logError('TrashManager.clearAllTrash', error);
     }
   };
 
@@ -187,7 +188,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         }
       }
     } catch (error) {
-      console.error('Error performing action:', error);
+      logError('TrashManager.confirmAction', error);
     } finally {
       setConfirmDialog(null);
     }
@@ -209,7 +210,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedStudent.name} barcha ma'lumotlari bilan tiklandi`,
       });
     } catch (error) {
-      console.error('Error restoring student:', error);
+      logError('TrashManager.restoreStudent', error);
       toast({
         title: "Xatolik",
         description: "O'quvchini tiklashda xatolik yuz berdi",
@@ -244,7 +245,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedGroup.name} guruhi muvaffaqiyatli tiklandi`,
       });
     } catch (error) {
-      console.error('Error restoring group:', error);
+      logError('TrashManager.restoreGroup', error);
       toast({
         title: "Xatolik",
         description: "Guruhni tiklashda xatolik yuz berdi",
@@ -271,7 +272,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedStudent.name} butunlay o'chirildi`,
       });
     } catch (error) {
-      console.error('Error permanently deleting student:', error);
+      logError('TrashManager.permanentDeleteStudent', error);
       toast({
         title: "Xatolik",
         description: "O'quvchini o'chirishda xatolik yuz berdi",
@@ -298,7 +299,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedGroup.name} guruhi butunlay o'chirildi`,
       });
     } catch (error) {
-      console.error('Error permanently deleting group:', error);
+      logError('TrashManager.permanentDeleteGroup', error);
       toast({
         title: "Xatolik",
         description: "Guruhni o'chirishda xatolik yuz berdi",
@@ -356,7 +357,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedExam.exam_name} muvaffaqiyatli tiklandi`,
       });
     } catch (error) {
-      console.error('Error restoring exam:', error);
+      logError('TrashManager.restoreExam', error);
       toast({
         title: "Xatolik",
         description: "Imtihonni tiklashda xatolik yuz berdi",
@@ -383,7 +384,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         description: `${deletedExam.exam_name} butunlay o'chirildi`,
       });
     } catch (error) {
-      console.error('Error permanently deleting exam:', error);
+      logError('TrashManager.permanentDeleteExam', error);
       toast({
         title: "Xatolik",
         description: "Imtihonni o'chirishda xatolik yuz berdi",

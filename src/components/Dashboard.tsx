@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
@@ -11,6 +11,8 @@ import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
 import ExamManager from './ExamManager';
+import DataManager from './DataManager';
+import { logError } from '@/lib/errorUtils';
 
 interface DashboardProps {
   teacherId: string;
@@ -76,7 +78,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             students!inner(is_active)
           `)
           .eq('teacher_id', teacherId)
-          .eq('students.is_active', true);
+          .eq('students.is_active', true)
+          .range(0, 10000);
 
         if (attendanceError) throw attendanceError;
 
@@ -85,22 +88,53 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         averageAttendance = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
       }
 
-      // Eng yaxshi o'quvchini topish (faqat faol o'quvchilar orasidan)
-      const { data: topStudentData, error: topStudentError } = await supabase
-        .from('student_scores')
-        .select(`
-          student_id, 
-          total_score, 
-          students!inner(name, is_active)
-        `)
+      // Eng yaxshi o'quvchini topish - dinamik hisoblash
+      const { data: allStudents } = await supabase
+        .from('students')
+        .select('id, name, created_at')
         .eq('teacher_id', teacherId)
-        .eq('students.is_active', true)
-        .order('total_score', { ascending: false })
-        .limit(1);
+        .eq('is_active', true)
+        .range(0, 10000);
 
-      if (topStudentError) throw topStudentError;
+      const { data: allAttendance } = await supabase
+        .from('attendance_records')
+        .select('student_id, status, date')
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
 
-      const topStudent = topStudentData?.[0]?.students?.name || 'Ma\'lumot yo\'q';
+      const { data: allRewards } = await supabase
+        .from('reward_penalty_history')
+        .select('student_id, points, type')
+        .eq('teacher_id', teacherId)
+        .range(0, 10000);
+
+      let topStudent = 'Ma\'lumot yo\'q';
+      let maxScore = -Infinity;
+
+      allStudents?.forEach(student => {
+        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
+        
+        // Faqat qo'shilgan sanadan keyingi davomat
+        const sAttendance = allAttendance?.filter(a => 
+          a.student_id === student.id && a.date >= studentCreatedAt
+        ) || [];
+        const attendancePoints = sAttendance.reduce((total, a) => {
+          if (a.status === 'present') return total + 1;
+          if (a.status === 'late') return total + 0.5;
+          return total;
+        }, 0);
+        
+        const sRewards = allRewards?.filter(r => r.student_id === student.id) || [];
+        const mukofot = sRewards.filter(r => r.type === 'Mukofot').reduce((sum, r) => sum + Number(r.points), 0);
+        const jarima = sRewards.filter(r => r.type === 'Jarima').reduce((sum, r) => sum + Number(r.points), 0);
+        
+        const totalScore = attendancePoints + mukofot - jarima;
+        
+        if (totalScore > maxScore) {
+          maxScore = totalScore;
+          topStudent = student.name;
+        }
+      });
 
       setStats({
         totalStudents,
@@ -109,7 +143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         topStudent
       });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      logError('Dashboard.fetchStats', error);
     } finally {
       setLoading(false);
     }
@@ -130,6 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     { id: 'statistics', label: 'Statistika', icon: BarChart3 },
     { id: 'archive', label: 'Arxiv', icon: Archive },
     { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
+    { id: 'data', label: 'Ma\'lumotlar', icon: Database },
   ];
 
   const renderContent = () => {
@@ -148,6 +183,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
       case 'trash':
         return <TrashManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+      case 'data':
+        return <DataManager teacherId={teacherId} />;
       default:
         return (
           <div className="space-y-6">
