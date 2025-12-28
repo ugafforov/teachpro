@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { logError } from '@/lib/errorUtils';
 interface Student {
   id: string;
   name: string;
@@ -133,7 +134,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const uniqueDates = [...new Set(data?.map(record => record.date) || [])];
       setAttendanceDates(uniqueDates.map(date => parseISO(date)));
     } catch (error) {
-      console.error('Error fetching attendance dates:', error);
+      logError('GroupDetails.fetchAttendanceDates', error);
     }
   };
 
@@ -223,7 +224,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         setStudents(studentsData || []);
       }
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('GroupDetails.fetchStudents', error);
     } finally {
       setLoading(false);
     }
@@ -243,7 +244,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
       setAttendance(attendanceMap);
     } catch (error) {
-      console.error('Error fetching attendance:', error);
+      logError('GroupDetails.fetchAttendanceForDate', error);
     }
   };
 
@@ -280,7 +281,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       setDailyScores(scoresMap);
     } catch (error) {
-      console.error('Error fetching daily scores:', error);
+      logError('GroupDetails.fetchDailyScores', error);
     }
   };
   const addStudent = async () => {
@@ -325,7 +326,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       });
       setIsAddDialogOpen(false);
     } catch (error) {
-      console.error('Error adding student:', error);
+      logError('GroupDetails.addStudent', error);
     }
   };
   const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
@@ -384,7 +385,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       // Background update without blocking
       onStatsUpdate?.();
     } catch (error) {
-      console.error('Error marking attendance:', error);
+      logError('GroupDetails.markAttendance', error);
       // Revert on error
       await fetchAttendanceForDate(selectedDate);
     }
@@ -394,7 +395,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const attendancePromises = students.map(student => markAttendance(student.id, 'present'));
       await Promise.all(attendancePromises);
     } catch (error) {
-      console.error('Error marking all as present:', error);
+      logError('GroupDetails.markAllAsPresent', error);
     }
   };
   const clearAllAttendance = async () => {
@@ -406,7 +407,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       setAttendance({});
       await onStatsUpdate();
     } catch (error) {
-      console.error('Error clearing attendance:', error);
+      logError('GroupDetails.clearAllAttendance', error);
     }
   };
   const addReward = async (studentId: string) => {
@@ -458,7 +459,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       await fetchStudents(); // Refresh to show updated reward points
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error adding reward/penalty:', error);
+      logError('GroupDetails.addReward', error);
     }
   };
 
