@@ -881,6 +881,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      audit_student_group_links: {
+        Args: { p_teacher_id: string }
+        Returns: {
+          groups_affected: string[]
+          students_fixed: number
+          students_with_null_group_id: number
+          total_students: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
