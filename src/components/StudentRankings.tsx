@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { Trophy, Medal, Award, Users, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import StudentDetailsPopup from './StudentDetailsPopup';
+import { fetchAllRecords } from '@/lib/supabaseHelpers';
 
 interface StudentRanking {
   id: string;
@@ -27,7 +28,9 @@ interface StudentScore {
   group_name: string;
   total_score: number;
   attendance_points: number;
-  reward_penalty_points: number;
+  mukofot_points: number;
+  jarima_points: number;
+  baho_average: number;
   class_rank: number;
 }
 
@@ -64,8 +67,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       if (error) throw error;
 
-      const uniqueGroups = [...new Set(students?.map(s => s.group_name) || [])];
-      setGroups(uniqueGroups);
+      const uniqueGroups = [...new Set(students?.map(s => s.group_name).filter(Boolean) || [])];
+      setGroups(uniqueGroups as string[]);
     } catch (error) {
       console.error('Error fetching groups:', error);
     }
@@ -95,45 +98,38 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher with date to calculate unique class days per group
-      const { data: allAttendance, error: attendanceError } = await supabase
-        .from('attendance_records')
-        .select('student_id, status, date')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      if (attendanceError) throw attendanceError;
-
-      // Create a Set of student IDs for faster lookup
-      const studentIdSet = new Set(studentIds);
-
-      // Filter attendance to only include selected students
-      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
+      // Fetch ALL attendance records using pagination helper (same as GroupDetails)
+      const allAttendance = await fetchAllRecords<{student_id: string; status: string; date: string}>(
+        'attendance_records',
+        teacherId,
+        undefined,
+        studentIds
+      );
 
       // Calculate unique class dates per group
       const groupClassDates = new Map<string, Set<string>>();
       students.forEach(student => {
-        if (!groupClassDates.has(student.group_name)) {
+        if (student.group_name && !groupClassDates.has(student.group_name)) {
           groupClassDates.set(student.group_name, new Set());
         }
       });
 
       // Collect all unique dates per group from attendance records
-      attendance.forEach(record => {
+      allAttendance.forEach(record => {
         const student = students.find(s => s.id === record.student_id);
-        if (student) {
+        if (student && student.group_name) {
           groupClassDates.get(student.group_name)?.add(record.date);
         }
       });
 
       const studentStats = students.map(student => {
-        const studentAttendance = attendance.filter(a => a.student_id === student.id);
+        const studentAttendance = allAttendance.filter(a => a.student_id === student.id);
         
         // Get student's creation date (when they joined)
         const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
         
         // Calculate total classes for this student - only count dates on or after they joined
-        const groupDates = groupClassDates.get(student.group_name);
+        const groupDates = student.group_name ? groupClassDates.get(student.group_name) : undefined;
         const relevantClassDates = groupDates 
           ? Array.from(groupDates).filter(date => date >= studentCreatedAt)
           : [];
@@ -152,11 +148,11 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
           id: `${student.id}-ranking`,
           student_id: student.id,
           student_name: student.name,
-          group_name: student.group_name,
+          group_name: student.group_name || '',
           total_classes: totalClasses,
           present_count: presentCount,
           late_count: lateCount,
-          absent_count: absentCount,
+          absent_count: Math.max(0, absentCount),
           attendance_percentage: Math.round(attendancePercentage * 100) / 100,
           rank_position: 0
         };
@@ -203,67 +199,70 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       const studentIds = students.map(s => s.id);
 
-      // Fetch ALL attendance records for the teacher with date to calculate properly
-      const { data: allAttendance, error: attendanceError } = await supabase
-        .from('attendance_records')
-        .select('student_id, status, date')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
+      // Fetch ALL records using pagination helper (SAME as GroupDetails)
+      const [allAttendance, allRewards] = await Promise.all([
+        fetchAllRecords<{student_id: string; status: string; date: string}>(
+          'attendance_records',
+          teacherId,
+          undefined,
+          studentIds
+        ),
+        fetchAllRecords<{student_id: string; points: number; type: string}>(
+          'reward_penalty_history',
+          teacherId,
+          undefined,
+          studentIds
+        )
+      ]);
 
-      if (attendanceError) throw attendanceError;
+      const formattedScores = students.map((student) => {
+        const studentAttendance = allAttendance.filter(a => a.student_id === student.id);
+        const studentRewards = allRewards.filter(r => r.student_id === student.id);
 
-      // Fetch ALL reward/penalty records for the teacher
-      const { data: allRewards, error: rewardsError } = await supabase
-        .from('reward_penalty_history')
-        .select('student_id, points, type')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      if (rewardsError) throw rewardsError;
-
-      // Create a Set of student IDs for faster lookup
-      const studentIdSet = new Set(studentIds);
-
-      // Filter attendance and rewards to only include selected students
-      const attendance = allAttendance?.filter(a => studentIdSet.has(a.student_id)) || [];
-      const rewards = allRewards?.filter(r => studentIdSet.has(r.student_id)) || [];
-
-      const formattedScores = students.map((student, index) => {
-        // Get student's creation date (when they joined)
-        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
-        
         // Calculate attendance points: present = +1, late = +0.5, absent = 0
-        // Only count attendance records on or after the student joined
-        const studentAttendance = attendance.filter(a => 
-          a.student_id === student.id && a.date >= studentCreatedAt
-        );
+        // EXACTLY same as GroupDetails
         const attendancePoints = studentAttendance.reduce((total, record) => {
           if (record.status === 'present') return total + 1;
           if (record.status === 'late') return total + 0.5;
           return total;
         }, 0);
 
-        // Calculate reward/penalty points based on type
-        const studentRewards = rewards.filter(r => r.student_id === student.id);
-        const mukofotPoints = studentRewards
-          .filter(r => r.type === 'Mukofot')
-          .reduce((total, r) => total + Number(r.points || 0), 0);
-        const jarimaPoints = studentRewards
-          .filter(r => r.type === 'Jarima')
-          .reduce((total, r) => total + Number(r.points || 0), 0);
-        
-        const rewardPenaltyPoints = mukofotPoints - jarimaPoints;
-        const totalScore = rewardPenaltyPoints + attendancePoints;
+        // Calculate scores by type - EXACTLY same as GroupDetails
+        let bahoScore = 0;
+        let mukofotPoints = 0;
+        let jarimaPoints = 0;
+        let bahoCount = 0;
+
+        studentRewards.forEach(record => {
+          const points = Number(record.points || 0);
+          if (record.type === 'Baho') {
+            bahoScore += points;
+            bahoCount++;
+          } else if (record.type === 'Mukofot') {
+            mukofotPoints += points;
+          } else if (record.type === 'Jarima') {
+            jarimaPoints += points;
+          }
+        });
+
+        // Average baho score
+        const bahoAverage = bahoCount > 0 ? bahoScore / bahoCount : 0;
+
+        // Total score = (mukofot - jarima) + attendance points
+        // EXACTLY same formula as GroupDetails
+        const totalScore = (mukofotPoints - jarimaPoints) + attendancePoints;
 
         return {
           id: student.id,
           student_id: student.id,
           student_name: student.name,
-          group_name: student.group_name,
+          group_name: student.group_name || '',
           total_score: totalScore,
           attendance_points: attendancePoints,
-          reward_penalty_points: rewardPenaltyPoints,
-          class_rank: index + 1
+          mukofot_points: mukofotPoints,
+          jarima_points: jarimaPoints,
+          baho_average: Math.round(bahoAverage * 100) / 100,
+          class_rank: 0
         };
       });
 
@@ -489,14 +488,18 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl ${getScoreColor(student.total_score)}`}>
                       {student.total_score.toFixed(1)}
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
                       <div>
                         <div className="font-semibold text-blue-600">{student.attendance_points.toFixed(1)}</div>
                         <div className="text-muted-foreground">Davomat</div>
                       </div>
                       <div>
-                        <div className="font-semibold text-purple-600">{student.reward_penalty_points.toFixed(1)}</div>
-                        <div className="text-muted-foreground">Qo'shimcha</div>
+                        <div className="font-semibold text-green-600">+{student.mukofot_points.toFixed(1)}</div>
+                        <div className="text-muted-foreground">Mukofot</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-red-600">-{student.jarima_points.toFixed(1)}</div>
+                        <div className="text-muted-foreground">Jarima</div>
                       </div>
                     </div>
                   </div>
@@ -550,7 +553,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
                       <div className="text-right">
                         <div className="flex items-center space-x-3 text-sm">
                           <span className="text-blue-600">{student.attendance_points.toFixed(1)} davomat</span>
-                          <span className="text-purple-600">{student.reward_penalty_points.toFixed(1)} qo'shimcha</span>
+                          <span className="text-green-600">+{student.mukofot_points.toFixed(1)} mukofot</span>
+                          <span className="text-red-600">-{student.jarima_points.toFixed(1)} jarima</span>
                         </div>
                       </div>
                       <Badge 
