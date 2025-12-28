@@ -15,7 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { logError } from '@/lib/errorUtils';
 
 interface DataManagerProps {
   teacherId: string;
@@ -95,7 +94,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
           .eq('teacher_id', teacherId);
         
         if (error) {
-          logError(`DataManager.exportData.${table}`, error);
+          console.error(`Error fetching ${table}:`, error);
           data[table] = [];
         } else {
           data[table] = tableData || [];
@@ -129,7 +128,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         description: `Jami ${totalRecords} ta yozuv yuklab olindi`
       });
     } catch (error) {
-      logError('DataManager.exportData', error);
+      console.error('Export error:', error);
       toast.error('Eksport qilishda xatolik yuz berdi');
     } finally {
       setExporting(false);
@@ -207,7 +206,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
               .insert(batch);
             
             if (error) {
-              logError(`DataManager.performImport.${table}`, error);
+              console.error(`Error importing ${table}:`, error);
             }
           }
         }
@@ -225,7 +224,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       // Refresh the page to show new data
       window.location.reload();
     } catch (error) {
-      logError('DataManager.performImport', error);
+      console.error('Import error:', error);
       toast.error('Import qilishda xatolik yuz berdi');
     } finally {
       setImporting(false);

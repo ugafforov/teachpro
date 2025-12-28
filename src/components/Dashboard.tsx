@@ -12,7 +12,6 @@ import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
 import ExamManager from './ExamManager';
 import DataManager from './DataManager';
-import { logError } from '@/lib/errorUtils';
 
 interface DashboardProps {
   teacherId: string;
@@ -143,7 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         topStudent
       });
     } catch (error) {
-      logError('Dashboard.fetchStats', error);
+      console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }
