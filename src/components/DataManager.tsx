@@ -50,10 +50,56 @@ interface ExportData {
   };
 }
 
+// Import tartibini aniqlash - foreign key bog'lanishlarini hisobga olgan holda
+const IMPORT_ORDER = [
+  'groups',           // Guruhlar birinchi - students va exams bunga bog'liq
+  'exam_types',       // Imtihon turlari - exams bunga bog'liq
+  'students',         // O'quvchilar - attendance, scores, results bunga bog'liq
+  'exams',            // Imtihonlar - exam_results bunga bog'liq
+  'attendance_records',
+  'reward_penalty_history',
+  'student_scores',
+  'exam_results',
+  // Arxivlangan va o'chirilgan ma'lumotlar
+  'archived_groups',
+  'archived_students',
+  'archived_exams',
+  'deleted_groups',
+  'deleted_students',
+  'deleted_exams',
+  'deleted_attendance_records',
+  'deleted_reward_penalty_history',
+  'deleted_student_scores',
+  'deleted_exam_results',
+];
+
+// O'chirish tartibi - teskari tartibda (bog'liq jadvallar avval o'chiriladi)
+const DELETE_ORDER = [
+  'exam_results',
+  'student_scores',
+  'reward_penalty_history',
+  'attendance_records',
+  'exams',
+  'students',
+  'exam_types',
+  'groups',
+  'deleted_exam_results',
+  'deleted_student_scores',
+  'deleted_reward_penalty_history',
+  'deleted_attendance_records',
+  'deleted_exams',
+  'deleted_students',
+  'deleted_groups',
+  'archived_exams',
+  'archived_students',
+  'archived_groups',
+];
+
 const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importData, setImportData] = useState<ExportData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,13 +111,13 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
 
       const tables = [
         'teachers',
-        'students', 
         'groups',
+        'exam_types',
+        'students', 
+        'exams',
         'attendance_records',
         'reward_penalty_history',
-        'exams',
         'exam_results',
-        'exam_types',
         'student_scores',
         'archived_students',
         'archived_groups',
@@ -105,7 +151,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
 
       const exportObject: ExportData = {
         exportDate: new Date().toISOString(),
-        version: '2.0',
+        version: '2.1',
         teacherId: teacherId,
         checksum,
         recordCounts,
@@ -180,57 +226,139 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       setProgress(0);
 
       const { data: importDataContent } = importData;
-      const tables = Object.keys(importDataContent);
-      let processedTables = 0;
+      
+      // ID xaritalari - eski ID -> yangi ID
+      const idMaps: Record<string, Record<string, string>> = {
+        groups: {},
+        exam_types: {},
+        students: {},
+        exams: {},
+      };
 
-      for (const table of tables) {
-        const records = importDataContent[table as keyof typeof importDataContent];
+      // 1-BOSQICH: Mavjud ma'lumotlarni o'chirish (to'g'ri tartibda)
+      setProgressMessage("Mavjud ma'lumotlar o'chirilmoqda...");
+      for (let i = 0; i < DELETE_ORDER.length; i++) {
+        const table = DELETE_ORDER[i];
+        setProgress(Math.round((i / DELETE_ORDER.length) * 25)); // 0-25%
         
-        if (records && records.length > 0) {
-          // Update teacher_id for all records to current user
-          const updatedRecords = records.map((record: any) => ({
-            ...record,
-            teacher_id: teacherId
-          }));
-
-          // Delete existing data first
+        try {
           await supabase
             .from(table as any)
             .delete()
             .eq('teacher_id', teacherId);
+        } catch (err) {
+          console.log(`Table ${table} delete skipped:`, err);
+        }
+      }
 
-          // Insert new data in batches
-          const batchSize = 100;
-          for (let i = 0; i < updatedRecords.length; i += batchSize) {
-            const batch = updatedRecords.slice(i, i + batchSize);
-            const { error } = await supabase
-              .from(table as any)
-              .insert(batch);
-            
-            if (error) {
-              console.error(`Error importing ${table}:`, error);
-            }
-          }
+      // 2-BOSQICH: Ma'lumotlarni to'g'ri tartibda import qilish
+      let importStep = 0;
+      const totalSteps = IMPORT_ORDER.length;
+
+      for (const table of IMPORT_ORDER) {
+        importStep++;
+        setProgress(25 + Math.round((importStep / totalSteps) * 75)); // 25-100%
+        setProgressMessage(`${table} import qilinmoqda...`);
+        
+        const records = importDataContent[table as keyof typeof importDataContent];
+        
+        if (!records || records.length === 0) {
+          continue;
         }
 
-        processedTables++;
-        setProgress(Math.round((processedTables / tables.length) * 100));
+        // Har bir yozuvni individual ravishda qo'shish (ID larni to'g'ri saqlash uchun)
+        for (const record of records) {
+          try {
+            let newRecord = { ...record };
+            
+            // teacher_id ni yangilash
+            if ('teacher_id' in newRecord) {
+              newRecord.teacher_id = teacherId;
+            }
+
+            // Foreign key ID larini yangilash
+            if (table === 'students' && newRecord.group_id && idMaps.groups[newRecord.group_id]) {
+              newRecord.group_id = idMaps.groups[newRecord.group_id];
+            }
+            
+            if (table === 'exams') {
+              if (newRecord.group_id && idMaps.groups[newRecord.group_id]) {
+                newRecord.group_id = idMaps.groups[newRecord.group_id];
+              }
+              if (newRecord.exam_type_id && idMaps.exam_types[newRecord.exam_type_id]) {
+                newRecord.exam_type_id = idMaps.exam_types[newRecord.exam_type_id];
+              }
+            }
+            
+            if (table === 'attendance_records' || 
+                table === 'reward_penalty_history' || 
+                table === 'student_scores') {
+              if (newRecord.student_id && idMaps.students[newRecord.student_id]) {
+                newRecord.student_id = idMaps.students[newRecord.student_id];
+              }
+            }
+            
+            if (table === 'exam_results') {
+              if (newRecord.student_id && idMaps.students[newRecord.student_id]) {
+                newRecord.student_id = idMaps.students[newRecord.student_id];
+              }
+              if (newRecord.exam_id && idMaps.exams[newRecord.exam_id]) {
+                newRecord.exam_id = idMaps.exams[newRecord.exam_id];
+              }
+            }
+
+            // Original ID ni saqlash yoki yangi ID olish
+            const originalId = newRecord.id;
+            delete newRecord.id; // Supabase yangi ID yaratsin
+            delete newRecord.created_at; // Yangi timestamp
+
+            const { data: insertedData, error } = await supabase
+              .from(table as any)
+              .insert(newRecord)
+              .select('id')
+              .single();
+
+            if (error) {
+              console.error(`Error importing ${table}:`, error, newRecord);
+              continue;
+            }
+
+            // Yangi ID ni xaritaga qo'shish
+            const newId = (insertedData as any)?.id;
+            if (newId && originalId) {
+              if (table === 'groups') {
+                idMaps.groups[originalId] = newId;
+              } else if (table === 'exam_types') {
+                idMaps.exam_types[originalId] = newId;
+              } else if (table === 'students') {
+                idMaps.students[originalId] = newId;
+              } else if (table === 'exams') {
+                idMaps.exams[originalId] = newId;
+              }
+            }
+          } catch (recordError) {
+            console.error(`Error processing record in ${table}:`, recordError);
+          }
+        }
       }
 
       const totalRecords = Object.values(importDataContent).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
       
-      toast.success('Ma\'lumotlar muvaffaqiyatli import qilindi!', {
+      toast.success("Ma'lumotlar muvaffaqiyatli import qilindi!", {
         description: `Jami ${totalRecords} ta yozuv yuklandi`
       });
 
       // Refresh the page to show new data
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Import qilishda xatolik yuz berdi');
     } finally {
       setImporting(false);
       setProgress(0);
+      setProgressMessage('');
       setImportData(null);
     }
   };
@@ -246,6 +374,8 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       rewards: data.reward_penalty_history?.length || 0,
       exams: data.exams?.length || 0,
       examResults: data.exam_results?.length || 0,
+      examTypes: data.exam_types?.length || 0,
+      studentScores: data.student_scores?.length || 0,
       checksum: checksum || 'N/A',
       version: version || '1.0',
       recordCounts: recordCounts || {}
@@ -319,7 +449,9 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
               {importing && (
                 <div className="mb-4">
                   <Progress value={progress} className="h-2" />
-                  <p className="text-xs text-muted-foreground mt-1">{progress}% bajarildi</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {progress}% - {progressMessage}
+                  </p>
                 </div>
               )}
 
@@ -362,9 +494,9 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
             <h4 className="font-medium text-amber-800">Muhim ma'lumot</h4>
             <ul className="text-sm text-amber-700 mt-2 space-y-1">
               <li>• Eksport qilish faqat sizning ma'lumotlaringizni yuklab oladi</li>
-              <li>• Import qilishda mavjud ma'lumotlar yangilanadi</li>
+              <li>• Import qilishda mavjud ma'lumotlar o'chiriladi va yangilari bilan almashtiriladi</li>
+              <li>• Guruhlar, o'quvchilar, imtihonlar va ularning bog'lanishlari to'liq tiklanadi</li>
               <li>• Faylni xavfsiz joyda saqlang</li>
-              <li>• Boshqa platformaga ko'chirish uchun eksport qilingan fayldan foydalaning</li>
             </ul>
           </div>
         </div>
@@ -372,7 +504,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
 
       {/* Import Confirmation Dialog */}
       <AlertDialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <FileJson className="w-5 h-5" />
@@ -389,12 +521,24 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
                       <span className="font-medium">{summary.version}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span>Guruhlar:</span>
+                      <span className="font-medium">{summary.groups} ta</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span>O'quvchilar:</span>
                       <span className="font-medium">{summary.students} ta</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Guruhlar:</span>
-                      <span className="font-medium">{summary.groups} ta</span>
+                      <span>Imtihon turlari:</span>
+                      <span className="font-medium">{summary.examTypes} ta</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Imtihonlar:</span>
+                      <span className="font-medium">{summary.exams} ta</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Imtihon natijalari:</span>
+                      <span className="font-medium">{summary.examResults} ta</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Davomat yozuvlari:</span>
@@ -405,12 +549,8 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
                       <span className="font-medium">{summary.rewards} ta</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Imtihonlar:</span>
-                      <span className="font-medium">{summary.exams} ta</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Imtihon natijalari:</span>
-                      <span className="font-medium">{summary.examResults} ta</span>
+                      <span>O'quvchi baholari:</span>
+                      <span className="font-medium">{summary.studentScores} ta</span>
                     </div>
                     <div className="flex justify-between border-t pt-2 mt-2">
                       <span>Tekshirish kodi:</span>
