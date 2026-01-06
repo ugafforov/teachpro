@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Trash2, Menu, Database, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, BarChart3, Trash2, Menu, X, Database, Shield } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
-import Statistics from './Statistics';
 import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import TrashManager from './TrashManager';
 import ExamManager from './ExamManager';
 import DataManager from './DataManager';
 import DataIntegrityManager from './DataIntegrityManager';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useStatistics } from '@/components/statistics/hooks/useStatistics';
+import MonthlyAnalysis from './statistics/MonthlyAnalysis';
+import GroupRankings from './statistics/GroupRankings';
 
 interface DashboardProps {
   teacherId: string;
@@ -20,138 +24,39 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-interface Stats {
-  totalStudents: number;
-  totalGroups: number;
-  averageAttendance: number;
-  topStudent: string;
-}
 
 const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [stats, setStats] = useState<Stats>({
-    totalStudents: 0,
-    totalGroups: 0,
-    averageAttendance: 0,
-    topStudent: ''
-  });
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [groups, setGroups] = useState<Array<{ id: string, name: string }>>([]);
+
+  const { stats: detailedStats, monthlyData, loading: statsLoading } = useStatistics(teacherId, selectedPeriod, selectedGroup);
 
   useEffect(() => {
-    fetchStats();
+    fetchGroups();
   }, [teacherId]);
 
-  const fetchStats = async () => {
+  const fetchGroups = async () => {
     try {
-      setLoading(true);
-
-      // Faqat faol o'quvchilar sonini olish
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('id')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (studentsError) throw studentsError;
-
-      // Faqat faol guruhlar sonini olish
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('groups')
-        .select('id')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (groupsError) throw groupsError;
-
-      const totalStudents = studentsData?.length || 0;
-      const totalGroups = groupsData?.length || 0;
-
-      // O'rtacha davomatni hisoblash (faqat faol o'quvchilar uchun)
-      let averageAttendance = 0;
-      if (totalStudents > 0) {
-        const { data: attendanceData, error: attendanceError } = await supabase
-          .from('attendance_records')
-          .select(`
-            status,
-            students!inner(is_active)
-          `)
-          .eq('teacher_id', teacherId)
-          .eq('students.is_active', true)
-          .range(0, 10000);
-
-        if (attendanceError) throw attendanceError;
-
-        const totalRecords = attendanceData?.length || 0;
-        const presentRecords = attendanceData?.filter(a => a.status === 'present' || a.status === 'late').length || 0;
-        averageAttendance = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
-      }
-
-      // Eng yaxshi o'quvchini topish - dinamik hisoblash
-      const { data: allStudents } = await supabase
-        .from('students')
-        .select('id, name, created_at')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .range(0, 10000);
-
-      const { data: allAttendance } = await supabase
-        .from('attendance_records')
-        .select('student_id, status, date')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      const { data: allRewards } = await supabase
-        .from('reward_penalty_history')
-        .select('student_id, points, type')
-        .eq('teacher_id', teacherId)
-        .range(0, 10000);
-
-      let topStudent = 'Ma\'lumot yo\'q';
-      let maxScore = -Infinity;
-
-      allStudents?.forEach(student => {
-        const studentCreatedAt = new Date(student.created_at).toISOString().split('T')[0];
-        
-        // Faqat qo'shilgan sanadan keyingi davomat
-        const sAttendance = allAttendance?.filter(a => 
-          a.student_id === student.id && a.date >= studentCreatedAt
-        ) || [];
-        const attendancePoints = sAttendance.reduce((total, a) => {
-          if (a.status === 'present') return total + 1;
-          if (a.status === 'late') return total + 0.5;
-          return total;
-        }, 0);
-        
-        const sRewards = allRewards?.filter(r => r.student_id === student.id) || [];
-        const mukofot = sRewards.filter(r => r.type === 'Mukofot').reduce((sum, r) => sum + Number(r.points), 0);
-        const jarima = sRewards.filter(r => r.type === 'Jarima').reduce((sum, r) => sum + Number(r.points), 0);
-        
-        const totalScore = attendancePoints + mukofot - jarima;
-        
-        if (totalScore > maxScore) {
-          maxScore = totalScore;
-          topStudent = student.name;
-        }
-      });
-
-      setStats({
-        totalStudents,
-        totalGroups,
-        averageAttendance: Math.round(averageAttendance * 100) / 100,
-        topStudent
-      });
+      const q = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      const groupsData = snapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
+      setGroups(groupsData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })));
     } catch (error) {
-      console.error('Error fetching stats:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching groups:', error);
     }
   };
 
+
   const handleGroupSelect = (groupName: string) => {
-    // For now, we can just log the selected group
-    // This could be extended to navigate to group details or perform other actions
     console.log('Selected group:', groupName);
   };
 
@@ -161,7 +66,6 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     { id: 'students', label: 'O\'quvchilar', icon: Users },
     { id: 'exams', label: 'Imtihonlar', icon: TrendingUp },
     { id: 'rankings', label: 'Reyting', icon: Trophy },
-    { id: 'statistics', label: 'Statistika', icon: BarChart3 },
     { id: 'archive', label: 'Arxiv', icon: Archive },
     { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
     { id: 'data', label: 'Ma\'lumotlar', icon: Database },
@@ -171,116 +75,141 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   const renderContent = () => {
     switch (activeTab) {
       case 'groups':
-        return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={fetchStats} />;
+        return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={async () => { }} />;
       case 'students':
-        return <StudentManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+        return <StudentManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
       case 'exams':
         return <ExamManager teacherId={teacherId} />;
       case 'rankings':
         return <StudentRankings teacherId={teacherId} />;
-      case 'statistics':
-        return <Statistics teacherId={teacherId} />;
       case 'archive':
-        return <ArchiveManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+        return <ArchiveManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
       case 'trash':
-        return <TrashManager teacherId={teacherId} onStatsUpdate={fetchStats} />;
+        return <TrashManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
       case 'data':
         return <DataManager teacherId={teacherId} />;
       case 'integrity':
         return <DataIntegrityManager teacherId={teacherId} />;
       default:
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Umumiy ko'rinish</h2>
-              <p className="text-muted-foreground">Sinflaringiz va o'quvchilaringiz statistikasi</p>
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-3xl font-black tracking-tight mb-1">Umumiy ko'rinish</h2>
+                <p className="text-muted-foreground">Sinflaringiz va o'quvchilaringiz statistikasi</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <SelectTrigger className="w-48 apple-button-secondary bg-white"><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Barcha guruhlar</SelectItem>
+                    {groups.map((group) => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-40 apple-button-secondary bg-white"><SelectValue placeholder="Muddatni tanlang" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1_day">1 kun</SelectItem>
+                    <SelectItem value="1_week">1 hafta</SelectItem>
+                    <SelectItem value="1_month">1 oy</SelectItem>
+                    <SelectItem value="2_months">2 oy</SelectItem>
+                    <SelectItem value="3_months">3 oy</SelectItem>
+                    <SelectItem value="6_months">6 oy</SelectItem>
+                    <SelectItem value="10_months">10 oy</SelectItem>
+                    <SelectItem value="all">Barchasi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {loading ? (
+            {statsLoading ? (
               <div className="flex items-center justify-center p-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="apple-card p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-blue-600" />
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Students Card */}
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-blue-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Users className="w-16 h-16 text-blue-600" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                      <p className="text-sm text-muted-foreground">Jami o'quvchilar</p>
+                    <div className="relative flex items-center space-x-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 group-hover:rotate-6 transition-transform duration-500">
+                        <Users className="w-7 h-7 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.totalStudents}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70">Faol o'quvchilar</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="apple-card p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <BookOpen className="w-6 h-6 text-green-600" />
+                  {/* Classes Card */}
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-emerald-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <BookOpen className="w-16 h-16 text-emerald-600" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.totalGroups}</p>
-                      <p className="text-sm text-muted-foreground">Faol guruhlar</p>
+                    <div className="relative flex items-center space-x-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200 group-hover:rotate-6 transition-transform duration-500">
+                        <BookOpen className="w-7 h-7 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.totalClasses}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70">O'tilgan darslar</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="apple-card p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-yellow-600" />
+                  {/* Attendance Card */}
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-amber-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <TrendingUp className="w-16 h-16 text-amber-600" />
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{stats.averageAttendance.toFixed(1)}%</p>
-                      <p className="text-sm text-muted-foreground">O'rtacha davomat</p>
+                    <div className="relative flex items-center space-x-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200 group-hover:rotate-6 transition-transform duration-500">
+                        <TrendingUp className="w-7 h-7 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1">
+                          <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.averageAttendance.toFixed(1)}%</p>
+                          <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 border-none ${detailedStats.averageAttendance >= 90 ? 'bg-emerald-100 text-emerald-700' :
+                            detailedStats.averageAttendance >= 75 ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                            {detailedStats.averageAttendance >= 90 ? 'A\'lo' : detailedStats.averageAttendance >= 75 ? 'Yaxshi' : 'O\'rtacha'}
+                          </Badge>
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600/70">O'rtacha davomat</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                <Card className="apple-card p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Trophy className="w-6 h-6 text-purple-600" />
+                  {/* Top Student Card */}
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-purple-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Trophy className="w-16 h-16 text-purple-600" />
                     </div>
-                    <div>
-                      <p className="text-lg font-bold truncate">{stats.topStudent}</p>
-                      <p className="text-sm text-muted-foreground">Eng yaxshi o'quvchi</p>
+                    <div className="relative flex items-center space-x-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-200 group-hover:rotate-6 transition-transform duration-500">
+                        <Trophy className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-lg font-black text-gray-900 leading-tight mb-0.5">{detailedStats.topStudent}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Eng faol o'quvchi</p>
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <GroupRankings teacherId={teacherId} selectedPeriod={selectedPeriod} />
+                  <MonthlyAnalysis monthlyData={monthlyData} />
+                </div>
               </div>
             )}
 
-            <Card className="p-6 bg-white shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold mb-4">Tezkor harakatlar</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button
-                  onClick={() => setActiveTab('groups')}
-                  variant="outline"
-                  className="h-16 flex flex-col gap-2"
-                >
-                  <Users className="w-5 h-5" />
-                  <span>Guruhlarni boshqarish</span>
-                </Button>
-                <Button
-                  onClick={() => setActiveTab('students')}
-                  variant="outline"
-                  className="h-16 flex flex-col gap-2"
-                >
-                  <Users className="w-5 h-5" />
-                  <span>O'quvchilarni boshqarish</span>
-                </Button>
-                <Button
-                  onClick={() => setActiveTab('statistics')}
-                  variant="outline"
-                  className="h-16 flex flex-col gap-2"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Statistikani ko'rish</span>
-                </Button>
-              </div>
-            </Card>
+
           </div>
         );
     }
@@ -319,9 +248,9 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             </div>
           </div>
         </div>
-        
-        <Button 
-          onClick={onLogout} 
+
+        <Button
+          onClick={onLogout}
           variant="ghost"
           className="flex items-center space-x-2"
         >
@@ -348,11 +277,10 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                     setActiveTab(item.id);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center px-6 py-3 text-left transition-colors ${
-                    activeTab === item.id
-                      ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                  className={`w-full flex items-center px-6 py-3 text-left transition-colors ${activeTab === item.id
+                    ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
+                    : 'text-gray-600 hover:bg-gray-50'
+                    } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
                   title={sidebarCollapsed ? item.label : ''}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
@@ -365,7 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
 
         {/* Mobile overlay */}
         {mobileMenuOpen && (
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />

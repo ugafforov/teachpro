@@ -11,6 +11,9 @@ export interface MonthlyData {
   totalClasses: number;
   averageAttendance: number;
   totalStudents: number;
+  latePercentage?: number;
+  absentPercentage?: number;
+  efficiency?: number;
 }
 
 export interface StatisticsProps {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +6,23 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowDown, FileText } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { ArrowDown, FileText, Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format, parseISO } from 'date-fns';
+import { uz } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  writeBatch,
+  doc,
+  serverTimestamp
+} from 'firebase/firestore';
 
 interface StudentImportProps {
   teacherId: string;
@@ -26,6 +40,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   const [isOpen, setIsOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(groupName || '');
+  const [joinDate, setJoinDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -44,15 +59,14 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
   const fetchGroups = async () => {
     try {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
-      setGroups(data || []);
+      const q = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true),
+        orderBy('name')
+      );
+      const snapshot = await getDocs(q);
+      setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Group)));
     } catch (error) {
       console.error('Error fetching groups:', error);
     }
@@ -60,20 +74,12 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
   const handleImport = async () => {
     if (!importText.trim()) {
-      toast({
-        title: "Ma'lumot yetishmayapti",
-        description: "O'quvchilar nomlarini kiriting",
-        variant: "destructive",
-      });
+      toast({ title: "Ma'lumot yetishmayapti", description: "O'quvchilar nomlarini kiriting", variant: "destructive" });
       return;
     }
 
     if (!selectedGroup) {
-      toast({
-        title: "Guruh tanlanmagan",
-        description: "Guruhni tanlang",
-        variant: "destructive",
-      });
+      toast({ title: "Guruh tanlanmagan", description: "Guruhni tanlang", variant: "destructive" });
       return;
     }
 
@@ -81,52 +87,40 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
 
     try {
       const lines = importText.split('\n').filter(line => line.trim());
-      const students = [];
+      const batch = writeBatch(db);
+      let count = 0;
 
       for (const line of lines) {
         const name = line.trim();
-        
         if (name) {
-          const student = {
+          const studentRef = doc(collection(db, 'students'));
+          batch.set(studentRef, {
             teacher_id: teacherId,
             name: name,
-            group_name: selectedGroup
-          };
-          students.push(student);
+            join_date: joinDate,
+            group_name: selectedGroup,
+            is_active: true,
+            created_at: serverTimestamp()
+          });
+          count++;
         }
       }
 
-      if (students.length === 0) {
-        toast({
-          title: "Ma'lumot topilmadi",
-          description: "Hech bo'lmaganda bitta o'quvchi nomini kiriting",
-          variant: "destructive",
-        });
+      if (count === 0) {
+        toast({ title: "Ma'lumot topilmadi", description: "Hech bo'lmaganda bitta o'quvchi nomini kiriting", variant: "destructive" });
         setLoading(false);
         return;
       }
 
-      const { error } = await supabase
-        .from('students')
-        .insert(students);
+      await batch.commit();
 
-      if (error) throw error;
-
-      toast({
-        title: "Import muvaffaqiyatli",
-        description: `${students.length} ta o'quvchi qo'shildi`,
-      });
-
+      toast({ title: "Import muvaffaqiyatli", description: `${count} ta o'quvchi qo'shildi` });
       setImportText('');
       setIsOpen(false);
       onImportComplete();
     } catch (error) {
       console.error('Error importing students:', error);
-      toast({
-        title: "Import xatoligi",
-        description: "O'quvchilarni import qilishda xatolik yuz berdi",
-        variant: "destructive",
-      });
+      toast({ title: "Import xatoligi", description: "O'quvchilarni import qilishda xatolik yuz berdi", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -141,72 +135,60 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>O'quvchilarni import qilish</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle>O'quvchilarni import qilish</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <Card className="p-4 bg-blue-50 border-blue-200">
             <div className="flex items-start gap-3">
               <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-blue-900 mb-2">Format:</p>
-                <code className="block bg-white p-2 rounded text-xs border">
-                  Ali Valiyev<br/>
-                  Olima Karimova<br/>
-                  Sardor Usmonov
-                </code>
-                <p className="text-blue-700 mt-2">
-                  Har bir qatorda bitta o'quvchi nomi
-                </p>
+                <code className="block bg-white p-2 rounded text-xs border">Ali Valiyev<br />Olima Karimova<br />Sardor Usmonov</code>
+                <p className="text-blue-700 mt-2">Har bir qatorda bitta o'quvchi nomi</p>
               </div>
             </div>
           </Card>
 
-          <div>
-            <Label htmlFor="groupSelect">Guruh tanlang *</Label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Guruhni tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.name}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Guruh tanlang *</Label>
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
+                <SelectContent>
+                  {groups.map(group => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Qo'shilgan sana *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !joinDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {joinDate ? format(parseISO(joinDate), "d-MMM, yy", { locale: uz }) : <span>Sana tanlang</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseISO(joinDate)}
+                    onSelect={(date) => date && setJoinDate(format(date, 'yyyy-MM-dd'))}
+                    initialFocus
+                    locale={uz}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <div>
-            <Label htmlFor="importText">O'quvchilar nomi</Label>
-            <Textarea
-              id="importText"
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="Ali Valiyev
-Olima Karimova
-Sardor Usmonov"
-              rows={10}
-              className="font-mono text-sm"
-            />
+            <Label>O'quvchilar nomi</Label>
+            <Textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Ali Valiyev&#10;Olima Karimova&#10;Sardor Usmonov" rows={10} className="font-mono text-sm" />
           </div>
 
           <div className="flex space-x-2">
-            <Button 
-              onClick={handleImport} 
-              disabled={loading || !selectedGroup}
-              className="flex-1"
-            >
-              {loading ? "Import qilinmoqda..." : "Import qilish"}
-            </Button>
-            <Button 
-              onClick={() => setIsOpen(false)} 
-              variant="outline" 
-              className="flex-1"
-            >
-              Bekor qilish
-            </Button>
+            <Button onClick={handleImport} disabled={loading || !selectedGroup} className="flex-1">{loading ? "Import qilinmoqda..." : "Import qilish"}</Button>
+            <Button onClick={() => setIsOpen(false)} variant="outline" className="flex-1">Bekor qilish</Button>
           </div>
         </div>
       </DialogContent>

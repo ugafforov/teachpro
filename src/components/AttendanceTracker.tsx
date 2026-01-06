@@ -4,8 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, Users, Check, X, Clock, Download, Gift, AlertTriangle, Plus } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Calendar as CalendarIcon, Users, Check, X, Clock, Download, Gift, AlertTriangle, Plus } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format, parseISO } from 'date-fns';
+import { uz } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  doc,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+  writeBatch
+} from 'firebase/firestore';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import { formatDateUz } from '@/lib/utils';
 
@@ -23,7 +40,6 @@ interface AttendanceRecord {
   date: string;
   status: 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late';
   notes?: string;
-  students?: Student;
 }
 
 interface AttendanceTrackerProps {
@@ -35,7 +51,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
@@ -44,71 +60,69 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [absentReason, setAbsentReason] = useState('');
+  const [attendanceDates, setAttendanceDates] = useState<Date[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchStudents();
-    fetchAttendanceRecords();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchStudents(),
+        fetchAttendanceRecords(),
+        fetchAttendanceDates()
+      ]);
+      setLoading(false);
+    };
+    init();
   }, [teacherId, selectedDate]);
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (error) throw error;
-      setStudents(data || []);
+      const q = query(
+        collection(db, 'students'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      setStudents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Student)));
     } catch (error) {
       console.error('Error fetching students:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchilarni yuklashda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchAttendanceRecords = async () => {
     try {
-      const { data, error } = await supabase
-        .from('attendance_records')
-        .select(`
-          *,
-          students (
-            id,
-            name,
-            group_name,
-            student_id,
-            is_active
-          )
-        `)
-        .eq('teacher_id', teacherId)
-        .eq('date', selectedDate);
-
-      if (error) throw error;
-      
-      const typedData = (data || [])
-        .filter(record => record.students?.is_active)
-        .map(record => ({
-          ...record,
-          status: record.status as 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late'
-        }));
-      
-      setAttendanceRecords(typedData);
+      const q = query(
+        collection(db, 'attendance_records'),
+        where('teacher_id', '==', teacherId),
+        where('date', '==', selectedDate)
+      );
+      const snapshot = await getDocs(q);
+      setAttendanceRecords(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
     } catch (error) {
       console.error('Error fetching attendance records:', error);
     }
   };
 
+  const fetchAttendanceDates = async () => {
+    try {
+      const q = query(
+        collection(db, 'attendance_records'),
+        where('teacher_id', '==', teacherId)
+      );
+      const snapshot = await getDocs(q);
+      const records = snapshot.docs.map(d => d.data());
+      const uniqueDates = [...new Set(records.map(r => r.date))];
+      setAttendanceDates(uniqueDates.map(date => parseISO(date)));
+    } catch (error) {
+      console.error('Error fetching attendance dates:', error);
+    }
+  };
+
   const groups = [...new Set(students.map(student => student.group_name))];
-  
-  const filteredStudents = selectedGroup === 'all' 
-    ? students 
+
+  const filteredStudents = selectedGroup === 'all'
+    ? students
     : students.filter(student => student.group_name === selectedGroup);
 
   const getAttendanceStatus = (studentId: string) => {
@@ -118,28 +132,24 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
   const markAttendance = async (studentId: string, status: 'present' | 'absent_with_reason' | 'absent_without_reason' | 'late', notes?: string) => {
     try {
-      const { error } = await supabase
-        .from('attendance_records')
-        .upsert({
-          student_id: studentId,
-          teacher_id: teacherId,
-          date: selectedDate,
-          status: status,
-          notes: notes || null
-        }, {
-          onConflict: 'student_id,date'
-        });
-
-      if (error) throw error;
+      const docId = `${studentId}_${selectedDate}`;
+      await setDoc(doc(db, 'attendance_records', docId), {
+        student_id: studentId,
+        teacher_id: teacherId,
+        date: selectedDate,
+        status: status,
+        notes: notes || null,
+        updated_at: serverTimestamp()
+      }, { merge: true });
 
       await fetchAttendanceRecords();
       await onStatsUpdate();
-      
-      const statusText = status === 'present' ? 'kelgan' : 
-                        status === 'late' ? 'kechikkan' : 
-                        status === 'absent_with_reason' ? 'sababli kelmagan' : 
-                        'sababsiz kelmagan';
-      
+
+      const statusText = status === 'present' ? 'kelgan' :
+        status === 'late' ? 'kechikkan' :
+          status === 'absent_with_reason' ? 'sababli kelmagan' :
+            'sababsiz kelmagan';
+
       toast({
         title: "Davomat yangilandi",
         description: `O'quvchi ${statusText} deb belgilandi`,
@@ -184,20 +194,19 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
   const markAllPresent = async () => {
     try {
-      const attendancePromises = filteredStudents.map(student =>
-        supabase
-          .from('attendance_records')
-          .upsert({
-            student_id: student.id,
-            teacher_id: teacherId,
-            date: selectedDate,
-            status: 'present'
-          }, {
-            onConflict: 'student_id,date'
-          })
-      );
+      const batch = writeBatch(db);
+      filteredStudents.forEach(student => {
+        const docId = `${student.id}_${selectedDate}`;
+        batch.set(doc(db, 'attendance_records', docId), {
+          student_id: student.id,
+          teacher_id: teacherId,
+          date: selectedDate,
+          status: 'present',
+          updated_at: serverTimestamp()
+        }, { merge: true });
+      });
 
-      await Promise.all(attendancePromises);
+      await batch.commit();
       await fetchAttendanceRecords();
       await onStatsUpdate();
 
@@ -217,14 +226,10 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
   const handleStudentClick = async (studentId: string) => {
     try {
-      const { data: student, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', studentId)
-        .single();
-
-      if (error) throw error;
-      setSelectedStudent(student);
+      const studentDoc = await getDoc(doc(db, 'students', studentId));
+      if (studentDoc.exists()) {
+        setSelectedStudent({ id: studentDoc.id, ...studentDoc.data() });
+      }
     } catch (error) {
       console.error('Error fetching student details:', error);
     }
@@ -252,40 +257,20 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
     try {
       const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
-      const payload = {
+      await addDoc(collection(db, 'reward_penalty_history'), {
         student_id: studentId,
         teacher_id: teacherId,
-        // points stored as positive, direction comes from type
         points: Math.abs(points),
         type,
         reason: type,
-        date: new Date().toISOString().split('T')[0]
-      };
-
-      const { error } = await supabase
-        .from('reward_penalty_history')
-        .insert([payload] as any);
-
-      if (error) {
-        // Unique constraint: only one record per student/date/type
-        // (o'zgartirish uchun ball kiritish jadvalidan foydalaniladi)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const code = (error as any)?.code;
-        if (code === '23505') {
-          toast({
-            title: 'Cheklov',
-            description: `Bugun uchun ${type} allaqachon kiritilgan. O'zgartirish uchun shu kunning ball katagidan foydalaning.`,
-            variant: 'destructive',
-          });
-          return;
-        }
-        throw error;
-      }
+        date: format(new Date(), 'yyyy-MM-dd'),
+        created_at: serverTimestamp()
+      });
 
       await onStatsUpdate();
       setShowRewardDialog(null);
       setRewardPoints('');
-      
+
       const studentName = students.find(s => s.id === studentId)?.name || '';
       toast({
         title: rewardType === 'reward' ? "Mukofot berildi" : "Jarima berildi",
@@ -303,28 +288,26 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
   const exportToCSV = async () => {
     try {
-      const { data, error } = await supabase
-        .from('attendance_records')
-        .select(`
-          *,
-          students (name, group_name, student_id)
-        `)
-        .eq('teacher_id', teacherId);
+      const q = query(collection(db, 'attendance_records'), where('teacher_id', '==', teacherId));
+      const snapshot = await getDocs(q);
+      const records = snapshot.docs.map(d => d.data());
 
-      if (error) throw error;
+      // We need student names, so we'll use the already fetched students list
+      const studentMap = new Map(students.map(s => [s.id, s]));
 
       const headers = ['O\'quvchi nomi', 'Guruh', 'O\'quvchi ID', 'Sana', 'Holat'];
       const csvContent = [
         headers.join(','),
-        ...(data || []).map(record => {
+        ...records.map(record => {
+          const student = studentMap.get(record.student_id);
           const statusText = record.status === 'present' ? 'Kelgan'
             : record.status === 'late' ? 'Kechikkan'
-            : record.status === 'absent_with_reason' ? 'Sababli kelmagan'
-            : 'Sababsiz kelmagan';
+              : record.status === 'absent_with_reason' ? 'Sababli kelmagan'
+                : 'Sababsiz kelmagan';
           return [
-            record.students?.name || '',
-            record.students?.group_name || '',
-            record.students?.student_id || '',
+            student?.name || '',
+            student?.group_name || '',
+            student?.student_id || '',
             record.date,
             statusText
           ].join(',');
@@ -338,18 +321,13 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       a.download = `davomat-${selectedGroup}-${selectedDate}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: "Export muvaffaqiyatli",
         description: "Davomat ma'lumotlari yuklab olindi",
       });
     } catch (error) {
       console.error('Error exporting CSV:', error);
-      toast({
-        title: "Xatolik",
-        description: "Ma'lumotlarni eksport qilishda xatolik yuz berdi",
-        variant: "destructive",
-      });
     }
   };
 
@@ -406,92 +384,87 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
           <p className="text-muted-foreground">O'quvchilar davomatini samarali boshqaring</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button onClick={exportToCSV} variant="outline" className="apple-button-secondary">
-            <Download className="w-4 h-4 mr-2" />
-            CSV export
+          <Button onClick={exportToCSV} variant="outline">
+            <Download className="w-4 h-4 mr-2" />CSV export
           </Button>
-          <Button onClick={markAllPresent} className="apple-button">
-            <Users className="w-4 h-4 mr-2" />
-            Barchani kelgan deb belgilash
+          <Button onClick={markAllPresent}>
+            <Users className="w-4 h-4 mr-2" />Barchani kelgan deb belgilash
           </Button>
         </div>
       </div>
 
-      {/* Filtrlar */}
-      <Card className="apple-card p-6">
+      <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Sana</label>
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="pl-10"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseISO(selectedDate)}
+                    onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
+                    initialFocus
+                    locale={uz}
+                    modifiers={{ hasAttendance: attendanceDates }}
+                    modifiersStyles={{
+                      hasAttendance: {
+                        backgroundColor: '#22c55e',
+                        color: 'white',
+                        borderRadius: '50%'
+                      }
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Guruh</label>
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Guruhni tanlang" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Barcha guruhlar</SelectItem>
-                {groups.map(group => (
-                  <SelectItem key={group} value={group}>{group}</SelectItem>
-                ))}
+                {groups.map(group => <SelectItem key={group} value={group}>{group}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </div>
       </Card>
 
-      {/* Davomat ro'yxati */}
-      <Card className="apple-card">
-        <div className="p-6 border-b border-border/50">
-          <h3 className="text-lg font-semibold">
-            {selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `Guruh: ${selectedGroup}`}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {formatDateUz(selectedDate)}
-          </p>
+      <Card>
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">{selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `Guruh: ${selectedGroup}`}</h3>
+          <p className="text-sm text-muted-foreground">{formatDateUz(selectedDate)}</p>
         </div>
-        
+
         {filteredStudents.length === 0 ? (
           <div className="p-12 text-center">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
-            <p className="text-muted-foreground">
-              {selectedGroup === 'all' 
-                ? 'Davomat olish uchun avval o\'quvchilar qo\'shing'
-                : `${selectedGroup} guruhida o'quvchilar topilmadi`
-              }
-            </p>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div className="divide-y">
             {filteredStudents.map(student => {
-              const rawStatus = getAttendanceStatus(student.id);
-              const status = normalizeStatus(rawStatus);
+              const status = normalizeStatus(getAttendanceStatus(student.id));
               return (
                 <div key={student.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium">
-                        {student.name.split(' ').map(n => n[0]).join('')}
-                      </span>
+                      <span className="text-sm font-medium">{student.name[0]}</span>
                     </div>
                     <div>
-                      <p className="font-medium cursor-pointer hover:text-blue-600" onClick={() => handleStudentClick(student.id)}>
-                        {student.name}
-                      </p>
+                      <p className="font-medium cursor-pointer hover:text-blue-600" onClick={() => handleStudentClick(student.id)}>{student.name}</p>
                       <p className="text-sm text-muted-foreground">{student.group_name}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-2">
                     {status && (
                       <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(status)}`}>
@@ -500,42 +473,10 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       </span>
                     )}
                     <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant={status === 'present' ? 'default' : 'outline'}
-                        onClick={() => markAttendance(student.id, 'present')}
-                        className="w-8 h-8 p-0"
-                        title="Kelgan"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={status === 'late' ? 'default' : 'outline'}
-                        onClick={() => markAttendance(student.id, 'late')}
-                        className="w-8 h-8 p-0"
-                        title="Kechikkan"
-                      >
-                        <Clock className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={status === 'absent_with_reason' || status === 'absent_without_reason' ? 'default' : 'outline'}
-                        onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }}
-                        className="w-8 h-8 p-0"
-                        title="Kelmagan"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowRewardDialog(student.id)}
-                        className="w-8 h-8 p-0"
-                        title="Mukofot/Jarima berish"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
+                      <Button size="sm" variant={status === 'present' ? 'default' : 'outline'} onClick={() => markAttendance(student.id, 'present')} className="w-8 h-8 p-0"><Check className="w-4 h-4" /></Button>
+                      <Button size="sm" variant={status === 'late' ? 'default' : 'outline'} onClick={() => markAttendance(student.id, 'late')} className="w-8 h-8 p-0"><Clock className="w-4 h-4" /></Button>
+                      <Button size="sm" variant={status?.startsWith('absent') ? 'default' : 'outline'} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} className="w-8 h-8 p-0"><X className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowRewardDialog(student.id)} className="w-8 h-8 p-0"><Plus className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -545,70 +486,24 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         )}
       </Card>
 
-      {/* Absent Dialog */}
       {showAbsentDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">
-                {students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={closeAbsentDialog}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
+              <h3 className="text-lg font-semibold">{students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi</h3>
+              <Button variant="ghost" size="sm" onClick={closeAbsentDialog} className="h-8 w-8 p-0"><X className="w-4 h-4" /></Button>
             </div>
-            
             {!showReasonInput ? (
               <div className="grid grid-cols-2 gap-3">
-                <Button
-                  onClick={() => handleAbsentWithoutReason(showAbsentDialog)}
-                  variant="outline"
-                  className="h-12"
-                >
-                  Sababsiz
-                </Button>
-                <Button
-                  onClick={() => setShowReasonInput(true)}
-                  variant="outline"
-                  className="h-12"
-                >
-                  Sababli
-                </Button>
+                <Button onClick={() => handleAbsentWithoutReason(showAbsentDialog)} variant="outline" className="h-12">Sababsiz</Button>
+                <Button onClick={() => setShowReasonInput(true)} variant="outline" className="h-12">Sababli</Button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium block mb-2">
-                    Sabab (majburiy)
-                  </label>
-                  <Input
-                    type="text"
-                    value={absentReason}
-                    onChange={(e) => setAbsentReason(e.target.value)}
-                    placeholder="Sabab kiriting..."
-                    autoFocus
-                  />
-                </div>
+                <div><label className="text-sm font-medium block mb-2">Sabab (majburiy)</label><Input value={absentReason} onChange={(e) => setAbsentReason(e.target.value)} placeholder="Sabab kiriting..." autoFocus /></div>
                 <div className="flex space-x-2">
-                  <Button
-                    onClick={() => handleAbsentWithReason(showAbsentDialog)}
-                    className="flex-1"
-                    disabled={!absentReason.trim()}
-                  >
-                    Saqlash
-                  </Button>
-                  <Button
-                    onClick={() => setShowReasonInput(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Ortga
-                  </Button>
+                  <Button onClick={() => handleAbsentWithReason(showAbsentDialog)} className="flex-1" disabled={!absentReason.trim()}>Saqlash</Button>
+                  <Button onClick={() => setShowReasonInput(false)} variant="outline" className="flex-1">Ortga</Button>
                 </div>
               </div>
             )}
@@ -616,57 +511,19 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         </div>
       )}
 
-      {/* Reward Dialog */}
       {showRewardDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  onClick={() => setRewardType('reward')}
-                  variant={rewardType === 'reward' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <Gift className="w-4 h-4" />
-                  Mukofot
-                </Button>
-                <Button
-                  onClick={() => setRewardType('penalty')}
-                  variant={rewardType === 'penalty' ? 'default' : 'outline'}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Jarima
-                </Button>
+                <Button onClick={() => setRewardType('reward')} variant={rewardType === 'reward' ? 'default' : 'outline'} className="flex items-center justify-center gap-2"><Gift className="w-4 h-4" />Mukofot</Button>
+                <Button onClick={() => setRewardType('penalty')} variant={rewardType === 'penalty' ? 'default' : 'outline'} className="flex items-center justify-center gap-2"><AlertTriangle className="w-4 h-4" />Jarima</Button>
               </div>
-              <div>
-                <label className="text-sm font-medium">Ball miqdori</label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={rewardPoints}
-                  onChange={(e) => setRewardPoints(e.target.value)}
-                  placeholder="Masalan: 5"
-                />
-              </div>
+              <div><label className="text-sm font-medium">Ball miqdori</label><Input type="number" step="0.1" value={rewardPoints} onChange={(e) => setRewardPoints(e.target.value)} placeholder="Masalan: 5" /></div>
               <div className="flex space-x-2">
-                <Button
-                  onClick={() => addReward(showRewardDialog)}
-                  className="flex-1"
-                >
-                  Saqlash
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowRewardDialog(null);
-                    setRewardPoints('');
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Bekor qilish
-                </Button>
+                <Button onClick={() => addReward(showRewardDialog)} className="flex-1">Saqlash</Button>
+                <Button onClick={() => { setShowRewardDialog(null); setRewardPoints(''); }} variant="outline" className="flex-1">Bekor qilish</Button>
               </div>
             </div>
           </div>

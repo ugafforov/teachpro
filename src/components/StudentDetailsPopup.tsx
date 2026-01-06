@@ -3,7 +3,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Trophy, Calendar, Gift, AlertTriangle, TrendingUp, Users, Clock, Award, User, BarChart3 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
+  doc,
+  getDoc,
+  Timestamp
+} from 'firebase/firestore';
 import { formatDateUz } from '@/lib/utils';
 import { calculateStudentScore, calculateStudentRank, StudentScoreResult } from '@/lib/studentScoreCalculator';
 
@@ -21,7 +32,7 @@ interface StudentDetails {
   group_name: string;
   email?: string;
   phone?: string;
-  created_at: string;
+  created_at: any;
 }
 
 interface StudentStats extends StudentScoreResult {
@@ -29,7 +40,7 @@ interface StudentStats extends StudentScoreResult {
   recentRewards: Array<{
     points: number;
     reason: string;
-    created_at: string;
+    created_at: any;
     type: string;
   }>;
 }
@@ -54,18 +65,16 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
     try {
       setLoading(true);
 
-      // O'quvchi ma'lumotlarini olish
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', studentId)
-        .eq('is_active', true)
-        .single();
+      const studentDoc = await getDoc(doc(db, 'students', studentId));
+      if (!studentDoc.exists()) {
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
 
-      if (studentError) throw studentError;
+      const studentData = { id: studentDoc.id, ...studentDoc.data() } as StudentDetails;
       setStudent(studentData);
 
-      // Markaziy funksiya orqali ball hisoblash (GroupDetails bilan bir xil)
       const [scoreResult, rank, recentRewards] = await Promise.all([
         calculateStudentScore(
           studentData.id,
@@ -92,17 +101,16 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
   const fetchRecentRewards = async (studentId: string): Promise<StudentStats['recentRewards']> => {
     try {
-      const { data: rewardsData, error } = await supabase
-        .from('reward_penalty_history')
-        .select('points, reason, created_at, type')
-        .eq('student_id', studentId)
-        .eq('teacher_id', teacherId)
-        .in('type', ['Mukofot', 'Jarima'])
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return rewardsData || [];
+      const q = query(
+        collection(db, 'reward_penalty_history'),
+        where('student_id', '==', studentId),
+        where('teacher_id', '==', teacherId),
+        where('type', 'in', ['Mukofot', 'Jarima']),
+        orderBy('created_at', 'desc'),
+        limit(5)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => d.data() as any);
     } catch (error) {
       console.error('Error fetching rewards:', error);
       return [];
@@ -149,7 +157,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Asosiy ko'rsatkichlar */}
           <div className="grid grid-cols-2 gap-4">
             <Card className="p-4 text-center">
               <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
@@ -163,7 +170,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             </Card>
           </div>
 
-          {/* Reyting */}
           {stats.rank > 0 && (
             <Card className="p-4 text-center">
               <Award className="w-8 h-8 text-purple-500 mx-auto mb-2" />
@@ -172,7 +178,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             </Card>
           )}
 
-          {/* Mukofot/Jarima ko'rsatkichlari */}
           {stats.rewardPenaltyPoints !== 0 && (
             <Card className="p-4">
               <div className="flex items-center justify-center gap-2">
@@ -181,9 +186,8 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                 ) : (
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 )}
-                <span className={`text-lg font-bold ${
-                  stats.rewardPenaltyPoints > 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <span className={`text-lg font-bold ${stats.rewardPenaltyPoints > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   {stats.rewardPenaltyPoints > 0 ? '+' : ''}{stats.rewardPenaltyPoints} ball
                 </span>
               </div>
@@ -193,7 +197,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             </Card>
           )}
 
-          {/* Davomat statistikasi */}
           <Card className="p-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-500" />
@@ -219,7 +222,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             </div>
           </Card>
 
-          {/* So'nggi faoliyat */}
           {stats.recentRewards.length > 0 && (
             <Card className="p-4">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -238,13 +240,14 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                       <span className="text-sm">{reward.reason}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${
-                        reward.type === 'Mukofot' ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                      <span className={`text-sm font-medium ${reward.type === 'Mukofot' ? 'text-green-600' : 'text-red-600'
+                        }`}>
                         {reward.type === 'Mukofot' ? '+' : '-'}{reward.points}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {formatDateUz(reward.created_at)}
+                        {reward.created_at instanceof Timestamp
+                          ? formatDateUz(reward.created_at.toDate().toISOString())
+                          : formatDateUz(reward.created_at)}
                       </span>
                     </div>
                   </div>
@@ -253,7 +256,6 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             </Card>
           )}
 
-          {/* Qo'shimcha ma'lumotlar */}
           {(student.student_id || student.email || student.phone) && (
             <Card className="p-4">
               <h3 className="text-lg font-semibold mb-3">Ma'lumotlar</h3>
@@ -281,9 +283,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
           )}
 
           <div className="flex justify-end pt-4">
-            <Button onClick={onClose} variant="outline">
-              Yopish
-            </Button>
+            <Button onClick={onClose} variant="outline">Yopish</Button>
           </div>
         </div>
       </DialogContent>

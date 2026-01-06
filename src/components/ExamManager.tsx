@@ -7,14 +7,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2, Search, Calendar, Users, BookOpen, Filter } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  orderBy,
+  serverTimestamp,
+  getDoc,
+  writeBatch
+} from 'firebase/firestore';
+import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2, Search, Calendar, Users, BookOpen } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { examSchema, examResultSchema, formatValidationError } from '@/lib/validations';
+import { examSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
 import { formatDateUz } from '@/lib/utils';
+import ConfirmDialog from './ConfirmDialog';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -28,6 +42,8 @@ interface Group {
 interface Student {
   id: string;
   name: string;
+  group_name?: string;
+  group_id?: string;
 }
 
 interface ExamType {
@@ -40,6 +56,7 @@ interface Exam {
   exam_name: string;
   exam_date: string;
   group_id: string;
+  exam_type_id?: string;
 }
 
 interface ExamResult {
@@ -47,13 +64,9 @@ interface ExamResult {
   exam_id: string;
   student_id: string;
   score: number;
-  exam_date: string;
-  exam_name: string;
-}
-
-interface ExamWithResults extends Exam {
-  results?: ExamResult[];
-  student_count?: number;
+  notes?: string;
+  student_name?: string;
+  group_name?: string;
 }
 
 const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
@@ -62,36 +75,50 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
-  
+
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [selectedExamType, setSelectedExamType] = useState<string>('');
   const [customExamName, setCustomExamName] = useState<string>('');
   const [examDate, setExamDate] = useState<string>('');
   const [currentExamId, setCurrentExamId] = useState<string>('');
-  
+
   const [examResults, setExamResults] = useState<Record<string, string>>({});
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [showExamDetailsDialog, setShowExamDetailsDialog] = useState(false);
-  const [selectedExamForDetails, setSelectedExamForDetails] = useState<string | null>(null);
   const [examDetailsData, setExamDetailsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteExamId, setDeleteExamId] = useState<string | null>(null);
-  const [archiveExamId, setArchiveExamId] = useState<string | null>(null);
-  const [editingResult, setEditingResult] = useState<{id: string, studentName: string, currentScore: number} | null>(null);
+  const [editingResult, setEditingResult] = useState<{ id: string, studentName: string, currentScore: number } | null>(null);
   const [editScore, setEditScore] = useState('');
   const [editReason, setEditReason] = useState('');
-  
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: 'archive' | 'delete';
+    examId: string;
+    examName: string;
+  }>({
+    isOpen: false,
+    type: 'archive',
+    examId: '',
+    examName: ''
+  });
+
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [filterExamType, setFilterExamType] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>('all'); // all, today, week, month, custom
+  const [dateFilter, setDateFilter] = useState<string>('all');
 
   useEffect(() => {
-    fetchGroups();
-    fetchExamTypes();
-    fetchExams();
+    const init = async () => {
+      await Promise.all([
+        fetchGroups(),
+        fetchExamTypes(),
+        fetchExams()
+      ]);
+      setLoading(false);
+    };
+    init();
   }, [teacherId]);
 
   useEffect(() => {
@@ -100,76 +127,55 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   }, [selectedGroup]);
 
-  useEffect(() => {
-    if (showResultsDialog && selectedGroup) {
-      fetchStudents(selectedGroup);
-    }
-  }, [showResultsDialog, selectedGroup]);
-
   // Filtered and grouped exams
   const filteredExams = useMemo(() => {
     return exams.filter(exam => {
-      // Search filter
       if (searchQuery && !exam.exam_name.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
-      
-      // Group filter
       if (filterGroup !== 'all' && exam.group_id !== filterGroup) {
         return false;
       }
-      
-      // Exam type filter
       if (filterExamType !== 'all' && exam.exam_name !== filterExamType) {
         return false;
       }
-      
-      // Date filter
-      const examDate = new Date(exam.exam_date);
+
+      const examDateObj = new Date(exam.exam_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       if (dateFilter === 'today') {
-        const examDateOnly = new Date(examDate);
+        const examDateOnly = new Date(examDateObj);
         examDateOnly.setHours(0, 0, 0, 0);
         return examDateOnly.getTime() === today.getTime();
       } else if (dateFilter === 'week') {
         const weekAgo = new Date(today);
         weekAgo.setDate(weekAgo.getDate() - 7);
-        return examDate >= weekAgo;
+        return examDateObj >= weekAgo;
       } else if (dateFilter === 'month') {
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return examDate >= monthAgo;
+        return examDateObj >= monthAgo;
       }
-      
+
       return true;
     });
   }, [exams, searchQuery, filterGroup, filterExamType, dateFilter]);
 
-  // Group exams by month
   const groupedExams = useMemo(() => {
     const groups: Record<string, Exam[]> = {};
-    
     filteredExams.forEach(exam => {
       const date = new Date(exam.exam_date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!groups[monthKey]) {
-        groups[monthKey] = [];
-      }
+      if (!groups[monthKey]) groups[monthKey] = [];
       groups[monthKey].push(exam);
     });
-    
-    // Sort by date descending
     Object.keys(groups).forEach(key => {
       groups[key].sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
     });
-    
     return groups;
   }, [filteredExams]);
 
-  // Statistics
   const stats = useMemo(() => {
     const total = exams.length;
     const thisMonth = exams.filter(e => {
@@ -177,10 +183,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       const now = new Date();
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
-    
     const uniqueTypes = new Set(exams.map(e => e.exam_name)).size;
     const groupsWithExams = new Set(exams.map(e => e.group_id)).size;
-    
     return { total, thisMonth, uniqueTypes, groupsWithExams };
   }, [exams]);
 
@@ -192,60 +196,38 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const fetchGroups = async () => {
     try {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (error) throw error;
-      setGroups(data || []);
+      const q = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      setGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group)));
     } catch (error) {
       console.error('Error fetching groups:', error);
-      toast({
-        title: 'Xato',
-        description: 'Guruhlarni yuklashda xatolik',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchStudents = async (groupId: string) => {
     try {
-      const groupName = groups.find(g => g.id === groupId)?.name;
-      let query = supabase
-        .from('students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
-
-      if (groupName) {
-        // Fallback: match by group_id or group_name for legacy data
-        query = query.or(`group_id.eq.${groupId},group_name.eq.${groupName}`);
-      } else {
-        query = query.eq('group_id', groupId);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setStudents(data || []);
+      const q = query(
+        collection(db, 'students'),
+        where('teacher_id', '==', teacherId),
+        where('group_id', '==', groupId),
+        where('is_active', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
     } catch (error) {
       console.error('Error fetching students:', error);
-      setStudents([]);
     }
   };
 
   const fetchExamTypes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('exam_types')
-        .select('*')
-        .eq('teacher_id', teacherId);
-
-      if (error) throw error;
-      setExamTypes(data || []);
+      const q = query(collection(db, 'exam_types'), where('teacher_id', '==', teacherId));
+      const snapshot = await getDocs(q);
+      setExamTypes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExamType)));
     } catch (error) {
       console.error('Error fetching exam types:', error);
     }
@@ -253,14 +235,15 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const fetchExams = async () => {
     try {
-      const { data, error } = await supabase
-        .from('exams')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .order('exam_date', { ascending: false });
-
-      if (error) throw error;
-      setExams(data || []);
+      const q = query(
+        collection(db, 'exams'),
+        where('teacher_id', '==', teacherId)
+      );
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Exam))
+        .sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+      setExams(data);
     } catch (error) {
       console.error('Error fetching exams:', error);
     }
@@ -268,8 +251,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const createExam = async () => {
     const examName = customExamName || examTypes.find(t => t.id === selectedExamType)?.name || '';
-    
-    // Validate with zod
+
     try {
       examSchema.parse({
         exam_name: examName,
@@ -288,38 +270,27 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
 
     try {
-      // Save custom exam type if entered
       let examTypeId = selectedExamType;
       if (customExamName) {
-        const { data: newType, error: typeError } = await supabase
-          .from('exam_types')
-          .insert({
-            teacher_id: teacherId,
-            name: customExamName,
-          })
-          .select()
-          .single();
-
-        if (typeError) throw typeError;
-        examTypeId = newType.id;
+        const typeDoc = await addDoc(collection(db, 'exam_types'), {
+          teacher_id: teacherId,
+          name: customExamName,
+          created_at: serverTimestamp()
+        });
+        examTypeId = typeDoc.id;
         await fetchExamTypes();
       }
 
-      const { data, error } = await supabase
-        .from('exams')
-        .insert({
-          teacher_id: teacherId,
-          group_id: selectedGroup,
-          exam_type_id: examTypeId,
-          exam_name: examName,
-          exam_date: examDate,
-        })
-        .select()
-        .single();
+      const examDoc = await addDoc(collection(db, 'exams'), {
+        teacher_id: teacherId,
+        group_id: selectedGroup,
+        exam_type_id: examTypeId,
+        exam_name: examName,
+        exam_date: examDate,
+        created_at: serverTimestamp()
+      });
 
-      if (error) throw error;
-
-      setCurrentExamId(data.id);
+      setCurrentExamId(examDoc.id);
       setShowCreateDialog(false);
       await fetchStudents(selectedGroup);
       setShowResultsDialog(true);
@@ -345,12 +316,18 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     try {
       const resultsToInsert = Object.entries(examResults)
         .filter(([_, score]) => score && score.trim() !== '')
-        .map(([studentId, score]) => ({
-          teacher_id: teacherId,
-          exam_id: currentExamId,
-          student_id: studentId,
-          score: parseFloat(score),
-        }));
+        .map(([studentId, score]) => {
+          const student = students.find(s => s.id === studentId);
+          return {
+            teacher_id: teacherId,
+            exam_id: currentExamId,
+            student_id: studentId,
+            score: parseFloat(score),
+            student_name: student?.name || '',
+            group_name: groups.find(g => g.id === selectedGroup)?.name || '',
+            created_at: serverTimestamp()
+          };
+        });
 
       if (resultsToInsert.length === 0) {
         toast({
@@ -361,11 +338,12 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         return;
       }
 
-      const { error } = await supabase
-        .from('exam_results')
-        .insert(resultsToInsert);
-
-      if (error) throw error;
+      const batch = writeBatch(db);
+      resultsToInsert.forEach(result => {
+        const newResultRef = doc(collection(db, 'exam_results'));
+        batch.set(newResultRef, result);
+      });
+      await batch.commit();
 
       toast({
         title: 'Muvaffaqiyatli',
@@ -389,47 +367,49 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
+  const handleAction = (type: 'archive' | 'delete', examId: string, examName: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      type,
+      examId,
+      examName
+    });
+  };
+
+  const executeAction = async () => {
+    const { type, examId } = confirmDialog;
+    if (type === 'archive') {
+      await archiveExam(examId);
+    } else {
+      await deleteExam(examId);
+    }
+    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   const deleteExam = async (examId: string) => {
     try {
-      // Get exam details with results before deleting
-      const { data: examData } = await supabase
-        .from('exams')
-        .select('*, exam_results(*)')
-        .eq('id', examId)
-        .single();
+      const examRef = doc(db, 'exams', examId);
+      const examSnap = await getDoc(examRef);
+      const examData = examSnap.data();
 
-      const groupName = groups.find(g => g.id === examData?.group_id)?.name;
+      const resultsQ = query(collection(db, 'exam_results'), where('exam_id', '==', examId));
+      const resultsSnap = await getDocs(resultsQ);
+      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Archive to deleted_exams
-      const { error: archiveError } = await supabase
-        .from('deleted_exams')
-        .insert({
-          teacher_id: teacherId,
-          original_exam_id: examId,
-          exam_name: examData?.exam_name,
-          exam_date: examData?.exam_date,
-          group_name: groupName,
-          group_id: examData?.group_id,
-          results_data: examData?.exam_results || []
-        });
+      await addDoc(collection(db, 'deleted_exams'), {
+        teacher_id: teacherId,
+        original_exam_id: examId,
+        exam_name: examData?.exam_name,
+        exam_date: examData?.exam_date,
+        group_id: examData?.group_id,
+        results_data: resultsData,
+        deleted_at: serverTimestamp()
+      });
 
-      if (archiveError) throw archiveError;
-
-      // Delete exam results
-      const { error: resultsError } = await supabase
-        .from('exam_results')
-        .delete()
-        .eq('exam_id', examId);
-
-      if (resultsError) throw resultsError;
-
-      // Delete the exam
-      const { error: examError } = await supabase
-        .from('exams')
-        .delete()
-        .eq('id', examId);
-
-      if (examError) throw examError;
+      const batch = writeBatch(db);
+      resultsSnap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(examRef);
+      await batch.commit();
 
       toast({
         title: 'Muvaffaqiyatli',
@@ -437,7 +417,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       });
 
       await fetchExams();
-      setDeleteExamId(null);
     } catch (error) {
       console.error('Error deleting exam:', error);
       toast({
@@ -450,45 +429,28 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const archiveExam = async (examId: string) => {
     try {
-      // Get exam details with results before archiving
-      const { data: examData } = await supabase
-        .from('exams')
-        .select('*, exam_results(*)')
-        .eq('id', examId)
-        .single();
+      const examRef = doc(db, 'exams', examId);
+      const examSnap = await getDoc(examRef);
+      const examData = examSnap.data();
 
-      const groupName = groups.find(g => g.id === examData?.group_id)?.name;
+      const resultsQ = query(collection(db, 'exam_results'), where('exam_id', '==', examId));
+      const resultsSnap = await getDocs(resultsQ);
+      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Archive to archived_exams
-      const { error: archiveError } = await supabase
-        .from('archived_exams')
-        .insert({
-          teacher_id: teacherId,
-          original_exam_id: examId,
-          exam_name: examData?.exam_name,
-          exam_date: examData?.exam_date,
-          group_name: groupName,
-          group_id: examData?.group_id,
-          results_data: examData?.exam_results || []
-        });
+      await addDoc(collection(db, 'archived_exams'), {
+        teacher_id: teacherId,
+        original_exam_id: examId,
+        exam_name: examData?.exam_name,
+        exam_date: examData?.exam_date,
+        group_id: examData?.group_id,
+        results_data: resultsData,
+        archived_at: serverTimestamp()
+      });
 
-      if (archiveError) throw archiveError;
-
-      // Delete exam results from active table
-      const { error: resultsError } = await supabase
-        .from('exam_results')
-        .delete()
-        .eq('exam_id', examId);
-
-      if (resultsError) throw resultsError;
-
-      // Delete the exam from active table
-      const { error: examError } = await supabase
-        .from('exams')
-        .delete()
-        .eq('id', examId);
-
-      if (examError) throw examError;
+      const batch = writeBatch(db);
+      resultsSnap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(examRef);
+      await batch.commit();
 
       toast({
         title: 'Muvaffaqiyatli',
@@ -496,7 +458,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       });
 
       await fetchExams();
-      setArchiveExamId(null);
     } catch (error) {
       console.error('Error archiving exam:', error);
       toast({
@@ -509,27 +470,18 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   const fetchExamDetails = async (examId: string) => {
     try {
-      console.log('Fetching exam details for examId:', examId);
-      
-      const { data: results, error } = await supabase
-        .from('exam_results')
-        .select(`
-          *,
-          students!inner(id, name, group_name)
-        `)
-        .eq('exam_id', examId)
-        .order('score', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching exam details:', error);
-        throw error;
-      }
-
-      console.log('Exam details results:', results);
-      setExamDetailsData(results || []);
+      const q = query(
+        collection(db, 'exam_results'),
+        where('exam_id', '==', examId)
+      );
+      const snapshot = await getDocs(q);
+      const results = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+      setExamDetailsData(results);
       setShowExamDetailsDialog(true);
     } catch (error) {
-      console.error('Error in fetchExamDetails:', error);
+      console.error('Error fetching exam details:', error);
       toast({
         title: 'Xato',
         description: 'Imtihon natijalarini yuklashda xatolik',
@@ -549,26 +501,20 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
 
     try {
-      const { error } = await supabase
-        .from('exam_results')
-        .update({
-          score: parseFloat(editScore),
-          notes: editReason.trim()
-        })
-        .eq('id', editingResult.id);
-
-      if (error) throw error;
+      const resultRef = doc(db, 'exam_results', editingResult.id);
+      await updateDoc(resultRef, {
+        score: parseFloat(editScore),
+        notes: editReason.trim(),
+        updated_at: serverTimestamp()
+      });
 
       toast({
         title: 'Muvaffaqiyatli',
         description: 'Natija yangilandi',
       });
 
-      // Refresh exam details
       const currentExam = examDetailsData[0]?.exam_id;
-      if (currentExam) {
-        await fetchExamDetails(currentExam);
-      }
+      if (currentExam) await fetchExamDetails(currentExam);
 
       setEditingResult(null);
       setEditScore('');
@@ -583,126 +529,62 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
-  const getStudentExamHistory = async (studentId: string, examName: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('exam_results')
-        .select(`
-          *,
-          exams!inner(exam_name, exam_date)
-        `)
-        .eq('teacher_id', teacherId)
-        .eq('student_id', studentId)
-        .eq('exams.exam_name', examName)
-        .order('exam_date', { ascending: true, foreignTable: 'exams' });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching exam history:', error);
-      return [];
-    }
-  };
-
   const ExamAnalysis = () => {
     const [selectedExamName, setSelectedExamName] = useState<string>('');
     const [selectedAnalysisGroup, setSelectedAnalysisGroup] = useState<string>('');
     const [analysisData, setAnalysisData] = useState<Record<string, any[]>>({});
 
     useEffect(() => {
-      if (selectedExamName) {
-        fetchAnalysisData();
-      }
+      if (selectedExamName) fetchAnalysisData();
     }, [selectedExamName, selectedAnalysisGroup]);
 
     const fetchAnalysisData = async () => {
       try {
-        console.log('Fetching analysis for exam:', selectedExamName, 'group:', selectedAnalysisGroup);
-
-        // 1) Get matching exams to avoid fragile foreign table filters
-        let examsQuery = supabase
-          .from('exams')
-          .select('id, exam_date, exam_name, group_id')
-          .eq('teacher_id', teacherId)
-          .eq('exam_name', selectedExamName);
-
+        let examsQ = query(
+          collection(db, 'exams'),
+          where('teacher_id', '==', teacherId),
+          where('exam_name', '==', selectedExamName)
+        );
         if (selectedAnalysisGroup && selectedAnalysisGroup !== 'all') {
-          examsQuery = examsQuery.eq('group_id', selectedAnalysisGroup);
+          examsQ = query(examsQ, where('group_id', '==', selectedAnalysisGroup));
         }
+        const examsSnap = await getDocs(examsQ);
+        const examIds = examsSnap.docs.map(d => d.id);
+        const examIdToDate = new Map(examsSnap.docs.map(d => [d.id, d.data().exam_date]));
 
-        const { data: examRows, error: examsError } = await examsQuery;
-        if (examsError) {
-          console.error('Error fetching exams for analysis:', examsError);
-          throw examsError;
-        }
-
-        if (!examRows || examRows.length === 0) {
-          console.log('No exams found matching filters');
+        if (examIds.length === 0) {
           setAnalysisData({});
           return;
         }
 
-        const examIdToDate = new Map(examRows.map((e) => [e.id, e.exam_date]));
-        const examIds = examRows.map((e) => e.id);
+        const resultsQ = query(
+          collection(db, 'exam_results'),
+          where('teacher_id', '==', teacherId),
+          where('exam_id', 'in', examIds)
+        );
+        const resultsSnap = await getDocs(resultsQ);
 
-        // 2) Get results for those exams and join students
-        const { data: results, error } = await supabase
-          .from('exam_results')
-          .select(`
-            id, score, exam_id,
-            students!inner(id, name, group_id, group_name)
-          `)
-          .eq('teacher_id', teacherId)
-          .in('exam_id', examIds)
-          .order('name', { ascending: true, foreignTable: 'students' });
-
-        if (error) {
-          console.error('Error fetching analysis data:', error);
-          throw error;
-        }
-
-        console.log('Analysis results:', results);
-
-        // Group by student
         const grouped: Record<string, any[]> = {};
-        results?.forEach((result: any) => {
-          const studentId = result.students.id;
+        resultsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          const studentId = data.student_id;
           if (!grouped[studentId]) grouped[studentId] = [];
           grouped[studentId].push({
-            studentName: result.students.name,
-            groupName: result.students.group_name || groups.find(g => g.id === result.students.group_id)?.name,
-            examDate: examIdToDate.get(result.exam_id),
-            score: result.score,
+            studentName: data.student_name,
+            groupName: data.group_name,
+            examDate: examIdToDate.get(data.exam_id),
+            score: data.score,
           });
         });
 
-        // Sort each student's results by date
-        Object.keys(grouped).forEach((studentId) => {
+        Object.keys(grouped).forEach(studentId => {
           grouped[studentId].sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
         });
 
-        console.log('Grouped analysis data:', grouped);
         setAnalysisData(grouped);
       } catch (error) {
         console.error('Error fetching analysis:', error);
       }
-    };
-
-    const getScoreColor = (score: number) => {
-      if (score >= 90) return 'text-green-600 bg-green-50 border-green-200';
-      if (score >= 70) return 'text-blue-600 bg-blue-50 border-blue-200';
-      if (score >= 50) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      return 'text-red-600 bg-red-50 border-red-200';
-    };
-
-    const getTrend = (results: any[]) => {
-      if (results.length < 2) return null;
-      const lastScore = results[results.length - 1].score;
-      const prevScore = results[results.length - 2].score;
-      const diff = lastScore - prevScore;
-      if (diff > 0) return { icon: '📈', text: `+${diff.toFixed(1)}`, color: 'text-green-600' };
-      if (diff < 0) return { icon: '📉', text: `${diff.toFixed(1)}`, color: 'text-red-600' };
-      return { icon: '➡️', text: '0', color: 'text-gray-600' };
     };
 
     const uniqueExamNames = [...new Set(exams.map(e => e.exam_name))];
@@ -718,14 +600,11 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
               </SelectTrigger>
               <SelectContent>
                 {uniqueExamNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          
           <div className="flex-1">
             <Label>Guruh (ixtiyoriy)</Label>
             <Select value={selectedAnalysisGroup} onValueChange={setSelectedAnalysisGroup}>
@@ -735,9 +614,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
               <SelectContent>
                 <SelectItem value="all">Barcha guruhlar</SelectItem>
                 {groups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
+                  <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -748,18 +625,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           <Card className="p-6 overflow-x-auto">
             <h3 className="text-lg font-semibold mb-4">
               {selectedExamName} - Natijalar tahlili
-              {selectedAnalysisGroup && ` (${groups.find(g => g.id === selectedAnalysisGroup)?.name})`}
             </h3>
-            
             {(() => {
-              const allDates = Array.from(
-                new Set(
-                  Object.values(analysisData)
-                    .flat()
-                    .map(r => r.examDate)
-                )
-              ).sort();
-              
+              const allDates = Array.from(new Set(Object.values(analysisData).flat().map(r => r.examDate))).sort();
               return (
                 <Table>
                   <TableHeader>
@@ -776,15 +644,14 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                   </TableHeader>
                   <TableBody>
                     {Object.entries(analysisData)
-                      .sort(([, aResults], [, bResults]) => {
-                        const aAvg = aResults.reduce((sum, r) => sum + r.score, 0) / aResults.length;
-                        const bAvg = bResults.reduce((sum, r) => sum + r.score, 0) / bResults.length;
+                      .sort(([, aRes], [, bRes]) => {
+                        const aAvg = aRes.reduce((sum, r) => sum + r.score, 0) / aRes.length;
+                        const bAvg = bRes.reduce((sum, r) => sum + r.score, 0) / bRes.length;
                         return bAvg - aAvg;
                       })
                       .map(([studentId, results]) => {
                         const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
                         const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
-                        
                         return (
                           <TableRow key={studentId}>
                             <TableCell className="font-medium">{results[0]?.studentName}</TableCell>
@@ -794,17 +661,14 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                               return (
                                 <TableCell key={idx} className="text-center">
                                   {score !== undefined ? (
-                                    <span className={`inline-block px-3 py-1 rounded-md font-semibold ${
-                                      score >= 90 ? 'bg-green-100 text-green-700' :
+                                    <span className={`inline-block px-3 py-1 rounded-md font-semibold ${score >= 90 ? 'bg-green-100 text-green-700' :
                                       score >= 70 ? 'bg-blue-100 text-blue-700' :
-                                      score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                      'bg-red-100 text-red-700'
-                                    }`}>
+                                        score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                          'bg-red-100 text-red-700'
+                                      }`}>
                                       {score}
                                     </span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
+                                  ) : <span className="text-muted-foreground">-</span>}
                                 </TableCell>
                               );
                             })}
@@ -816,12 +680,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </Table>
               );
             })()}
-          </Card>
-        )}
-
-        {selectedExamName && Object.keys(analysisData).length === 0 && (
-          <Card className="p-12 text-center">
-            <p className="text-muted-foreground">Bu imtihon turi uchun natijalar topilmadi</p>
           </Card>
         )}
       </div>
@@ -846,87 +704,50 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Yangi imtihon
-            </Button>
+            <Button><Plus className="w-4 h-4 mr-2" />Yangi imtihon</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Yangi imtihon yaratish</DialogTitle>
-              <DialogDescription>
-                Guruh, imtihon nomi va sanani tanlang, so'ng davom eting.
-              </DialogDescription>
+              <DialogDescription>Guruh, imtihon nomi va sanani tanlang.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label>Guruh</Label>
                 <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Guruhni tanlang" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
                   <SelectContent>
                     {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
+                      <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
                 <Label>Imtihon turi</Label>
-                <Select 
-                  value={selectedExamType} 
-                  onValueChange={(value) => {
-                    setSelectedExamType(value);
-                    setCustomExamName('');
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Imtihon turini tanlang" />
-                  </SelectTrigger>
+                <Select value={selectedExamType} onValueChange={(v) => { setSelectedExamType(v); setCustomExamName(''); }}>
+                  <SelectTrigger><SelectValue placeholder="Imtihon turini tanlang" /></SelectTrigger>
                   <SelectContent>
                     {examTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
+                      <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
                 <Label>Yoki yangi imtihon nomini kiriting</Label>
-                <Input
-                  value={customExamName}
-                  onChange={(e) => {
-                    setCustomExamName(e.target.value);
-                    setSelectedExamType('');
-                  }}
-                  placeholder="Masalan: Oraliq nazorat"
-                />
+                <Input value={customExamName} onChange={(e) => { setCustomExamName(e.target.value); setSelectedExamType(''); }} placeholder="Masalan: Oraliq nazorat" />
               </div>
-
               <div>
                 <Label>Imtihon sanasi</Label>
-                <Input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                />
+                <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
               </div>
-
-              <Button onClick={createExam} className="w-full">
-                Davom etish
-              </Button>
+              <Button onClick={createExam} className="w-full">Davom etish</Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -935,10 +756,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">Barcha imtihonlar</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bu oy</CardTitle>
@@ -946,10 +765,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.thisMonth}</div>
-            <p className="text-xs text-muted-foreground">Joriy oyda o'tkazilgan</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Imtihon turlari</CardTitle>
@@ -957,10 +774,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.uniqueTypes}</div>
-            <p className="text-xs text-muted-foreground">Turli imtihon turlari</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Guruhlar</CardTitle>
@@ -968,58 +783,32 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.groupsWithExams}</div>
-            <p className="text-xs text-muted-foreground">Imtihonlar o'tkazilgan</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters Section */}
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Imtihon nomini qidiring..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+          <div className="lg:col-span-2 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input placeholder="Imtihon nomini qidiring..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
-          
           <Select value={filterGroup} onValueChange={setFilterGroup}>
-            <SelectTrigger>
-              <SelectValue placeholder="Guruh" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Guruh" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Barcha guruhlar</SelectItem>
-              {groups.map((group) => (
-                <SelectItem key={group.id} value={group.id}>
-                  {group.name}
-                </SelectItem>
-              ))}
+              {groups.map((g) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
             </SelectContent>
           </Select>
-
           <Select value={filterExamType} onValueChange={setFilterExamType}>
-            <SelectTrigger>
-              <SelectValue placeholder="Imtihon turi" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Imtihon turi" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Barcha turlar</SelectItem>
-              {Array.from(new Set(exams.map(e => e.exam_name))).map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
+              {Array.from(new Set(exams.map(e => e.exam_name))).map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
-
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Sana" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Sana" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Barcha sanalar</SelectItem>
               <SelectItem value="today">Bugun</SelectItem>
@@ -1028,329 +817,180 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
             </SelectContent>
           </Select>
         </div>
-        
-        {(searchQuery || filterGroup !== 'all' || filterExamType !== 'all' || dateFilter !== 'all') && (
-          <div className="mt-3 flex items-center gap-2">
-            <Badge variant="secondary">{filteredExams.length} ta natija topildi</Badge>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setSearchQuery('');
-                setFilterGroup('all');
-                setFilterExamType('all');
-                setDateFilter('all');
-              }}
-            >
-              Filterni tozalash
-            </Button>
-          </div>
-        )}
       </Card>
 
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Imtihon natijalarini kiriting</DialogTitle>
-            <DialogDescription>
-              Natijani yozing va Enter bosing — kursor keyingi o'quvchiga o'tadi.
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>O'quvchi</TableHead>
-                  <TableHead>Natija</TableHead>
+                  <TableHead>Ball</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.map((student, index) => (
+                {students.map((student) => (
                   <TableRow key={student.id}>
-                    <TableCell className="font-medium">{student.name}</TableCell>
+                    <TableCell>{student.name}</TableCell>
                     <TableCell>
                       <Input
-                        id={`result-${student.id}`}
                         type="number"
-                        step="0.1"
-                        placeholder="Ball kiriting"
                         value={examResults[student.id] || ''}
-                        onChange={(e) =>
-                          setExamResults({
-                            ...examResults,
-                            [student.id]: e.target.value,
-                          })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const nextIndex = index + 1;
-                            if (nextIndex < students.length) {
-                              const nextInput = document.getElementById(`result-${students[nextIndex].id}`);
-                              nextInput?.focus();
-                            } else {
-                              // Last input, save results
-                              saveExamResults();
-                            }
-                          }
-                        }}
-                        autoFocus={index === 0}
+                        onChange={(e) => setExamResults({ ...examResults, [student.id]: e.target.value })}
+                        placeholder="Ball"
                       />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-
-            {students.length === 0 && (
-              <p className="text-muted-foreground text-center py-4">
-                Bu guruhda faol o'quvchilar topilmadi. Avval guruhga o'quvchi qo'shing.
-              </p>
-            )}
-
-            <Button onClick={saveExamResults} className="w-full">
-              Natijalarni saqlash
-            </Button>
+            <Button onClick={saveExamResults} className="w-full">Saqlash</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="list" className="w-full">
+      <Tabs defaultValue="list" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="list">
-            <FileText className="w-4 h-4 mr-2" />
-            Imtihonlar ro'yxati
-          </TabsTrigger>
-          <TabsTrigger value="analysis">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Tahlil
-          </TabsTrigger>
+          <TabsTrigger value="list">Imtihonlar ro'yxati</TabsTrigger>
+          <TabsTrigger value="analysis">Tahlil</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list" className="space-y-6">
-          {filteredExams.length === 0 ? (
-            <Card className="p-12 text-center">
-              <p className="text-muted-foreground">
-                {exams.length === 0 
-                  ? "Hozircha imtihonlar yo'q" 
-                  : "Hech qanday natija topilmadi. Filterni o'zgartiring."}
-              </p>
-            </Card>
-          ) : (
-            Object.keys(groupedExams)
-              .sort((a, b) => b.localeCompare(a))
-              .map((monthKey) => (
-                <div key={monthKey} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold">{getMonthName(monthKey)}</h3>
-                    <Badge variant="secondary">{groupedExams[monthKey].length} ta</Badge>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groupedExams[monthKey].map((exam) => (
-                      <Card 
-                        key={exam.id} 
-                        className="hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => fetchExamDetails(exam.id)}
-                      >
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <CardTitle className="text-base line-clamp-2">{exam.exam_name}</CardTitle>
-                              <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
-                                {formatDateUz(exam.exam_date, 'short')}
-                              </div>
-                            </div>
+        <TabsContent value="list">
+          <div className="space-y-6">
+            {Object.entries(groupedExams).map(([monthKey, monthExams]) => (
+              <div key={monthKey} className="space-y-4">
+                <h3 className="text-lg font-semibold capitalize text-muted-foreground pl-1">
+                  {getMonthName(monthKey)}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {monthExams.map((exam) => (
+                    <Card key={exam.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-base font-semibold truncate pr-2" title={exam.exam_name}>
+                          {exam.exam_name}
+                        </CardTitle>
+                        <Badge variant="secondary" className="shrink-0">
+                          {groups.find(g => g.id === exam.group_id)?.name}
+                        </Badge>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {formatDateUz(exam.exam_date)}
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">
-                              {groups.find(g => g.id === exam.group_id)?.name || 'Noma\'lum'}
-                            </span>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setArchiveExamId(exam.id);
-                              }}
-                            >
-                              <Archive className="w-3 h-3 mr-1" />
-                              Arxiv
+                          <div className="flex justify-end space-x-2 pt-2">
+                            <Button variant="ghost" size="sm" onClick={() => fetchExamDetails(exam.id)}>
+                              <FileText className="h-4 w-4 mr-1" /> Natijalar
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="flex-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteExamId(exam.id);
-                              }}
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              O'chirish
+                            <Button variant="ghost" size="sm" onClick={() => handleAction('archive', exam.id, exam.exam_name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleAction('delete', exam.id, exam.exam_name)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              ))
-          )}
+              </div>
+            ))}
+            {filteredExams.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                Imtihonlar topilmadi
+              </div>
+            )}
+          </div>
         </TabsContent>
-
-        <AlertDialog open={!!deleteExamId} onOpenChange={() => setDeleteExamId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Imtihonni o'chirish</AlertDialogTitle>
-              <AlertDialogDescription>
-                Bu imtihonni va unga tegishli barcha natijalarni o'chirishga aminmisiz? Bu amalni qaytarib bo'lmaydi.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deleteExamId && deleteExam(deleteExamId)}>
-                O'chirish
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={!!archiveExamId} onOpenChange={() => setArchiveExamId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Imtihonni arxivlash</AlertDialogTitle>
-              <AlertDialogDescription>
-                Bu imtihonni arxivlashga aminmisiz?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-              <AlertDialogAction onClick={() => archiveExamId && archiveExam(archiveExamId)}>
-                Arxivlash
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <Dialog open={showExamDetailsDialog} onOpenChange={setShowExamDetailsDialog}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Imtihon natijalari</DialogTitle>
-              <DialogDescription>
-                Barcha o'quvchilar natijalari
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              {examDetailsData.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Bu imtihon uchun natijalar topilmadi
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>O'quvchi</TableHead>
-                      <TableHead>Guruh</TableHead>
-                      <TableHead className="text-right">Natija</TableHead>
-                      <TableHead className="text-right">Amallar</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {examDetailsData.map((result: any) => (
-                      <TableRow key={result.id}>
-                        <TableCell className="font-medium">{result.students.name}</TableCell>
-                        <TableCell>{result.students.group_name}</TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-lg font-bold text-primary">{result.score}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingResult({
-                                id: result.id,
-                                studentName: result.students.name,
-                                currentScore: result.score
-                              });
-                              setEditScore(result.score.toString());
-                              setEditReason('');
-                            }}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
 
         <TabsContent value="analysis">
           <ExamAnalysis />
         </TabsContent>
       </Tabs>
 
-      {/* Edit Result Dialog */}
-      <Dialog open={!!editingResult} onOpenChange={(open) => !open && setEditingResult(null)}>
+      <Dialog open={showExamDetailsDialog} onOpenChange={setShowExamDetailsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Imtihon natijalari</DialogTitle>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>O'quvchi</TableHead>
+                <TableHead>Ball</TableHead>
+                <TableHead>Izoh</TableHead>
+                <TableHead className="w-[100px]">Amallar</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {examDetailsData.map((result) => (
+                <TableRow key={result.id}>
+                  <TableCell className="font-medium">{result.student_name}</TableCell>
+                  <TableCell>
+                    <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${result.score >= 90 ? 'bg-green-100 text-green-700' :
+                      result.score >= 70 ? 'bg-blue-100 text-blue-700' :
+                        result.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
+                      }`}>
+                      {result.score}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{result.notes || '-'}</TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setEditingResult({
+                        id: result.id,
+                        studentName: result.student_name,
+                        currentScore: result.score
+                      });
+                      setEditScore(result.score.toString());
+                      setEditReason(result.notes || '');
+                    }}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingResult} onOpenChange={() => setEditingResult(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Natijani tahrirlash</DialogTitle>
-            <DialogDescription>
-              {editingResult?.studentName} - Joriy ball: {editingResult?.currentScore}
-            </DialogDescription>
+            <DialogDescription>{editingResult?.studentName}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="editScore">Yangi ball</Label>
-              <Input
-                id="editScore"
-                type="number"
-                step="0.1"
-                value={editScore}
-                onChange={(e) => setEditScore(e.target.value)}
-                placeholder="Ball kiriting"
-              />
+              <Label>Ball</Label>
+              <Input type="number" value={editScore} onChange={(e) => setEditScore(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="editReason">Izoh (majburiy)</Label>
-              <Input
-                id="editReason"
-                value={editReason}
-                onChange={(e) => setEditReason(e.target.value)}
-                placeholder="O'zgartirish sababini kiriting"
-              />
+              <Label>Izoh (sabab)</Label>
+              <Input value={editReason} onChange={(e) => setEditReason(e.target.value)} placeholder="O'zgartirish sababi..." />
             </div>
-            <div className="flex gap-2">
-              <Button onClick={updateExamResult} className="flex-1">
-                Saqlash
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setEditingResult(null);
-                  setEditScore('');
-                  setEditReason('');
-                }} 
-                className="flex-1"
-              >
-                Bekor qilish
-              </Button>
-            </div>
+            <Button onClick={updateExamResult} className="w-full">Saqlash</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={executeAction}
+        title={confirmDialog.type === 'archive' ? "Imtihonni arxivlash" : "Imtihonni o'chirish"}
+        description={`"${confirmDialog.examName}" ni ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
+        confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
+        variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+      />
     </div>
   );
 };

@@ -6,6 +6,12 @@ export const studentSchema = z.object({
     .trim()
     .min(1, "Ism kiritish majburiy")
     .max(100, "Ism 100 belgidan oshmasligi kerak"),
+  join_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Sana formati noto'g'ri (YYYY-MM-DD)")
+    .refine((date) => {
+      const parsed = new Date(date);
+      return !isNaN(parsed.getTime());
+    }, "Noto'g'ri sana"),
   student_id: z.string()
     .trim()
     .max(50, "O'quvchi ID 50 belgidan oshmasligi kerak")

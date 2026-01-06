@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { firebaseSignIn, firebaseSignUp, db, addDocument } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { sanitizeError, logError } from '@/lib/errorUtils';
 
 const AuthPage: React.FC = () => {
@@ -26,16 +27,11 @@ const AuthPage: React.FC = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
+      const result = await firebaseSignIn(formData.email, formData.password);
 
-      if (error) throw error;
-
-      if (data.user) {
+      if (result.user) {
         toast({
           title: "Xush kelibsiz!",
           description: "Tizimga muvaffaqiyatli kirdingiz.",
@@ -56,7 +52,7 @@ const AuthPage: React.FC = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.school || !formData.institution_name) {
       toast({
         title: "Ma'lumot yetishmayapti",
@@ -67,25 +63,24 @@ const AuthPage: React.FC = () => {
     }
 
     setLoading(true);
-    
+
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            name: formData.name,
-            school: formData.school,
-            phone: formData.phone,
-            institution_name: formData.institution_name,
-            institution_address: formData.institution_address
-          }
-        }
-      });
+      const result = await firebaseSignUp(formData.email, formData.password);
 
-      if (error) throw error;
+      if (result.user) {
+        // Create teacher document in Firestore
+        await setDoc(doc(db, 'teachers', result.user.uid), {
+          id: result.user.uid,
+          email: formData.email,
+          name: formData.name,
+          school: formData.school,
+          phone: formData.phone,
+          institution_name: formData.institution_name,
+          institution_address: formData.institution_address,
+          is_approved: false,
+          created_at: new Date().toISOString()
+        });
 
-      if (data.user) {
         toast({
           title: "Ariza yuborildi",
           description: "Hisobingiz administratorlar tomonidan ko'rib chiqiladi. Bu 24-48 soat ichida amalga oshiriladi.",
@@ -115,8 +110,8 @@ const AuthPage: React.FC = () => {
             {authMode === 'signin' ? 'Xush kelibsiz' : 'TeachPro ga qo\'shiling'}
           </h1>
           <p className="text-gray-600">
-            {authMode === 'signin' 
-              ? 'O\'qituvchi hisobingizga kiring' 
+            {authMode === 'signin'
+              ? 'O\'qituvchi hisobingizga kiring'
               : 'O\'qituvchi hisobingizni yarating'
             }
           </p>
@@ -125,21 +120,19 @@ const AuthPage: React.FC = () => {
         <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
           <button
             onClick={() => setAuthMode('signin')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              authMode === 'signin'
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${authMode === 'signin'
                 ? 'bg-white text-black shadow-sm'
                 : 'text-gray-600 hover:text-black'
-            }`}
+              }`}
           >
             Kirish
           </button>
           <button
             onClick={() => setAuthMode('signup')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-              authMode === 'signup'
+            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${authMode === 'signup'
                 ? 'bg-white text-black shadow-sm'
                 : 'text-gray-600 hover:text-black'
-            }`}
+              }`}
           >
             Ro'yxatdan o'tish
           </button>

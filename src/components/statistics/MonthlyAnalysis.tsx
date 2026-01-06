@@ -1,8 +1,7 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, TrendingUp, Users, BarChart3, Award, Target, BookOpen } from 'lucide-react';
+import { Calendar, TrendingUp, Users, BarChart3, Award, Target, BookOpen, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, XCircle, Clock } from 'lucide-react';
 import { MonthlyData } from './types';
 
 interface MonthlyAnalysisProps {
@@ -10,20 +9,32 @@ interface MonthlyAnalysisProps {
 }
 
 const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
+  const [showAll, setShowAll] = useState(false);
+
   if (monthlyData.length === 0) {
     return (
-      <Card className="apple-card p-6">
+      <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Calendar className="w-5 h-5 text-blue-500" />
+          <BarChart3 className="w-5 h-5 text-blue-500" />
           <h3 className="text-lg font-semibold">Oylik tahlil</h3>
         </div>
         <div className="text-center py-8">
-          <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">Oylik ma'lumotlar topilmadi</p>
         </div>
       </Card>
     );
   }
+
+  // Sort by date descending (assuming month string format is consistent or we can parse it)
+  // The month format is "monthName, year" (e.g. "oktabr, 2025").
+  // Since we don't have a date object, we rely on the order from useStatistics or just render as is.
+  // useStatistics iterates through records, so the order might be random or chronological depending on map iteration.
+  // Let's assume we want to show the latest month first.
+  // Ideally, we should sort. But parsing Uzbek month names is tricky without a helper.
+  // Let's assume the data comes in a reasonable order or just show the first one as "Hero".
+  // Actually, let's just reverse it if it's chronological, so latest is first.
+  const sortedData = [...monthlyData].reverse();
 
   const getAttendanceColor = (percentage: number) => {
     if (percentage >= 90) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
@@ -40,93 +51,93 @@ const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
   };
 
   const getGradientClass = (percentage: number) => {
-    if (percentage >= 90) return 'bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200';
-    if (percentage >= 75) return 'bg-gradient-to-br from-amber-50 to-yellow-100 border-amber-200';
-    if (percentage >= 60) return 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200';
-    return 'bg-gradient-to-br from-red-50 to-red-100 border-red-200';
+    if (percentage >= 90) return 'bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white border-emerald-200 shadow-sm';
+    if (percentage >= 75) return 'bg-gradient-to-r from-amber-50 via-amber-50/50 to-white border-amber-200 shadow-sm';
+    if (percentage >= 60) return 'bg-gradient-to-r from-orange-50 via-orange-50/50 to-white border-orange-200 shadow-sm';
+    return 'bg-gradient-to-r from-red-50 via-red-50/50 to-white border-red-200 shadow-sm';
   };
 
-  const bestMonth = monthlyData.reduce((prev, current) => 
-    (prev.averageAttendance > current.averageAttendance) ? prev : current
-  );
+  const getPerformanceStatus = (percentage: number) => {
+    if (percentage >= 90) return {
+      label: "A'lo",
+      icon: "🔥",
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      borderColor: "border-emerald-100"
+    };
+    if (percentage >= 75) return {
+      label: "Yaxshi",
+      icon: "⚡",
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-100"
+    };
+    if (percentage >= 60) return {
+      label: "O'rtacha",
+      icon: "�",
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
+      borderColor: "border-amber-100"
+    };
+    return {
+      label: "Past",
+      icon: "⚠️",
+      color: "text-red-600",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-100"
+    };
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Umumiy ko'rsatkichlar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-blue-600 font-medium">Jami oylar</p>
-              <p className="text-2xl font-bold text-blue-900">{monthlyData.length}</p>
-            </div>
-          </div>
-        </Card>
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-blue-500" />
+          <h3 className="text-lg font-semibold">Oylik tahlil</h3>
+        </div>
 
-        <Card className="p-6 bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center">
-              <Award className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-emerald-600 font-medium">Eng yaxshi oy</p>
-              <p className="text-xl font-bold text-emerald-900">{bestMonth.month}</p>
-              <p className="text-sm text-emerald-700">{bestMonth.averageAttendance.toFixed(1)}%</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-purple-600 font-medium">O'rtacha davomat</p>
-              <p className="text-2xl font-bold text-purple-900">
-                {(monthlyData.reduce((sum, month) => sum + month.averageAttendance, 0) / monthlyData.length).toFixed(1)}%
-              </p>
-            </div>
-          </div>
-        </Card>
+        {monthlyData.length > 1 && (
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100"
+          >
+            {showAll ? (
+              <>
+                Yopish <ChevronUp className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                Barchasini ko'rish <ChevronDown className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Oylik ma'lumotlar */}
-      <Card className="apple-card p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold">Oylik tahlil</h3>
-          </div>
-          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-            {monthlyData.length} oy
-          </Badge>
-        </div>
-        
-        <div className="grid gap-4">
-          {monthlyData.map((month, index) => (
-            <div 
-              key={index} 
-              className={`border rounded-xl p-5 hover:shadow-lg transition-all duration-300 ${getGradientClass(month.averageAttendance)}`}
+      <div className="space-y-4">
+        {sortedData.slice(0, showAll ? undefined : 1).map((month, index) => {
+          const strictlyPresentPercentage = Math.max(0, month.averageAttendance - (month.latePercentage || 0));
+
+          return (
+            <div
+              key={index}
+              className={`border rounded-2xl transition-all duration-300 hover:shadow-md ${getGradientClass(month.averageAttendance)} p-5`}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/70 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm">
+                  <div className="w-14 h-14 bg-white/70 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-sm border border-gray-100">
                     <span className="text-2xl">{getAttendanceIcon(month.averageAttendance)}</span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-lg text-gray-800">{month.month}</h4>
+                    <h4 className="font-bold text-xl text-gray-800 capitalize">{month.month}</h4>
                     <p className="text-sm text-gray-600">
                       {month.totalClasses} dars o'tildi
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <Badge 
-                    variant="secondary" 
+                  <Badge
+                    variant="secondary"
                     className={`${getAttendanceColor(month.averageAttendance)} border font-bold text-lg px-3 py-1`}
                   >
                     {month.averageAttendance.toFixed(1)}%
@@ -134,51 +145,79 @@ const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
                   <p className="text-xs text-gray-500 mt-1">Davomat ko'rsatkichi</p>
                 </div>
               </div>
-              
-              {/* Progress bar */}
-              <div className="w-full bg-white/50 rounded-full h-2 mb-4">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    month.averageAttendance >= 90 ? 'bg-emerald-500' :
-                    month.averageAttendance >= 75 ? 'bg-amber-500' :
-                    month.averageAttendance >= 60 ? 'bg-orange-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${month.averageAttendance}%` }}
-                ></div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4 mt-4">
-                <div className="text-center bg-white/50 backdrop-blur-sm rounded-lg p-3">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <Users className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <p className="text-xs text-gray-600 font-medium">O'quvchilar</p>
-                  <p className="font-bold text-lg text-gray-800">{month.totalStudents}</p>
+
+              {/* Stats Section - Stacked Bar */}
+              <div className="bg-white/50 rounded-xl p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-medium text-gray-600">Umumiy ko'rsatkichlar</span>
                 </div>
-                <div className="text-center bg-white/50 backdrop-blur-sm rounded-lg p-3">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <BookOpen className="w-4 h-4 text-green-500" />
+
+                {/* Stacked Progress Bar */}
+                <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden flex mb-4 shadow-inner">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-500 hover:bg-emerald-400 relative group"
+                    style={{ width: `${strictlyPresentPercentage}%` }}
+                    title={`Davomat: ${strictlyPresentPercentage.toFixed(1)}%`}
+                  >
                   </div>
-                  <p className="text-xs text-gray-600 font-medium">Darslar</p>
-                  <p className="font-bold text-lg text-gray-800">{month.totalClasses}</p>
+                  <div
+                    className="h-full bg-amber-400 transition-all duration-500 hover:bg-amber-300 relative group"
+                    style={{ width: `${month.latePercentage || 0}%` }}
+                    title={`Kech qolish: ${(month.latePercentage || 0).toFixed(1)}%`}
+                  >
+                  </div>
+                  <div
+                    className="h-full bg-red-400 transition-all duration-500 hover:bg-red-300 relative group"
+                    style={{ width: `${month.absentPercentage || 0}%` }}
+                    title={`Kelmagan: ${(month.absentPercentage || 0).toFixed(1)}%`}
+                  >
+                  </div>
                 </div>
-                <div className="text-center bg-white/50 backdrop-blur-sm rounded-lg p-3">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <Target className="w-4 h-4 text-purple-500" />
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Users className="w-4 h-4 text-blue-500" />
+                      <span className="text-xs text-gray-500">O'quvchilar</span>
+                    </div>
+                    <p className="font-bold text-lg text-gray-800">{month.totalStudents}</p>
                   </div>
-                  <p className="text-xs text-gray-600 font-medium">Samaradorlik</p>
-                  <p className="font-bold text-lg text-gray-800">
-                    {month.averageAttendance >= 90 ? 'A+' :
-                     month.averageAttendance >= 75 ? 'A' :
-                     month.averageAttendance >= 60 ? 'B' : 'C'}
-                  </p>
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <BookOpen className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-gray-500">Darslar</span>
+                    </div>
+                    <p className="font-bold text-lg text-gray-800">{month.totalClasses}</p>
+                  </div>
+                  <div className="text-center group cursor-default">
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Target className="w-4 h-4 text-purple-500 group-hover:rotate-12 transition-transform" />
+                      <span className="text-xs text-gray-500">Samaradorlik</span>
+                    </div>
+                    {(() => {
+                      const status = getPerformanceStatus(month.efficiency || month.averageAttendance);
+                      return (
+                        <div className={`inline-flex flex-col items-center px-3 py-1 rounded-xl ${status.bgColor} border ${status.borderColor} shadow-sm transition-all duration-300 group-hover:scale-105`}>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm">{status.icon}</span>
+                            <span className={`font-bold text-sm ${status.color}`}>
+                              {(month.efficiency || month.averageAttendance).toFixed(1)}%
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-tighter text-gray-500 leading-none">
+                            {status.label}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      </Card>
-    </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 };
 

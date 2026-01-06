@@ -5,17 +5,24 @@
 
 // Map common database error codes to user-friendly messages
 const ERROR_CODE_MESSAGES: Record<string, string> = {
-  'PGRST116': "Ma'lumot topilmadi",
-  'PGRST301': "Kirishga ruxsat yo'q",
-  '23505': "Bu ma'lumot allaqachon mavjud",
-  '23503': "Bog'liq ma'lumotlar mavjud",
-  '23502': "Majburiy maydonlar to'ldirilmagan",
-  '42501': "Bu amaliyotga ruxsatingiz yo'q",
-  '42P01': "Tizimda xatolik yuz berdi",
-  'invalid_credentials': "Noto'g'ri email yoki parol",
-  'user_already_exists': "Bu email allaqachon ro'yxatdan o'tgan",
-  'email_not_confirmed': "Email tasdiqlanmagan",
-  'invalid_grant': "Noto'g'ri email yoki parol",
+  // Firebase/Firestore error codes
+  'permission-denied': "Kirishga ruxsat yo'q",
+  'not-found': "Ma'lumot topilmadi",
+  'already-exists': "Bu ma'lumot allaqachon mavjud",
+  'failed-precondition': "Amaliyotni bajarib bo'lmadi",
+  'resource-exhausted': "Limit tugadi",
+  'unavailable': "Xizmat vaqtincha ishlamayapti",
+  'deadline-exceeded': "Kutish vaqti tugadi",
+
+  // Auth error codes
+  'auth/invalid-credential': "Noto'g'ri email yoki parol",
+  'auth/user-not-found': "Foydalanuvchi topilmadi",
+  'auth/wrong-password': "Noto'g'ri parol",
+  'auth/email-already-in-use': "Bu email allaqachon ro'yxatdan o'tgan",
+  'auth/weak-password': "Parol juda oddiy",
+  'auth/invalid-email': "Email formati noto'g'ri",
+  'auth/user-disabled': "Foydalanuvchi bloklangan",
+  'auth/too-many-requests': "Urinishlar soni ko'payib ketdi. Keyinroq urinib ko'ring",
 };
 
 // Generic fallback messages by operation type
@@ -50,32 +57,33 @@ export function sanitizeError(
 
   // Extract error code if available
   let errorCode: string | undefined;
-  
+
   if (typeof error === 'object' && error !== null) {
     const err = error as Record<string, unknown>;
     errorCode = (err.code as string) || (err.error_code as string);
-    
-    // Check for Supabase auth errors
-    if (err.message && typeof err.message === 'string') {
-      const authErrorMatch = err.message.match(/invalid_credentials|user_already_exists|email_not_confirmed|invalid_grant/i);
-      if (authErrorMatch) {
-        errorCode = authErrorMatch[0].toLowerCase();
+
+    // Check for Firebase error message codes if code is not directly available
+    if (!errorCode && err.message && typeof err.message === 'string') {
+      // Firebase errors often have the code in the message like "Firebase: Error (auth/invalid-email)."
+      const match = err.message.match(/\(([^)]+)\)/);
+      if (match) {
+        errorCode = match[1];
       }
     }
   }
 
   // Return mapped message if code exists
   if (errorCode && ERROR_CODE_MESSAGES[errorCode]) {
-    return { 
+    return {
       message: ERROR_CODE_MESSAGES[errorCode],
-      code: errorCode 
+      code: errorCode
     };
   }
 
   // Return operation-specific fallback
-  return { 
+  return {
     message: OPERATION_FALLBACK_MESSAGES[operation],
-    code: errorCode 
+    code: errorCode
   };
 }
 

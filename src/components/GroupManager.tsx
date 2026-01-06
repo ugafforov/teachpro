@@ -5,13 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Settings, Trash2, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
+import { Plus, Users, Calendar, Trash2, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, getDocs, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import GroupDetails from './GroupDetails';
 import { groupSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { formatDateUz } from '@/lib/utils';
+import ConfirmDialog from './ConfirmDialog';
 
 interface Group {
   id: string;
@@ -20,6 +22,7 @@ interface Group {
   created_at: string;
   student_count?: number;
   attendance_percentage?: number;
+  is_active?: boolean;
 }
 
 interface GroupManagerProps {
@@ -28,10 +31,10 @@ interface GroupManagerProps {
   onStatsUpdate: () => Promise<void>;
 }
 
-const GroupManager: React.FC<GroupManagerProps> = ({ 
-  teacherId, 
-  onGroupSelect, 
-  onStatsUpdate 
+const GroupManager: React.FC<GroupManagerProps> = ({
+  teacherId,
+  onGroupSelect,
+  onStatsUpdate
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -45,6 +48,17 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   });
   const [loading, setLoading] = useState(true);
   const [nameError, setNameError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: 'archive' | 'delete';
+    groupId: string;
+    groupName: string;
+  }>({
+    isOpen: false,
+    type: 'archive',
+    groupId: '',
+    groupName: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,55 +67,93 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   const fetchGroups = async () => {
     try {
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (groupsError) throw groupsError;
-
-      // Get student counts and attendance for each group
-      const groupsWithStats = await Promise.all(
-        (groupsData || []).map(async (group) => {
-          // Get student count
-          const { count } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('group_name', group.name)
-            .eq('teacher_id', teacherId)
-            .eq('is_active', true);
-
-          // Get attendance percentage for this group
-          const { data: attendanceData, error: attendanceError } = await supabase
-            .from('attendance_records')
-            .select(`
-              status,
-              students!inner(group_name, is_active)
-            `)
-            .eq('teacher_id', teacherId)
-            .eq('students.group_name', group.name)
-            .eq('students.is_active', true);
-
-          let attendancePercentage = 0;
-          if (!attendanceError && attendanceData && attendanceData.length > 0) {
-            const totalRecords = attendanceData.length;
-            const presentRecords = attendanceData.filter(a => a.status === 'present' || a.status === 'late').length;
-            attendancePercentage = Math.round((presentRecords / totalRecords) * 100);
-          }
-
-          return {
-            ...group,
-            student_count: count || 0,
-            attendance_percentage: attendancePercentage
-          };
-        })
+      setLoading(true);
+      // 1. Fetch all active groups
+      const groupsQuery = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
       );
+      const groupsSnapshot = await getDocs(groupsQuery);
+      const groupsData = groupsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Group))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+      if (groupsData.length === 0) {
+        setGroups([]);
+        return;
+      }
+
+      // 2. Fetch all active students for this teacher to count per group
+      const studentsQuery = query(
+        collection(db, 'students'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const studentsSnapshot = await getDocs(studentsQuery);
+      const allStudents = studentsSnapshot.docs.map(d => d.data());
+
+      // 3. Fetch all attendance records for this teacher to calculate percentage
+      const attendanceQuery = query(
+        collection(db, 'attendance_records'),
+        where('teacher_id', '==', teacherId)
+      );
+      const attendanceSnapshot = await getDocs(attendanceQuery);
+
+      // Pre-group attendance by student_id for O(1) lookup
+      const attendanceByStudent: Record<string, any[]> = {};
+      attendanceSnapshot.docs.forEach(d => {
+        const data = d.data();
+        if (data.student_id) {
+          if (!attendanceByStudent[data.student_id]) {
+            attendanceByStudent[data.student_id] = [];
+          }
+          attendanceByStudent[data.student_id].push(data);
+        }
+      });
+
+      // 4. Combine data in memory
+      // Pre-group students by group name for efficient lookup
+      const studentsByGroup: Record<string, string[]> = {};
+      studentsSnapshot.docs.forEach(d => {
+        const data = d.data();
+        if (data.group_name) {
+          if (!studentsByGroup[data.group_name]) {
+            studentsByGroup[data.group_name] = [];
+          }
+          studentsByGroup[data.group_name].push(d.id);
+        }
+      });
+
+      const groupsWithStats = groupsData.map(group => {
+        const groupStudentIds = studentsByGroup[group.name] || [];
+
+        // Get all attendance for all students in this group
+        const groupAttendance = groupStudentIds.flatMap(id => attendanceByStudent[id] || []);
+
+        let attendancePercentage = 0;
+        if (groupAttendance.length > 0) {
+          const presentCount = groupAttendance.filter(a =>
+            a.status === 'present' || a.status === 'late'
+          ).length;
+          attendancePercentage = Math.round((presentCount / groupAttendance.length) * 100);
+        }
+
+        return {
+          ...group,
+          student_count: groupStudentIds.length,
+          attendance_percentage: attendancePercentage
+        };
+      });
 
       setGroups(groupsWithStats);
     } catch (error) {
       console.error('Error fetching groups:', error);
+      toast({
+        title: "Xatolik",
+        description: "Guruhlarni yuklashda xatolik yuz berdi",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -109,37 +161,26 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   const checkGroupNameExists = async (name: string): Promise<boolean> => {
     try {
-      // Check in active groups
-      const { data: activeGroups, error: activeError } = await supabase
-        .from('groups')
-        .select('name')
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true)
-        .ilike('name', name);
+      const activeQuery = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const activeSnapshot = await getDocs(activeQuery);
+      const activeExists = activeSnapshot.docs.some(d =>
+        d.data().name.toLowerCase() === name.toLowerCase()
+      );
 
-      if (activeError) throw activeError;
+      const archivedQuery = query(
+        collection(db, 'archived_groups'),
+        where('teacher_id', '==', teacherId)
+      );
+      const archivedSnapshot = await getDocs(archivedQuery);
+      const archivedExists = archivedSnapshot.docs.some(d =>
+        d.data().name.toLowerCase() === name.toLowerCase()
+      );
 
-      // Check in archived groups
-      const { data: archivedGroups, error: archivedError } = await supabase
-        .from('archived_groups')
-        .select('name')
-        .eq('teacher_id', teacherId)
-        .ilike('name', name);
-
-      if (archivedError) throw archivedError;
-
-      // Check in deleted groups
-      const { data: deletedGroups, error: deletedError } = await supabase
-        .from('deleted_groups')
-        .select('name')
-        .eq('teacher_id', teacherId)
-        .ilike('name', name);
-
-      if (deletedError) throw deletedError;
-
-      return (activeGroups?.length || 0) > 0 || 
-             (archivedGroups?.length || 0) > 0 || 
-             (deletedGroups?.length || 0) > 0;
+      return activeExists || archivedExists;
     } catch (error) {
       console.error('Error checking group name:', error);
       return false;
@@ -159,7 +200,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   };
 
   const addGroup = async () => {
-    // Validate with zod
     try {
       groupSchema.parse({
         name: newGroup.name,
@@ -177,31 +217,26 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       return;
     }
 
-    if (nameError) {
-      return;
-    }
+    if (nameError) return;
 
     try {
-      // Double check before adding
       const exists = await checkGroupNameExists(newGroup.name.trim());
       if (exists) {
         setNameError('Ushbu nomda guruh mavjud');
         return;
       }
 
-      const { error } = await supabase
-        .from('groups')
-        .insert({
-          teacher_id: teacherId,
-          name: newGroup.name.trim(),
-          description: newGroup.description.trim() || null
-        });
-
-      if (error) throw error;
+      await addDoc(collection(db, 'groups'), {
+        teacher_id: teacherId,
+        name: newGroup.name.trim(),
+        description: newGroup.description.trim() || null,
+        is_active: true,
+        created_at: new Date().toISOString()
+      });
 
       await fetchGroups();
       await onStatsUpdate();
-      
+
       setNewGroup({ name: '', description: '' });
       setNameError('');
       setIsAddDialogOpen(false);
@@ -221,7 +256,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   };
 
   const handleGroupClick = (groupName: string) => {
-    console.log('Group clicked:', groupName);
     setSelectedGroup(groupName);
     onGroupSelect(groupName);
   };
@@ -232,7 +266,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   const handleEditGroup = async (e: React.MouseEvent, group: Group) => {
     e.stopPropagation();
-    console.log('Edit group:', group.name);
     setEditingGroup(group);
     setIsEditDialogOpen(true);
   };
@@ -248,32 +281,35 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
 
     try {
-      const { error } = await supabase
-        .from('groups')
-        .update({
-          name: editingGroup.name.trim(),
-          description: editingGroup.description?.trim() || null
-        })
-        .eq('id', editingGroup.id);
-
-      if (error) throw error;
-
-      // Update students table with new group name if needed
       const originalGroup = groups.find(g => g.id === editingGroup.id);
+
+      await updateDoc(doc(db, 'groups', editingGroup.id), {
+        name: editingGroup.name.trim(),
+        description: editingGroup.description?.trim() || null
+      });
+
+      // Update students with new group name if changed
       if (originalGroup && originalGroup.name !== editingGroup.name.trim()) {
-        await supabase
-          .from('students')
-          .update({ group_name: editingGroup.name.trim() })
-          .eq('group_name', originalGroup.name)
-          .eq('teacher_id', teacherId);
+        const studentsQuery = query(
+          collection(db, 'students'),
+          where('group_name', '==', originalGroup.name),
+          where('teacher_id', '==', teacherId)
+        );
+        const studentsSnapshot = await getDocs(studentsQuery);
+
+        for (const studentDoc of studentsSnapshot.docs) {
+          await updateDoc(doc(db, 'students', studentDoc.id), {
+            group_name: editingGroup.name.trim()
+          });
+        }
       }
 
       await fetchGroups();
       await onStatsUpdate();
-      
+
       setEditingGroup(null);
       setIsEditDialogOpen(false);
-      
+
       toast({
         title: "Guruh yangilandi",
         description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
@@ -288,73 +324,57 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleArchiveGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+  const handleArchiveGroup = (e: React.MouseEvent, groupId: string, groupName: string) => {
     e.stopPropagation();
-    
-    if (!confirm(`"${groupName}" guruhini arxivlashga ishonchingiz komilmi?`)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      type: 'archive',
+      groupId,
+      groupName
+    });
+  };
 
+  const executeArchiveGroup = async () => {
+    const { groupId, groupName } = confirmDialog;
     try {
-      // Move group to archived_groups table
       const group = groups.find(g => g.id === groupId);
       if (group) {
-        const { error: archiveError } = await supabase
-          .from('archived_groups')
-          .insert({
-            original_group_id: group.id,
-            teacher_id: teacherId,
-            name: group.name,
-            description: group.description
-          });
-
-        if (archiveError) throw archiveError;
+        // Add to archived_groups
+        await addDoc(collection(db, 'archived_groups'), {
+          original_group_id: group.id,
+          teacher_id: teacherId,
+          name: group.name,
+          description: group.description,
+          archived_at: new Date().toISOString()
+        });
       }
 
-      // Move students to archived_students table
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('group_name', groupName)
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
+      // Get and archive students
+      const studentsQuery = query(
+        collection(db, 'students'),
+        where('group_name', '==', groupName),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const studentsSnapshot = await getDocs(studentsQuery);
 
-      if (studentsError) throw studentsError;
-
-      if (students && students.length > 0) {
-        const studentsToArchive = students.map(student => ({
-          original_student_id: student.id,
+      for (const studentDoc of studentsSnapshot.docs) {
+        const student = studentDoc.data();
+        await addDoc(collection(db, 'archived_students'), {
+          original_student_id: studentDoc.id,
           teacher_id: teacherId,
           name: student.name,
           student_id: student.student_id,
           email: student.email,
           phone: student.phone,
-          group_name: student.group_name
-        }));
-
-        const { error: archiveStudentsError } = await supabase
-          .from('archived_students')
-          .insert(studentsToArchive);
-
-        if (archiveStudentsError) throw archiveStudentsError;
-
-        // Mark students as inactive
-        const { error: updateStudentsError } = await supabase
-          .from('students')
-          .update({ is_active: false })
-          .eq('group_name', groupName)
-          .eq('teacher_id', teacherId);
-
-        if (updateStudentsError) throw updateStudentsError;
+          group_name: student.group_name,
+          archived_at: new Date().toISOString()
+        });
+        await updateDoc(doc(db, 'students', studentDoc.id), { is_active: false });
       }
 
       // Mark group as inactive
-      const { error: updateError } = await supabase
-        .from('groups')
-        .update({ is_active: false })
-        .eq('id', groupId);
-
-      if (updateError) throw updateError;
+      await updateDoc(doc(db, 'groups', groupId), { is_active: false });
 
       await fetchGroups();
       await onStatsUpdate();
@@ -370,76 +390,61 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruhni arxivlashda xatolik yuz berdi",
         variant: "destructive",
       });
+    } finally {
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
   };
 
-  const handleDeleteGroup = async (e: React.MouseEvent, groupId: string, groupName: string) => {
+  const handleDeleteGroup = (e: React.MouseEvent, groupId: string, groupName: string) => {
     e.stopPropagation();
-    
-    if (!confirm(`"${groupName}" guruhini o'chirishga ishonchingiz komilmi?`)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      type: 'delete',
+      groupId,
+      groupName
+    });
+  };
 
+  const executeDeleteGroup = async () => {
+    const { groupId, groupName } = confirmDialog;
     try {
-      // Move group to deleted_groups table
       const group = groups.find(g => g.id === groupId);
       if (group) {
-        const { error: deleteError } = await supabase
-          .from('deleted_groups')
-          .insert({
-            original_group_id: group.id,
-            teacher_id: teacherId,
-            name: group.name,
-            description: group.description
-          });
-
-        if (deleteError) throw deleteError;
+        await addDoc(collection(db, 'deleted_groups'), {
+          original_group_id: group.id,
+          teacher_id: teacherId,
+          name: group.name,
+          description: group.description,
+          deleted_at: new Date().toISOString()
+        });
       }
 
-      // Move students to deleted_students table
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('group_name', groupName)
-        .eq('teacher_id', teacherId)
-        .eq('is_active', true);
+      // Get and soft delete students
+      const studentsQuery = query(
+        collection(db, 'students'),
+        where('group_name', '==', groupName),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const studentsSnapshot = await getDocs(studentsQuery);
 
-      if (studentsError) throw studentsError;
-
-      if (students && students.length > 0) {
-        const studentsToDelete = students.map(student => ({
-          original_student_id: student.id,
+      for (const studentDoc of studentsSnapshot.docs) {
+        const student = studentDoc.data();
+        await addDoc(collection(db, 'deleted_students'), {
+          original_student_id: studentDoc.id,
           teacher_id: teacherId,
           name: student.name,
           student_id: student.student_id,
           email: student.email,
           phone: student.phone,
-          group_name: student.group_name
-        }));
-
-        const { error: deleteStudentsError } = await supabase
-          .from('deleted_students')
-          .insert(studentsToDelete);
-
-        if (deleteStudentsError) throw deleteStudentsError;
-
-        // Mark students as inactive
-        const { error: updateStudentsError } = await supabase
-          .from('students')
-          .update({ is_active: false })
-          .eq('group_name', groupName)
-          .eq('teacher_id', teacherId);
-
-        if (updateStudentsError) throw updateStudentsError;
+          group_name: student.group_name,
+          deleted_at: new Date().toISOString()
+        });
+        await deleteDoc(doc(db, 'students', studentDoc.id));
       }
 
-      // Mark group as inactive
-      const { error: updateError } = await supabase
-        .from('groups')
-        .update({ is_active: false })
-        .eq('id', groupId);
-
-      if (updateError) throw updateError;
+      // Delete group
+      await deleteDoc(doc(db, 'groups', groupId));
 
       await fetchGroups();
       await onStatsUpdate();
@@ -455,6 +460,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruhni o'chirishda xatolik yuz berdi",
         variant: "destructive",
       });
+    } finally {
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -466,7 +473,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     );
   }
 
-  // Show GroupDetails component if a group is selected
   if (selectedGroup) {
     return (
       <GroupDetails
@@ -514,61 +520,61 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Yangi guruh yaratish</DialogTitle>
-              <DialogDescription>
-                Yangi guruh yarating va o'quvchilar qo'shing
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="groupName">Guruh nomi *</Label>
-                <Input
-                  id="groupName"
-                  value={newGroup.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="Masalan: 10-A sinf"
-                  className={nameError ? 'border-red-500' : ''}
-                />
-                {nameError && (
-                  <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
-                    <AlertTriangle className="w-4 h-4" />
-                    {nameError}
-                  </div>
-                )}
+              <DialogHeader>
+                <DialogTitle>Yangi guruh yaratish</DialogTitle>
+                <DialogDescription>
+                  Yangi guruh yarating va o'quvchilar qo'shing
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="groupName">Guruh nomi *</Label>
+                  <Input
+                    id="groupName"
+                    value={newGroup.name}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    placeholder="Masalan: 10-A sinf"
+                    className={nameError ? 'border-red-500' : ''}
+                  />
+                  {nameError && (
+                    <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
+                      <AlertTriangle className="w-4 h-4" />
+                      {nameError}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="groupDescription">Izoh</Label>
+                  <Textarea
+                    id="groupDescription"
+                    value={newGroup.description}
+                    onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
+                    placeholder="Guruh haqida qo'shimcha ma'lumot"
+                    rows={3}
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={addGroup}
+                    className="bg-black text-white hover:bg-gray-800 flex-1"
+                    disabled={!newGroup.name.trim() || !!nameError}
+                  >
+                    Yaratish
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsAddDialogOpen(false);
+                      setNewGroup({ name: '', description: '' });
+                      setNameError('');
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Bekor qilish
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="groupDescription">Izoh</Label>
-                <Textarea
-                  id="groupDescription"
-                  value={newGroup.description}
-                  onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
-                  placeholder="Guruh haqida qo'shimcha ma'lumot"
-                  rows={3}
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button 
-                  onClick={addGroup} 
-                  className="bg-black text-white hover:bg-gray-800 flex-1"
-                  disabled={!newGroup.name.trim() || !!nameError}
-                >
-                  Yaratish
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setIsAddDialogOpen(false);
-                    setNewGroup({ name: '', description: '' });
-                    setNameError('');
-                  }} 
-                  variant="outline" 
-                  className="flex-1"
-                >
-                  Bekor qilish
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
+            </DialogContent>
           </Dialog>
         </div>
       </div>
@@ -588,8 +594,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       ) : viewMode === 'list' ? (
         <div className="space-y-3">
           {groups.map(group => (
-            <Card 
-              key={group.id} 
+            <Card
+              key={group.id}
               className="p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
@@ -598,7 +604,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-bold text-gray-900">{group.name}</h3>
                   </div>
-                  
+
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-blue-500" />
@@ -607,7 +613,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                         <div className="text-sm font-semibold">{group.student_count}</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-green-500" />
                       <div>
@@ -658,8 +664,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map(group => (
-            <Card 
-              key={group.id} 
+            <Card
+              key={group.id}
               className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
@@ -667,7 +673,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="w-5 h-5 text-blue-500" />
@@ -676,7 +682,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                       <div className="text-lg font-semibold">{group.student_count}</div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-green-500" />
                     <div>
@@ -685,7 +691,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-sm text-gray-500">
                   {formatDateUz(group.created_at)}
                 </div>
@@ -725,7 +731,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         </div>
       )}
 
-      {/* Tahrirlash dialogi */}
+      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -765,6 +771,16 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.type === 'archive' ? executeArchiveGroup : executeDeleteGroup}
+        title={confirmDialog.type === 'archive' ? "Guruhni arxivlash" : "Guruhni o'chirish"}
+        description={`"${confirmDialog.groupName}" guruhini ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
+        confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
+        variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+      />
     </div>
   );
 };

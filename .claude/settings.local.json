@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(npm --version:*)",
+      "Bash(node --version:*)",
+      "Bash(npx @anthropic-ai/claude-code-cli mcp add:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm logout:*)",
+      "Bash(where:*)"
+    ]
+  }
+}

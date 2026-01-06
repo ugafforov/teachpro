@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, Building2, Mail, Phone, School } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { firebaseSignOut } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { formatDateUz } from '@/lib/utils';
 
@@ -23,7 +23,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
   const { toast } = useToast();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await firebaseSignOut();
     onLogout();
   };
 
@@ -44,8 +44,8 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
 
         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded">
           <p className="text-sm text-amber-800">
-            <strong>Eslatma:</strong> Administrator sizning hisob ma'lumotlaringizni tekshirib, 
-            tasdiqlashdan so'ng tizimga to'liq kirish huquqiga ega bo'lasiz. 
+            <strong>Eslatma:</strong> Administrator sizning hisob ma'lumotlaringizni tekshirib,
+            tasdiqlashdan so'ng tizimga to'liq kirish huquqiga ega bo'lasiz.
             Bu jarayon odatda 24-48 soat ichida amalga oshiriladi.
           </p>
         </div>
@@ -54,7 +54,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Yuborilgan ma'lumotlar:
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
               <Mail className="w-5 h-5 text-gray-600 mt-0.5" />
@@ -114,7 +114,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
         </div>
 
         <div className="flex justify-center">
-          <Button 
+          <Button
             onClick={handleLogout}
             variant="outline"
             className="border-gray-300 hover:bg-gray-100"

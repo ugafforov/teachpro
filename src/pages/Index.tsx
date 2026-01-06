@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { onAuthChange, firebaseSignOut, db, User } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
-import { sanitizeError, logError } from '@/lib/errorUtils';
+import { logError } from '@/lib/errorUtils';
 
 interface Teacher {
   id: string;
@@ -18,6 +18,7 @@ interface Teacher {
   school: string;
   created_at: string;
   verification_status: 'pending' | 'approved' | 'rejected';
+  is_approved?: boolean;
   institution_name?: string;
   institution_address?: string;
   requested_at: string;
@@ -26,78 +27,54 @@ interface Teacher {
 
 const Index = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Fetch teacher profile and admin status
-          setTimeout(async () => {
-            try {
-              // Fetch teacher data
-              const { data: teacherData, error: teacherError } = await supabase
-                .from('teachers')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .single();
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      setUser(firebaseUser);
 
-              if (teacherError && teacherError.code !== 'PGRST116') {
-                logError('Index.fetchTeacher', teacherError);
-                const { message } = sanitizeError(teacherError, 'fetch');
-                toast.error(message);
-              } else if (teacherData) {
-                setTeacher(teacherData);
-              }
+      if (firebaseUser) {
+        try {
+          // Fetch teacher data from Firestore
+          const teacherDoc = await getDoc(doc(db, 'teachers', firebaseUser.uid));
 
-              // Check if user is admin
-              const { data: roleData } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', session.user.id)
-                .eq('role', 'admin')
-                .single();
+          if (teacherDoc.exists()) {
+            const teacherData = teacherDoc.data() as Teacher;
+            teacherData.id = teacherDoc.id;
 
-              setIsAdmin(!!roleData);
-            } catch (error) {
-              logError('Index.fetchProfile', error);
+            // Map is_approved to verification_status for compatibility
+            if (teacherData.is_approved !== undefined) {
+              teacherData.verification_status = teacherData.is_approved ? 'approved' : 'pending';
             }
-            setLoading(false);
-          }, 0);
-        } else {
-          setTeacher(null);
-          setIsAdmin(false);
-          setLoading(false);
-        }
-      }
-    );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (!session) {
+            setTeacher(teacherData);
+          }
+
+          // Check if user is admin
+          const adminDoc = await getDoc(doc(db, 'admins', firebaseUser.uid));
+          setIsAdmin(adminDoc.exists());
+        } catch (error) {
+          logError('Index.fetchProfile', error);
+        }
+        setLoading(false);
+      } else {
+        setTeacher(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await firebaseSignOut();
       setUser(null);
-      setSession(null);
       setTeacher(null);
-      toast.success("You have been successfully logged out");
+      toast.success("Tizimdan muvaffaqiyatli chiqdingiz");
     } catch (error) {
       logError('Index.handleLogout', error);
       toast.error("Chiqishda xatolik yuz berdi");
@@ -112,7 +89,7 @@ const Index = () => {
     );
   }
 
-  if (!user || !session) {
+  if (!user) {
     return <AuthPage />;
   }
 
@@ -120,7 +97,7 @@ const Index = () => {
     return (
       <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Setting up your profile...</h2>
+          <h2 className="text-xl font-semibold mb-2">Profil sozlanmoqda...</h2>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
         </div>
       </main>

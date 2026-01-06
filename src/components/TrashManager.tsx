@@ -5,10 +5,24 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, RotateCcw, Users, Layers, AlertTriangle, BookOpen, Search, X, FileText } from 'lucide-react';
+import { Trash2, RotateCcw, Users, Layers, AlertTriangle, Search, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  orderBy,
+  serverTimestamp,
+  updateDoc,
+  writeBatch
+} from 'firebase/firestore';
 import { formatDateUz } from '@/lib/utils';
+import ConfirmDialog from './ConfirmDialog';
 
 interface DeletedStudent {
   id: string;
@@ -18,7 +32,7 @@ interface DeletedStudent {
   group_name: string;
   email?: string;
   phone?: string;
-  deleted_at: string;
+  deleted_at: any;
   teacher_id: string;
 }
 
@@ -27,7 +41,7 @@ interface DeletedGroup {
   original_group_id: string;
   name: string;
   description?: string;
-  deleted_at: string;
+  deleted_at: any;
   teacher_id: string;
 }
 
@@ -39,7 +53,7 @@ interface DeletedExam {
   exam_date: string;
   group_name: string;
   group_id?: string;
-  deleted_at: string;
+  deleted_at: any;
   results_data?: any;
 }
 
@@ -54,10 +68,14 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
   const [deletedExams, setDeletedExams] = useState<DeletedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState<{
-    type: 'restore' | 'permanent',
-    item: any,
-    itemType: 'student' | 'group' | 'exam'
-  } | null>(null);
+    isOpen: boolean;
+    type: 'restore' | 'permanent' | 'clear_all';
+    item?: any;
+    itemType?: 'student' | 'group' | 'exam';
+  }>({
+    isOpen: false,
+    type: 'restore',
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
@@ -67,47 +85,53 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const fetchTrashData = async () => {
     try {
-      // O'chirilgan o'quvchilarni olish
-      const { data: students, error: studentsError } = await supabase
-        .from('deleted_students')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .order('deleted_at', { ascending: false });
+      setLoading(true);
 
-      if (studentsError) {
-        console.error('Error fetching deleted students:', studentsError);
-        setDeletedStudents([]);
-      } else {
-        setDeletedStudents(students || []);
-      }
+      const studentsQ = query(
+        collection(db, 'deleted_students'),
+        where('teacher_id', '==', teacherId)
+      );
+      const studentsSnap = await getDocs(studentsQ);
+      setDeletedStudents(
+        studentsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as DeletedStudent))
+          .sort((a, b) => {
+            const dateA = a.deleted_at?.seconds ? a.deleted_at.seconds : new Date(a.deleted_at).getTime() / 1000;
+            const dateB = b.deleted_at?.seconds ? b.deleted_at.seconds : new Date(b.deleted_at).getTime() / 1000;
+            return dateB - dateA;
+          })
+      );
 
-      // O'chirilgan guruhlarni olish
-      const { data: groups, error: groupsError } = await supabase
-        .from('deleted_groups')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .order('deleted_at', { ascending: false });
+      const groupsQ = query(
+        collection(db, 'deleted_groups'),
+        where('teacher_id', '==', teacherId)
+      );
+      const groupsSnap = await getDocs(groupsQ);
+      setDeletedGroups(
+        groupsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as DeletedGroup))
+          .sort((a, b) => {
+            const dateA = a.deleted_at?.seconds ? a.deleted_at.seconds : new Date(a.deleted_at).getTime() / 1000;
+            const dateB = b.deleted_at?.seconds ? b.deleted_at.seconds : new Date(b.deleted_at).getTime() / 1000;
+            return dateB - dateA;
+          })
+      );
 
-      if (groupsError) {
-        console.error('Error fetching deleted groups:', groupsError);
-        setDeletedGroups([]);
-      } else {
-        setDeletedGroups(groups || []);
-      }
+      const examsQ = query(
+        collection(db, 'deleted_exams'),
+        where('teacher_id', '==', teacherId)
+      );
+      const examsSnap = await getDocs(examsQ);
+      setDeletedExams(
+        examsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as DeletedExam))
+          .sort((a, b) => {
+            const dateA = a.deleted_at?.seconds ? a.deleted_at.seconds : new Date(a.deleted_at).getTime() / 1000;
+            const dateB = b.deleted_at?.seconds ? b.deleted_at.seconds : new Date(b.deleted_at).getTime() / 1000;
+            return dateB - dateA;
+          })
+      );
 
-      // O'chirilgan imtihonlarni olish
-      const { data: exams, error: examsError } = await supabase
-        .from('deleted_exams')
-        .select('*')
-        .eq('teacher_id', teacherId)
-        .order('deleted_at', { ascending: false });
-
-      if (examsError) {
-        console.error('Error fetching deleted exams:', examsError);
-        setDeletedExams([]);
-      } else {
-        setDeletedExams(exams || []);
-      }
     } catch (error) {
       console.error('Error fetching deleted data:', error);
       toast({
@@ -120,93 +144,98 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
-  const clearAllTrash = async () => {
-    if (!confirm('Rostdan ham chiqindi qutisidagi barcha ma\'lumotlarni butunlay o\'chirmoqchimisiz? Bu amal bekor qilib bo\'lmaydi!')) {
-      return;
-    }
+  const handleClearAll = () => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'clear_all'
+    });
+  };
 
+  const executeClearAll = async () => {
     try {
-      // Permanently delete all deleted students
-      const { error: studentsError } = await supabase
-        .from('deleted_students')
-        .delete()
-        .eq('teacher_id', teacherId);
+      const batch = writeBatch(db);
 
-      if (studentsError) throw studentsError;
+      const studentsQ = query(collection(db, 'deleted_students'), where('teacher_id', '==', teacherId));
+      const studentsSnap = await getDocs(studentsQ);
+      studentsSnap.docs.forEach(d => batch.delete(d.ref));
 
-      // Permanently delete all deleted groups
-      const { error: groupsError } = await supabase
-        .from('deleted_groups')
-        .delete()
-        .eq('teacher_id', teacherId);
+      const groupsQ = query(collection(db, 'deleted_groups'), where('teacher_id', '==', teacherId));
+      const groupsSnap = await getDocs(groupsQ);
+      groupsSnap.docs.forEach(d => batch.delete(d.ref));
 
-      if (groupsError) throw groupsError;
+      const examsQ = query(collection(db, 'deleted_exams'), where('teacher_id', '==', teacherId));
+      const examsSnap = await getDocs(examsQ);
+      examsSnap.docs.forEach(d => batch.delete(d.ref));
 
-      // Permanently delete all deleted exams
-      const { error: examsError } = await supabase
-        .from('deleted_exams')
-        .delete()
-        .eq('teacher_id', teacherId);
-
-      if (examsError) throw examsError;
+      await batch.commit();
 
       await fetchTrashData();
       if (onStatsUpdate) await onStatsUpdate();
+
+      toast({
+        title: "Muvaffaqiyatli",
+        description: "Chiqindi qutisi tozalandi",
+      });
     } catch (error) {
       console.error('Error clearing all trash:', error);
+      toast({
+        title: "Xatolik",
+        description: "Chiqindini tozalashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
   };
 
   const handleAction = (type: 'restore' | 'permanent', item: any, itemType: 'student' | 'group' | 'exam') => {
-    setConfirmDialog({ type, item, itemType });
+    setConfirmDialog({
+      isOpen: true,
+      type,
+      item,
+      itemType
+    });
   };
 
-  const confirmAction = async () => {
-    if (!confirmDialog) return;
-
+  const executeAction = async () => {
     const { type, item, itemType } = confirmDialog;
+    if (!item || !itemType) return;
 
     try {
       if (itemType === 'student') {
-        if (type === 'restore') {
-          await restoreStudent(item);
-        } else {
-          await permanentDeleteStudent(item);
-        }
+        if (type === 'restore') await restoreStudent(item);
+        else await permanentDeleteStudent(item);
       } else if (itemType === 'group') {
-        if (type === 'restore') {
-          await restoreGroup(item);
-        } else {
-          await permanentDeleteGroup(item);
-        }
+        if (type === 'restore') await restoreGroup(item);
+        else await permanentDeleteGroup(item);
       } else if (itemType === 'exam') {
-        if (type === 'restore') {
-          await restoreExam(item);
-        } else {
-          await permanentDeleteExam(item);
-        }
+        if (type === 'restore') await restoreExam(item);
+        else await permanentDeleteExam(item);
       }
     } catch (error) {
       console.error('Error performing action:', error);
     } finally {
-      setConfirmDialog(null);
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
   };
 
   const restoreStudent = async (deletedStudent: DeletedStudent) => {
     try {
-      const { data, error } = await (supabase as any).rpc('restore_student_full', {
-        p_deleted_student_id: deletedStudent.id
+      // Restore student to students collection
+      await updateDoc(doc(db, 'students', deletedStudent.original_student_id), {
+        is_active: true,
+        updated_at: serverTimestamp()
       });
-      
-      if (error) throw error;
+
+      // Delete from deleted_students
+      await deleteDoc(doc(db, 'deleted_students', deletedStudent.id));
 
       await fetchTrashData();
       await onStatsUpdate();
 
       toast({
         title: "O'quvchi tiklandi",
-        description: `${deletedStudent.name} barcha ma'lumotlari bilan tiklandi`,
+        description: `${deletedStudent.name} muvaffaqiyatli tiklandi`,
       });
     } catch (error) {
       console.error('Error restoring student:', error);
@@ -220,21 +249,12 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreGroup = async (deletedGroup: DeletedGroup) => {
     try {
-      // Guruhni tiklash
-      const { error: restoreError } = await supabase
-        .from('groups')
-        .update({ is_active: true })
-        .eq('id', deletedGroup.original_group_id);
+      await updateDoc(doc(db, 'groups', deletedGroup.original_group_id), {
+        is_active: true,
+        updated_at: serverTimestamp()
+      });
 
-      if (restoreError) throw restoreError;
-
-      // Trash dan o'chirish
-      const { error: deleteError } = await supabase
-        .from('deleted_groups')
-        .delete()
-        .eq('id', deletedGroup.id);
-
-      if (deleteError) throw deleteError;
+      await deleteDoc(doc(db, 'deleted_groups', deletedGroup.id));
 
       await fetchTrashData();
       await onStatsUpdate();
@@ -255,13 +275,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const permanentDeleteStudent = async (deletedStudent: DeletedStudent) => {
     try {
-      // Butunlay o'chirish
-      const { error: deleteError } = await supabase
-        .from('deleted_students')
-        .delete()
-        .eq('id', deletedStudent.id);
-
-      if (deleteError) throw deleteError;
+      await deleteDoc(doc(db, 'deleted_students', deletedStudent.id));
 
       await fetchTrashData();
       await onStatsUpdate();
@@ -282,13 +296,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const permanentDeleteGroup = async (deletedGroup: DeletedGroup) => {
     try {
-      // Butunlay o'chirish
-      const { error: deleteError } = await supabase
-        .from('deleted_groups')
-        .delete()
-        .eq('id', deletedGroup.id);
-
-      if (deleteError) throw deleteError;
+      await deleteDoc(doc(db, 'deleted_groups', deletedGroup.id));
 
       await fetchTrashData();
       await onStatsUpdate();
@@ -309,44 +317,33 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const restoreExam = async (deletedExam: DeletedExam) => {
     try {
-      // Imtihonni tiklash - exams jadvaliga qaytarish with correct group_id
-      const { data: restoredExam, error: examError } = await supabase
-        .from('exams')
-        .insert({
-          teacher_id: teacherId,
-          exam_name: deletedExam.exam_name,
-          exam_date: deletedExam.exam_date,
-          group_id: deletedExam.group_id || null
-        })
-        .select()
-        .single();
+      const examDoc = await addDoc(collection(db, 'exams'), {
+        teacher_id: teacherId,
+        exam_name: deletedExam.exam_name,
+        exam_date: deletedExam.exam_date,
+        group_id: deletedExam.group_id || null,
+        created_at: serverTimestamp()
+      });
 
-      if (examError) throw examError;
-
-      if (restoredExam && deletedExam.results_data && Array.isArray(deletedExam.results_data)) {
-        // Natijalarni to'liq tiklash
-        const resultsToRestore = deletedExam.results_data.map((r: any) => ({
-          teacher_id: teacherId,
-          exam_id: restoredExam.id,
-          student_id: r.student_id,
-          score: r.score,
-          notes: r.notes || null
-        }));
-
-        const { error: resultsError } = await supabase
-          .from('exam_results')
-          .insert(resultsToRestore);
-
-        if (resultsError) throw resultsError;
+      if (deletedExam.results_data && Array.isArray(deletedExam.results_data)) {
+        const batch = writeBatch(db);
+        deletedExam.results_data.forEach((r: any) => {
+          const newResultRef = doc(collection(db, 'exam_results'));
+          batch.set(newResultRef, {
+            teacher_id: teacherId,
+            exam_id: examDoc.id,
+            student_id: r.student_id,
+            score: r.score,
+            notes: r.notes || null,
+            student_name: r.student_name || '',
+            group_name: r.group_name || '',
+            created_at: serverTimestamp()
+          });
+        });
+        await batch.commit();
       }
 
-      // Trash dan o'chirish
-      const { error: deleteError } = await supabase
-        .from('deleted_exams')
-        .delete()
-        .eq('id', deletedExam.id);
-
-      if (deleteError) throw deleteError;
+      await deleteDoc(doc(db, 'deleted_exams', deletedExam.id));
 
       await fetchTrashData();
       await onStatsUpdate();
@@ -367,13 +364,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
   const permanentDeleteExam = async (deletedExam: DeletedExam) => {
     try {
-      // Butunlay o'chirish
-      const { error: deleteError } = await supabase
-        .from('deleted_exams')
-        .delete()
-        .eq('id', deletedExam.id);
-
-      if (deleteError) throw deleteError;
+      await deleteDoc(doc(db, 'deleted_exams', deletedExam.id));
 
       await fetchTrashData();
       await onStatsUpdate();
@@ -392,6 +383,16 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
+  const filterData = (data: any[]) => {
+    const term = searchTerm.toLowerCase();
+    return data.filter(item =>
+      (item.name?.toLowerCase().includes(term)) ||
+      (item.exam_name?.toLowerCase().includes(term)) ||
+      (item.group_name?.toLowerCase().includes(term)) ||
+      (item.student_id?.toLowerCase().includes(term))
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -408,7 +409,7 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
           <p className="text-muted-foreground">O'chirilgan ma'lumotlarni boshqaring</p>
         </div>
         <Button
-          onClick={clearAllTrash}
+          onClick={handleClearAll}
           variant="destructive"
           className="flex items-center space-x-2"
           disabled={deletedStudents.length === 0 && deletedGroups.length === 0 && deletedExams.length === 0}
@@ -418,7 +419,6 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         </Button>
       </div>
 
-      {/* Search */}
       <Card className="p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -448,60 +448,31 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         </TabsList>
 
         <TabsContent value="students" className="mt-6">
-          {deletedStudents.length === 0 ? (
-            <Card className="apple-card p-12 text-center">
+          {filterData(deletedStudents).length === 0 ? (
+            <Card className="p-12 text-center">
               <Trash2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">O'chirilgan o'quvchilar yo'q</h3>
-              <p className="text-muted-foreground">
-                Hali hech qanday o'quvchi o'chirilmagan
-              </p>
             </Card>
           ) : (
-            <Card className="apple-card">
-              <div className="p-6 border-b border-border/50">
-                <h3 className="text-lg font-semibold">O'chirilgan o'quvchilar</h3>
-                <p className="text-sm text-muted-foreground">
-                  {deletedStudents.length} o'chirilgan o'quvchi
-                </p>
-              </div>
+            <Card>
               <div className="divide-y divide-border/50">
-                {deletedStudents.map((student) => (
+                {filterData(deletedStudents).map((student) => (
                   <div key={student.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium">
-                          {student.name.split(' ').map(n => n[0]).join('')}
-                        </span>
+                        <span className="text-sm font-medium">{student.name[0]}</span>
                       </div>
                       <div>
                         <p className="font-medium">{student.name}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span>{student.group_name}</span>
-                          {student.student_id && <span>ID: {student.student_id}</span>}
-                          <span>O'chirilgan: {formatDateUz(student.deleted_at)}</span>
+                          <span>O'chirilgan: {student.deleted_at?.seconds ? formatDateUz(new Date(student.deleted_at.seconds * 1000).toISOString()) : ''}</span>
                         </div>
                       </div>
                     </div>
-                    
                     <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('restore', student, 'student')}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        Tiklash
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('permanent', student, 'student')}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Butunlay o'chirish
-                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('restore', student, 'student')} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4 mr-1" />Tiklash</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('permanent', student, 'student')} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4 mr-1" />O'chirish</Button>
                     </div>
                   </div>
                 ))}
@@ -511,57 +482,28 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         </TabsContent>
 
         <TabsContent value="groups" className="mt-6">
-          {deletedGroups.length === 0 ? (
-            <Card className="apple-card p-12 text-center">
+          {filterData(deletedGroups).length === 0 ? (
+            <Card className="p-12 text-center">
               <Trash2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">O'chirilgan guruhlar yo'q</h3>
-              <p className="text-muted-foreground">
-                Hali hech qanday guruh o'chirilmagan
-              </p>
             </Card>
           ) : (
-            <Card className="apple-card">
-              <div className="p-6 border-b border-border/50">
-                <h3 className="text-lg font-semibold">O'chirilgan guruhlar</h3>
-                <p className="text-sm text-muted-foreground">
-                  {deletedGroups.length} o'chirilgan guruh
-                </p>
-              </div>
+            <Card>
               <div className="divide-y divide-border/50">
-                {deletedGroups.map((group) => (
+                {filterData(deletedGroups).map((group) => (
                   <div key={group.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <Layers className="w-5 h-5" />
-                      </div>
+                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center"><Layers className="w-5 h-5" /></div>
                       <div>
                         <p className="font-medium">{group.name}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                          {group.description && <span>{group.description}</span>}
-                          <span>O'chirilgan: {formatDateUz(group.deleted_at)}</span>
+                          <span>O'chirilgan: {group.deleted_at?.seconds ? formatDateUz(new Date(group.deleted_at.seconds * 1000).toISOString()) : ''}</span>
                         </div>
                       </div>
                     </div>
-                    
                     <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('restore', group, 'group')}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        Tiklash
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('permanent', group, 'group')}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Butunlay o'chirish
-                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('restore', group, 'group')} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4 mr-1" />Tiklash</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('permanent', group, 'group')} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4 mr-1" />O'chirish</Button>
                     </div>
                   </div>
                 ))}
@@ -571,58 +513,29 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         </TabsContent>
 
         <TabsContent value="exams" className="mt-6">
-          {deletedExams.length === 0 ? (
-            <Card className="apple-card p-12 text-center">
+          {filterData(deletedExams).length === 0 ? (
+            <Card className="p-12 text-center">
               <Trash2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">O'chirilgan imtihonlar yo'q</h3>
-              <p className="text-muted-foreground">
-                Hali hech qanday imtihon o'chirilmagan
-              </p>
             </Card>
           ) : (
-            <Card className="apple-card">
-              <div className="p-6 border-b border-border/50">
-                <h3 className="text-lg font-semibold">O'chirilgan imtihonlar</h3>
-                <p className="text-sm text-muted-foreground">
-                  {deletedExams.length} o'chirilgan imtihon
-                </p>
-              </div>
+            <Card>
               <div className="divide-y divide-border/50">
-                {deletedExams.map((exam) => (
+                {filterData(deletedExams).map((exam) => (
                   <div key={exam.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <FileText className="w-5 h-5" />
-                      </div>
+                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center"><FileText className="w-5 h-5" /></div>
                       <div>
                         <p className="font-medium">{exam.exam_name}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span>{exam.group_name}</span>
-                          <span>{formatDateUz(exam.exam_date)}</span>
-                          <span>O'chirilgan: {formatDateUz(exam.deleted_at)}</span>
+                          <span>O'chirilgan: {exam.deleted_at?.seconds ? formatDateUz(new Date(exam.deleted_at.seconds * 1000).toISOString()) : ''}</span>
                         </div>
                       </div>
                     </div>
-                    
                     <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('restore', exam, 'exam')}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        Tiklash
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAction('permanent', exam, 'exam')}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Butunlay o'chirish
-                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('restore', exam, 'exam')} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4 mr-1" />Tiklash</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleAction('permanent', exam, 'exam')} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4 mr-1" />O'chirish</Button>
                     </div>
                   </div>
                 ))}
@@ -632,41 +545,24 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
         </TabsContent>
       </Tabs>
 
-      {/* Confirmation Dialog */}
-      {confirmDialog && (
-        <Dialog open={true} onOpenChange={() => setConfirmDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                Tasdiqlash
-              </DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <p className="text-sm text-muted-foreground">
-                {confirmDialog.type === 'restore' 
-                  ? `${confirmDialog.item.name}ni tiklashni xohlaysizmi?`
-                  : `${confirmDialog.item.name}ni butunlay o'chirishni xohlaysizmi? Bu amalni bekor qilib bo'lmaydi.`
-                }
-              </p>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setConfirmDialog(null)}
-              >
-                Bekor qilish
-              </Button>
-              <Button
-                onClick={confirmAction}
-                variant={confirmDialog.type === 'permanent' ? 'destructive' : 'default'}
-              >
-                {confirmDialog.type === 'restore' ? 'Tiklash' : 'Butunlay o\'chirish'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.type === 'clear_all' ? executeClearAll : executeAction}
+        title={
+          confirmDialog.type === 'clear_all' ? "Chiqindini tozalash" :
+            confirmDialog.type === 'restore' ? "Qayta tiklash" : "Butunlay o'chirish"
+        }
+        description={
+          confirmDialog.type === 'clear_all' ? "Rostdan ham chiqindi qutisidagi barcha ma'lumotlarni butunlay o'chirmoqchimisiz? Bu amalni bekor qilib bo'lmaydi!" :
+            `"${confirmDialog.item?.name || confirmDialog.item?.exam_name}" ni ${confirmDialog.type === 'restore' ? 'qayta tiklashga' : "butunlay o'chirishga"} ishonchingiz komilmi?`
+        }
+        confirmText={
+          confirmDialog.type === 'clear_all' ? "Tozalash" :
+            confirmDialog.type === 'restore' ? "Qayta tiklash" : "O'chirish"
+        }
+        variant={confirmDialog.type === 'restore' ? 'info' : 'danger'}
+      />
     </div>
   );
 };
