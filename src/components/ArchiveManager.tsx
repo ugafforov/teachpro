@@ -17,10 +17,13 @@ import {
   orderBy,
   serverTimestamp,
   updateDoc,
-  writeBatch
+  writeBatch,
+  Timestamp
 } from 'firebase/firestore';
 import { formatDateUz } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
+import RestoreDialog from './RestoreDialog';
+import { format } from 'date-fns';
 
 interface ArchivedStudent {
   id: string;
@@ -76,6 +79,17 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   }>({
     isOpen: false,
     type: 'restore',
+    itemType: 'student',
+    itemId: '',
+    itemName: ''
+  });
+  const [restoreDialog, setRestoreDialog] = useState<{
+    isOpen: boolean;
+    itemType: 'student' | 'group' | 'exam';
+    itemId: string;
+    itemName: string;
+  }>({
+    isOpen: false,
     itemType: 'student',
     itemId: '',
     itemName: ''
@@ -152,22 +166,30 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   };
 
   const handleAction = (type: 'restore' | 'delete', itemType: 'student' | 'group' | 'exam', itemId: string, itemName: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      type,
-      itemType,
-      itemId,
-      itemName
-    });
+    if (type === 'restore' && (itemType === 'student' || itemType === 'group')) {
+      setRestoreDialog({
+        isOpen: true,
+        itemType,
+        itemId,
+        itemName
+      });
+    } else {
+      setConfirmDialog({
+        isOpen: true,
+        type,
+        itemType,
+        itemId,
+        itemName
+      });
+    }
   };
 
   const executeAction = async () => {
     const { type, itemType, itemId, itemName } = confirmDialog;
 
     if (type === 'restore') {
-      if (itemType === 'student') await restoreStudent(itemId);
-      else if (itemType === 'group') await restoreGroup(itemId);
-      else if (itemType === 'exam') await restoreExam(itemId);
+      // Exams are restored without date selection (or if logic changes, add here)
+      if (itemType === 'exam') await restoreExam(itemId);
     } else {
       if (itemType === 'student') await deleteArchivedStudent(itemId);
       else if (itemType === 'group') await deleteArchivedGroup(itemId);
@@ -177,14 +199,24 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
   };
 
-  const restoreStudent = async (studentId: string) => {
+  const handleRestoreConfirm = async (date: Date) => {
+    const { itemType, itemId } = restoreDialog;
+
+    if (itemType === 'student') await restoreStudent(itemId, date);
+    else if (itemType === 'group') await restoreGroup(itemId, date);
+
+    setRestoreDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const restoreStudent = async (studentId: string, date?: Date) => {
     try {
       const archivedStudent = archivedStudents.find(s => s.id === studentId);
       if (!archivedStudent) return;
 
       await updateDoc(doc(db, 'students', archivedStudent.original_student_id), {
         is_active: true,
-        updated_at: serverTimestamp()
+        updated_at: serverTimestamp(),
+        ...(date && { join_date: format(date, 'yyyy-MM-dd') })
       });
 
       await deleteDoc(doc(db, 'archived_students', studentId));
@@ -196,7 +228,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
-  const restoreGroup = async (groupId: string) => {
+  const restoreGroup = async (groupId: string, date?: Date) => {
     try {
       const archivedGroup = archivedGroups.find(g => g.id === groupId);
       if (!archivedGroup) return;
@@ -206,7 +238,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         name: archivedGroup.name,
         description: archivedGroup.description || '',
         is_active: true,
-        created_at: serverTimestamp()
+        created_at: date ? Timestamp.fromDate(date) : serverTimestamp()
       });
 
       await deleteDoc(doc(db, 'archived_groups', groupId));
@@ -479,6 +511,14 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         description={`"${confirmDialog.itemName}" ni ${confirmDialog.type === 'restore' ? 'qayta tiklashga' : "butunlay o'chirishga"} ishonchingiz komilmi?`}
         confirmText={confirmDialog.type === 'restore' ? "Qayta tiklash" : "O'chirish"}
         variant={confirmDialog.type === 'restore' ? 'info' : 'danger'}
+      />
+
+      <RestoreDialog
+        isOpen={restoreDialog.isOpen}
+        onClose={() => setRestoreDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleRestoreConfirm}
+        title={restoreDialog.itemType === 'student' ? "O'quvchini tiklash" : "Guruhni tiklash"}
+        description={`"${restoreDialog.itemName}" ni tiklashni tasdiqlaysizmi?`}
       />
     </div>
   );

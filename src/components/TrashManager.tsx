@@ -23,6 +23,9 @@ import {
 } from 'firebase/firestore';
 import { formatDateUz } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
+import RestoreDialog from './RestoreDialog';
+import { format } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 
 interface DeletedStudent {
   id: string;
@@ -75,6 +78,13 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
   }>({
     isOpen: false,
     type: 'restore',
+  });
+  const [restoreDialog, setRestoreDialog] = useState<{
+    isOpen: boolean;
+    item?: any;
+    itemType?: 'student' | 'group' | 'exam';
+  }>({
+    isOpen: false,
   });
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
@@ -189,12 +199,20 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
   };
 
   const handleAction = (type: 'restore' | 'permanent', item: any, itemType: 'student' | 'group' | 'exam') => {
-    setConfirmDialog({
-      isOpen: true,
-      type,
-      item,
-      itemType
-    });
+    if (type === 'restore' && (itemType === 'student' || itemType === 'group')) {
+      setRestoreDialog({
+        isOpen: true,
+        item,
+        itemType
+      });
+    } else {
+      setConfirmDialog({
+        isOpen: true,
+        type,
+        item,
+        itemType
+      });
+    }
   };
 
   const executeAction = async () => {
@@ -203,11 +221,9 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
 
     try {
       if (itemType === 'student') {
-        if (type === 'restore') await restoreStudent(item);
-        else await permanentDeleteStudent(item);
+        if (type === 'permanent') await permanentDeleteStudent(item);
       } else if (itemType === 'group') {
-        if (type === 'restore') await restoreGroup(item);
-        else await permanentDeleteGroup(item);
+        if (type === 'permanent') await permanentDeleteGroup(item);
       } else if (itemType === 'exam') {
         if (type === 'restore') await restoreExam(item);
         else await permanentDeleteExam(item);
@@ -219,12 +235,23 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
-  const restoreStudent = async (deletedStudent: DeletedStudent) => {
+  const handleRestoreConfirm = async (date: Date) => {
+    const { item, itemType } = restoreDialog;
+    if (!item || !itemType) return;
+
+    if (itemType === 'student') await restoreStudent(item, date);
+    else if (itemType === 'group') await restoreGroup(item, date);
+
+    setRestoreDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const restoreStudent = async (deletedStudent: DeletedStudent, date?: Date) => {
     try {
       // Restore student to students collection
       await updateDoc(doc(db, 'students', deletedStudent.original_student_id), {
         is_active: true,
-        updated_at: serverTimestamp()
+        updated_at: serverTimestamp(),
+        ...(date && { join_date: format(date, 'yyyy-MM-dd') })
       });
 
       // Delete from deleted_students
@@ -247,11 +274,12 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
     }
   };
 
-  const restoreGroup = async (deletedGroup: DeletedGroup) => {
+  const restoreGroup = async (deletedGroup: DeletedGroup, date?: Date) => {
     try {
       await updateDoc(doc(db, 'groups', deletedGroup.original_group_id), {
         is_active: true,
-        updated_at: serverTimestamp()
+        updated_at: serverTimestamp(),
+        ...(date && { created_at: Timestamp.fromDate(date) })
       });
 
       await deleteDoc(doc(db, 'deleted_groups', deletedGroup.id));
@@ -562,6 +590,14 @@ const TrashManager: React.FC<TrashManagerProps> = ({ teacherId, onStatsUpdate })
             confirmDialog.type === 'restore' ? "Qayta tiklash" : "O'chirish"
         }
         variant={confirmDialog.type === 'restore' ? 'info' : 'danger'}
+      />
+
+      <RestoreDialog
+        isOpen={restoreDialog.isOpen}
+        onClose={() => setRestoreDialog(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleRestoreConfirm}
+        title={restoreDialog.itemType === 'student' ? "O'quvchini tiklash" : "Guruhni tiklash"}
+        description={`"${restoreDialog.item?.name}" ni tiklashni tasdiqlaysizmi?`}
       />
     </div>
   );

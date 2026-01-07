@@ -10,7 +10,8 @@
       "Bash(npx @anthropic-ai/claude-code-cli mcp add:*)",
       "Bash(npm cache clean:*)",
       "Bash(npm logout:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(git clone:*)"
     ]
   }
 }

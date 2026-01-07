@@ -14,6 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { db } from '@/lib/firebase';
 import ConfirmDialog from './ConfirmDialog';
+import RestoreDialog from './RestoreDialog';
 import {
     collection,
     query,
@@ -61,6 +62,7 @@ interface Student {
     mukofotScore?: number;
     jarimaScore?: number;
     archived_at?: any; // Sana o'quvchi arxivlandi
+    archiveDocId?: string; // ID of the document in archived_students collection
 }
 
 type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
@@ -138,6 +140,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     });
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    const [restoreDialog, setRestoreDialog] = useState<{
+        isOpen: boolean;
+        studentId: string;
+        studentName: string;
+        archiveDocId?: string;
+    }>({
+        isOpen: false,
+        studentId: '',
+        studentName: '',
+    });
     const isNavigatingRef = useRef(false);
 
     // 1. Initial load of students (only when group/teacher changes)
@@ -220,7 +232,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         teacher_id: data.teacher_id,
                         created_at: data.created_at,
                         join_date: data.join_date,
-                        is_active: false
+                        is_active: false,
+                        archiveDocId: d.id
                     } as Student;
                 })
                 .sort((a, b) => a.name.localeCompare(b.name));
@@ -748,6 +761,50 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
+    const handleRestoreClick = (studentId: string, studentName: string, archiveDocId?: string) => {
+        setRestoreDialog({
+            isOpen: true,
+            studentId,
+            studentName,
+            archiveDocId
+        });
+    };
+
+    const executeRestore = async (date: Date) => {
+        const { studentId, archiveDocId } = restoreDialog;
+        if (!studentId) return;
+
+        try {
+            const formattedDate = format(date, 'yyyy-MM-dd');
+
+            // 1. Update student status and join_date
+            await updateDoc(doc(db, 'students', studentId), {
+                is_active: true,
+                join_date: formattedDate,
+                updated_at: serverTimestamp()
+            });
+
+            // 2. Remove from archived_students if archiveDocId exists
+            if (archiveDocId) {
+                await deleteDoc(doc(db, 'archived_students', archiveDocId));
+            } else {
+                // Fallback: try to find and delete if archiveDocId is missing (shouldn't happen with new logic)
+                const q = query(collection(db, 'archived_students'), where('original_student_id', '==', studentId));
+                const snapshot = await getDocs(q);
+                snapshot.docs.forEach(async (d) => {
+                    await deleteDoc(d.ref);
+                });
+            }
+
+            await fetchStudents();
+            onStatsUpdate?.();
+            toast({ title: "Muvaffaqiyatli", description: "O'quvchi tiklandi" });
+        } catch (error) {
+            console.error('Error restoring student:', error);
+            toast({ title: "Xatolik", description: "Tiklashda xatolik yuz berdi", variant: "destructive" });
+        }
+    };
+
     // Helper: Get effective join date (join_date or created_at)
     const getEffectiveJoinDate = (student: Student): string | null => {
         if (student.join_date) return student.join_date;
@@ -1011,151 +1068,151 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
             {/* Kunlik Jurnal tab */}
             {activeTab === 'attendance' && (
-            <Card className="apple-card overflow-hidden">
-                <div className="p-6 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
-                    <div className="flex items-center space-x-4">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn("w-[240px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={parseISO(selectedDate)}
-                                    onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
-                                    initialFocus
-                                    locale={uz}
-                                    modifiers={{ hasAttendance: attendanceDates }}
-                                    modifiersStyles={{
-                                        hasAttendance: {
-                                            backgroundColor: '#22c55e',
-                                            color: 'white',
-                                            borderRadius: '50%'
-                                        }
-                                    }}
-                                />
-                            </PopoverContent>
-                        </Popover>
-                        <div className="flex gap-2">
-                            <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
-                            <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
+                <Card className="apple-card overflow-hidden">
+                    <div className="p-6 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
+                        <div className="flex items-center space-x-4">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className={cn("w-[240px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={parseISO(selectedDate)}
+                                        onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
+                                        initialFocus
+                                        locale={uz}
+                                        modifiers={{ hasAttendance: attendanceDates }}
+                                        modifiersStyles={{
+                                            hasAttendance: {
+                                                backgroundColor: '#22c55e',
+                                                color: 'white',
+                                                borderRadius: '50%'
+                                            }
+                                        }}
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <div className="flex gap-2">
+                                <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
+                                <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="bg-gray-50/50">
-                                <TableHead className="w-[50px] text-center">#</TableHead>
-                                <TableHead>O'quvchi</TableHead>
-                                <TableHead className="text-center">Davomat</TableHead>
-                                <TableHead className="text-center">Baholash</TableHead>
-                                <TableHead className="text-center">Umumiy ball</TableHead>
-                                <TableHead className="text-right">Amallar</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {students.map((student, index) => {
-                                const effectiveJoinDate = getEffectiveJoinDate(student);
-                                const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
-                                const isArchived = !student.is_active;
-                                const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
-                                return (
-                                    <>
-                                        {isFirstArchived && (
-                                            <TableRow className="bg-gray-100 hover:bg-gray-100">
-                                                <TableCell colSpan={6} className="text-center py-2">
-                                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-gray-50/50">
+                                    <TableHead className="w-[50px] text-center">#</TableHead>
+                                    <TableHead>O'quvchi</TableHead>
+                                    <TableHead className="text-center">Davomat</TableHead>
+                                    <TableHead className="text-center">Baholash</TableHead>
+                                    <TableHead className="text-center">Umumiy ball</TableHead>
+                                    <TableHead className="text-right">Amallar</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {students.map((student, index) => {
+                                    const effectiveJoinDate = getEffectiveJoinDate(student);
+                                    const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
+                                    const isArchived = !student.is_active;
+                                    const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
+                                    return (
+                                        <>
+                                            {isFirstArchived && (
+                                                <TableRow className="bg-gray-100 hover:bg-gray-100">
+                                                    <TableCell colSpan={6} className="text-center py-2">
+                                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                            <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50", isBeforeJoinDate && "opacity-40")}>
+                                                <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{student.name}</span>
+                                                            {getStudentStatusNote(student, selectedDate) && (
+                                                                <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
+                                                                    {getStudentStatusNote(student, selectedDate)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex justify-center space-x-1">
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'present')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'present')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><CheckCircle className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'late')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'late')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><Clock className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'absent')} disabled={isBeforeJoinDate} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><XCircle className="w-4 h-4" /></Button>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center gap-1">
+                                                        {['baho', 'mukofot', 'jarima'].map((type) => (
+                                                            <div key={type}>
+                                                                {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isBeforeJoinDate ? (
+                                                                    <Input
+                                                                        className="w-10 h-10 mx-auto text-center p-0"
+                                                                        value={scoreInputValue}
+                                                                        onChange={handleScoreInputChange}
+                                                                        onBlur={() => handleScoreBlur(student.id, type as any)}
+                                                                        onKeyDown={(e) => handleScoreKeyDown(e, index, type as any)}
+                                                                        autoFocus
+                                                                    />
+                                                                ) : (
+                                                                    <div
+                                                                        className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", isBeforeJoinDate ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type as any]?.points || 0))}
+                                                                        onClick={() => !isBeforeJoinDate && handleScoreCellClick(student.id, type as any)}
+                                                                        title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : (type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima')}
+                                                                    >
+                                                                        {dailyScores[student.id]?.[type as any]?.points || 0}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                                                        {student.rewardPenaltyPoints?.toFixed(1) || 0}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        {!isArchived ? (
+                                                            <>
+                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
+                                                                    const studentWithJoinDate = {
+                                                                        ...student,
+                                                                        join_date: student.join_date || getEffectiveJoinDate(student) || format(new Date(), 'yyyy-MM-dd')
+                                                                    };
+                                                                    setEditingStudent(studentWithJoinDate);
+                                                                    setIsEditDialogOpen(true);
+                                                                }}><Edit2 className="w-4 h-4" /></Button>
+                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50" onClick={() => handleAction('archive', student.id, student.name)}><Archive className="w-4 h-4" /></Button>
+                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleAction('delete', student.id, student.name)}><Trash2 className="w-4 h-4" /></Button>
+                                                            </>
+                                                        ) : (
+                                                            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
+                                                                Tiklash
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
-                                        )}
-                                <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50", isBeforeJoinDate && "opacity-40")}>
-                                    <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{student.name}</span>
-                                                {getStudentStatusNote(student, selectedDate) && (
-                                                    <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
-                                                        {getStudentStatusNote(student, selectedDate)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex justify-center space-x-1">
-                                            <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'present')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'present')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><CheckCircle className="w-4 h-4" /></Button>
-                                            <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'late')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'late')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><Clock className="w-4 h-4" /></Button>
-                                            <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'absent')} disabled={isBeforeJoinDate} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><XCircle className="w-4 h-4" /></Button>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <div className="flex justify-center gap-1">
-                                            {['baho', 'mukofot', 'jarima'].map((type) => (
-                                                <div key={type}>
-                                                    {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isBeforeJoinDate ? (
-                                                        <Input
-                                                            className="w-10 h-10 mx-auto text-center p-0"
-                                                            value={scoreInputValue}
-                                                            onChange={handleScoreInputChange}
-                                                            onBlur={() => handleScoreBlur(student.id, type as any)}
-                                                            onKeyDown={(e) => handleScoreKeyDown(e, index, type as any)}
-                                                            autoFocus
-                                                        />
-                                                    ) : (
-                                                        <div
-                                                            className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", isBeforeJoinDate ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type as any]?.points || 0))}
-                                                            onClick={() => !isBeforeJoinDate && handleScoreCellClick(student.id, type as any)}
-                                                            title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : (type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima')}
-                                                        >
-                                                            {dailyScores[student.id]?.[type as any]?.points || 0}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
-                                            {student.rewardPenaltyPoints?.toFixed(1) || 0}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-1">
-                                            {!isArchived ? (
-                                                <>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
-                                                        const studentWithJoinDate = {
-                                                            ...student,
-                                                            join_date: student.join_date || getEffectiveJoinDate(student) || format(new Date(), 'yyyy-MM-dd')
-                                                        };
-                                                        setEditingStudent(studentWithJoinDate);
-                                                        setIsEditDialogOpen(true);
-                                                    }}><Edit2 className="w-4 h-4" /></Button>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50" onClick={() => handleAction('archive', student.id, student.name)}><Archive className="w-4 h-4" /></Button>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleAction('delete', student.id, student.name)}><Trash2 className="w-4 h-4" /></Button>
-                                                </>
-                                            ) : (
-                                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => { /* Restore functionality */ }}>
-                                                    Tiklash
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                                    </>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                </div>
-            </Card>
+                                        </>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </Card>
             )}
 
             {/* Dialogs */}
@@ -1217,6 +1274,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 description={`"${confirmDialog.studentName}" ni ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
                 confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
                 variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+            />
+
+            <RestoreDialog
+                isOpen={restoreDialog.isOpen}
+                onClose={() => setRestoreDialog(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={executeRestore}
+                title="O'quvchini tiklash"
+                description={`"${restoreDialog.studentName}" ni tiklashni tasdiqlaysizmi?`}
             />
         </div>
     );

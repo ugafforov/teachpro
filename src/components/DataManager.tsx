@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { fetchAllRecordsForExport, calculateChecksum } from '@/lib/firebaseHelpers';
+import { fetchAllRecordsForExport, calculateChecksum, validateImportData, logAuditEntry, ValidationResult } from '@/lib/firebaseHelpers';
 
 interface DataManagerProps {
   teacherId: string;
@@ -108,6 +108,9 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
   const [progressMessage, setProgressMessage] = useState('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importData, setImportData] = useState<ImportData | null>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [backupKey, setBackupKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const exportData = async () => {
@@ -158,15 +161,34 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `teachpro_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+      // Format: teachpro_backup_2024-01-07T14-30-45_1234-records.json
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const totalRecords = Object.values(data).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
+      a.download = `teachpro_backup_${timestamp}_${totalRecords}-records.json`;
+
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      const totalRecords = Object.values(data).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
       toast.success(`Ma'lumotlar muvaffaqiyatli eksport qilindi!`, {
         description: `Jami ${totalRecords} ta yozuv yuklab olindi. Tekshirish kodi: ${checksum}`
+      });
+
+      // Log export operation
+      await logAuditEntry({
+        teacher_id: teacherId,
+        action: 'export',
+        details: {
+          recordCounts,
+          checksum,
+          version: '3.0'
+        },
+        metadata: {
+          userAgent: navigator.userAgent,
+          fileSize: blob.size
+        }
       });
     } catch (error) {
       console.error('Export error:', error);
