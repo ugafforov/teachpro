@@ -64,7 +64,17 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
       // Extract unique groups for the filter
       if (selectedGroup === 'all') {
         const uniqueGroups = [...new Set(allStudents.map(s => s.group_name).filter(Boolean))];
-        setGroups(uniqueGroups);
+        const sortedGroups = uniqueGroups.sort((a, b) => {
+          const aNum = parseInt(a.match(/^\d+/)?.[0] || '0', 10);
+          const bNum = parseInt(b.match(/^\d+/)?.[0] || '0', 10);
+          
+          if (aNum !== bNum) {
+            return aNum - bNum;
+          }
+          
+          return a.localeCompare(b);
+        });
+        setGroups(sortedGroups);
       }
 
       if (allStudents.length === 0) {

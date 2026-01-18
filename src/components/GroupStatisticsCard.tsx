@@ -104,7 +104,7 @@ const GroupStatisticsCard: React.FC<GroupStatisticsCardProps> = ({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {[1, 2].map((i) => (
           <Card key={i} className="h-14 animate-pulse bg-gray-100/50 border-none rounded-full" />
         ))}
@@ -157,7 +157,7 @@ const GroupStatisticsCard: React.FC<GroupStatisticsCardProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       {/* Ribbon 1: Community & Excellence */}
       <Card
         ref={card1Ref}

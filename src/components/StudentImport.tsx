@@ -15,62 +15,38 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import {
   collection,
-  query,
-  where,
-  getDocs,
-  orderBy,
   writeBatch,
   doc,
   serverTimestamp
 } from 'firebase/firestore';
 
+// Kept for type reference, though the prop will be passed in
+interface Group {
+  id: string;
+  name: string;
+}
+
 interface StudentImportProps {
   teacherId: string;
   groupName?: string;
   onImportComplete: () => void;
+  availableGroups: Group[]; // Use the passed-in groups
 }
 
-interface Group {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onImportComplete }) => {
+const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onImportComplete, availableGroups = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(groupName || '');
   const [joinDate, setJoinDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchGroups();
-    }
-  }, [isOpen]);
-
+  // When the component receives a new groupName prop, update the selected group
   useEffect(() => {
     if (groupName) {
       setSelectedGroup(groupName);
     }
   }, [groupName]);
-
-  const fetchGroups = async () => {
-    try {
-      const q = query(
-        collection(db, 'groups'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true),
-        orderBy('name')
-      );
-      const snapshot = await getDocs(q);
-      setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Group)));
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-    }
-  };
 
   const handleImport = async () => {
     if (!importText.trim()) {
@@ -154,7 +130,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
               <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                 <SelectTrigger><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
                 <SelectContent>
-                  {groups.map(group => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
+                  {availableGroups.map(group => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { toast } from 'sonner';
 import DataAnomalyChecker from './DataAnomalyChecker';
-import BatchDataEntry from './BatchDataEntry';
+
 
 interface DataIntegrityManagerProps {
   teacherId: string;
@@ -104,10 +104,9 @@ const DataIntegrityManager: React.FC<DataIntegrityManagerProps> = ({ teacherId }
       </div>
 
       <Tabs defaultValue="integrity" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="integrity" className="flex items-center gap-2"><Shield className="w-4 h-4" />Yaxlitlik</TabsTrigger>
           <TabsTrigger value="anomaly" className="flex items-center gap-2"><Search className="w-4 h-4" />Anomaliya</TabsTrigger>
-          <TabsTrigger value="batch" className="flex items-center gap-2"><FileSpreadsheet className="w-4 h-4" />Batch kiritish</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integrity" className="space-y-6">
@@ -175,7 +174,7 @@ const DataIntegrityManager: React.FC<DataIntegrityManagerProps> = ({ teacherId }
         </TabsContent>
 
         <TabsContent value="anomaly"><DataAnomalyChecker teacherId={teacherId} /></TabsContent>
-        <TabsContent value="batch"><BatchDataEntry teacherId={teacherId} /></TabsContent>
+
       </Tabs>
     </div>
   );

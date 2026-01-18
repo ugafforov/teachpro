@@ -434,19 +434,19 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           original_student_id: studentDoc.id,
           teacher_id: teacherId,
           name: student.name,
-          student_id: student.student_id,
-          email: student.email,
-          phone: student.phone,
+          student_id: student.student_id || null,
+          email: student.email || null,
+          phone: student.phone || null,
           group_name: student.group_name,
           deleted_at: new Date().toISOString()
         });
-        await deleteDoc(doc(db, 'students', studentDoc.id));
+        await updateDoc(doc(db, 'students', studentDoc.id), { is_active: false });
       }
 
-      // Delete group
-      await deleteDoc(doc(db, 'groups', groupId));
+      // Mark group as inactive
+      await updateDoc(doc(db, 'groups', groupId), { is_active: false });
 
-      await fetchGroups();
+      setGroups(prevGroups => prevGroups.filter(g => g.id !== groupId));
       await onStatsUpdate();
 
       toast({
@@ -487,7 +487,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>

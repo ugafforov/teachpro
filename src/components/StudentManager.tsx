@@ -531,7 +531,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           <StudentImport teacherId={teacherId} groupName={selectedGroup !== 'all' ? selectedGroup : undefined} onImportComplete={() => {
             fetchStudents();
             if (onStatsUpdate) onStatsUpdate();
-          }} />
+          }} availableGroups={groups} />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="apple-button">
@@ -670,7 +670,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
               <StudentImport teacherId={teacherId} onImportComplete={() => {
                 fetchStudents();
                 if (onStatsUpdate) onStatsUpdate();
-              }} />
+              }} availableGroups={groups} />
             </div>
           )}
         </Card>

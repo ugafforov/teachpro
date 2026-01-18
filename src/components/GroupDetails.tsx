@@ -94,10 +94,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     availableGroups = [],
     onGroupChange
 }) => {
+    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const isFutureDate = selectedDate > today;
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
-    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [activeTab, setActiveTab] = useState<'journal' | 'attendance'>('journal');
+    const [activeTab, setActiveTab] = useState<'journal' | 'attendance'>('attendance');
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
     const [rewardPoints, setRewardPoints] = useState('');
@@ -437,6 +439,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
 
     const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun davomat belgilab bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
         try {
             // Tanlangan sana o'quvchining join_date dan oldin bo'lsa, davomat kiritmaslik
             const student = students.find(s => s.id === studentId);
@@ -445,7 +455,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             if (effectiveJoinDate && selectedDate < effectiveJoinDate) {
                 toast({
                     title: "Xatolik",
-                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin davomat kiritib bo'lmaydi.`,
+                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin davomat kiritib bo'lmaydi.`, 
                     variant: "destructive"
                 });
                 return;
@@ -600,6 +610,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
 
     const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima', existingRecordId?: string) => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun baho kiritib bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
         try {
             const typeLabel = type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima';
 
@@ -610,7 +628,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             if (effectiveJoinDate && selectedDate < effectiveJoinDate) {
                 toast({
                     title: "Xatolik",
-                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin ball kiritib bo'lmaydi.`,
+                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin ball kiritib bo'lmaydi.`, 
                     variant: "destructive"
                 });
                 return;
@@ -892,14 +910,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
 
     return (
-        <div className="space-y-6">
-            <GroupStatisticsCard
-                totalStudents={groupStats?.totalStudents || students.length}
-                attendancePercentage={groupStats?.attendancePercentage || 0}
-                totalLessons={groupStats?.totalLessons || 0}
-                topStudent={groupStats?.topStudent || null}
-                loading={statsLoading}
-            />
+        <div className="space-y-6 w-full min-w-0">
+            {activeTab === 'attendance' && (
+                <GroupStatisticsCard
+                    totalStudents={groupStats?.totalStudents || students.length}
+                    attendancePercentage={groupStats?.attendancePercentage || 0}
+                    totalLessons={groupStats?.totalLessons || 0}
+                    topStudent={groupStats?.topStudent || null}
+                    loading={statsLoading}
+                />
+            )}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                     <Button onClick={onBack} variant="ghost" size="sm"><ArrowLeft className="w-4 h-4" /></Button>
@@ -935,7 +955,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} />
+                    <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} availableGroups={availableGroups} />
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                         <DialogTrigger asChild><Button className="apple-button"><Plus className="w-4 h-4 mr-2" />O'quvchi qo'shish</Button></DialogTrigger>
                         <DialogContent>
@@ -1038,17 +1058,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             {/* Tab panel */}
             <div className="flex gap-2 border-b border-gray-200">
                 <button
-                    onClick={() => setActiveTab('journal')}
-                    className={cn(
-                        'px-4 py-2 font-medium text-sm transition-all border-b-2',
-                        activeTab === 'journal'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-600 hover:text-gray-900'
-                    )}
-                >
-                    Davomat Jurnali
-                </button>
-                <button
                     onClick={() => setActiveTab('attendance')}
                     className={cn(
                         'px-4 py-2 font-medium text-sm transition-all border-b-2',
@@ -1058,6 +1067,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     )}
                 >
                     Kunlik Jurnal
+                </button>
+                <button
+                    onClick={() => setActiveTab('journal')}
+                    className={cn(
+                        'px-4 py-2 font-medium text-sm transition-all border-b-2',
+                        activeTab === 'journal'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                    )}
+                >
+                    Davomat Jurnali
                 </button>
             </div>
 
@@ -1122,15 +1142,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                     const isArchived = !student.is_active;
                                     const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
                                     return (
-                                        <>
+                                        <React.Fragment key={student.id}>
                                             {isFirstArchived && (
-                                                <TableRow className="bg-gray-100 hover:bg-gray-100">
+                                                <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
                                                     <TableCell colSpan={6} className="text-center py-2">
                                                         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
                                                     </TableCell>
                                                 </TableRow>
                                             )}
-                                            <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50", isBeforeJoinDate && "opacity-40")}>
+                                            <TableRow className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50", isBeforeJoinDate && "opacity-40")}>
                                                 <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
@@ -1147,16 +1167,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex justify-center space-x-1">
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'present')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'present')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><CheckCircle className="w-4 h-4" /></Button>
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'late')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'late')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><Clock className="w-4 h-4" /></Button>
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'absent')} disabled={isBeforeJoinDate} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><XCircle className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'present')} disabled={isBeforeJoinDate || isFutureDate} onClick={() => markAttendance(student.id, 'present')} title={isFutureDate ? "Kelajak uchun belgilab bo'lmaydi" : (isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : '')}><CheckCircle className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'late')} disabled={isBeforeJoinDate || isFutureDate} onClick={() => markAttendance(student.id, 'late')} title={isFutureDate ? "Kelajak uchun belgilab bo'lmaydi" : (isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : '')}><Clock className="w-4 h-4" /></Button>
+                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'absent')} disabled={isBeforeJoinDate || isFutureDate} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} title={isFutureDate ? "Kelajak uchun belgilab bo'lmaydi" : (isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : '')}><XCircle className="w-4 h-4" /></Button>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex justify-center gap-1">
                                                         {['baho', 'mukofot', 'jarima'].map((type) => (
                                                             <div key={type}>
-                                                                {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isBeforeJoinDate ? (
+                                                                {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isBeforeJoinDate && !isFutureDate ? (
                                                                     <Input
                                                                         className="w-10 h-10 mx-auto text-center p-0"
                                                                         value={scoreInputValue}
@@ -1167,9 +1187,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                     />
                                                                 ) : (
                                                                     <div
-                                                                        className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", isBeforeJoinDate ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type as any]?.points || 0))}
-                                                                        onClick={() => !isBeforeJoinDate && handleScoreCellClick(student.id, type as any)}
-                                                                        title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : (type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima')}
+                                                                        className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isBeforeJoinDate || isFutureDate) ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type as any]?.points || 0))}
+                                                                        onClick={() => !isBeforeJoinDate && !isFutureDate && handleScoreCellClick(student.id, type as any)}
+                                                                        title={isFutureDate ? "Kelajak uchun belgilab bo'lmaydi" : (isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : (type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima'))}
                                                                     >
                                                                         {dailyScores[student.id]?.[type as any]?.points || 0}
                                                                     </div>
@@ -1206,7 +1226,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        </>
+                                        </React.Fragment>
                                     );
                                 })}
                             </TableBody>

@@ -19,6 +19,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import * as XLSX from 'xlsx';
 
 interface Student {
   id: string;
@@ -29,6 +30,7 @@ interface Student {
   created_at: any;
   join_date?: string;
   is_active?: boolean;
+  archived_at?: any;
 }
 
 interface AttendanceRecord {
@@ -44,6 +46,7 @@ interface AttendanceJournalProps {
 }
 
 const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupName }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceRecord>>({});
@@ -61,8 +64,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
       const q = query(
         collection(db, 'students'),
         where('teacher_id', '==', teacherId),
-        where('group_name', '==', groupName),
-        where('is_active', '==', true)
+        where('group_name', '==', groupName)
       );
       const snapshot = await getDocs(q);
       const studentsData = snapshot.docs
@@ -100,7 +102,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
   useEffect(() => {
     fetchStudents();
     fetchAttendance();
-  }, []);
+  }, [groupName, teacherId]);
 
   // Effective join date olish
   const getEffectiveJoinDate = (student: Student): string | null => {
@@ -115,8 +117,28 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     return null;
   };
 
+  // Effective archive date olish
+  const getEffectiveArchiveDate = (student: Student): string | null => {
+    if (student.archived_at) {
+      if (student.archived_at instanceof Timestamp) {
+        return student.archived_at.toDate().toISOString().split('T')[0];
+      } else if (typeof student.archived_at === 'string') {
+        return student.archived_at.split('T')[0];
+      }
+    }
+    return null;
+  };
+
   // Davomat holatini o'zgartirishazuyi
   const toggleAttendance = async (studentId: string, date: string) => {
+    if (date > today) {
+      toast({
+        title: 'Xatolik',
+        description: `Kelajakdagi sana uchun davomat belgilab bo'lmaydi`,
+        variant: 'destructive'
+      });
+      return;
+    }
     const student = students.find(s => s.id === studentId);
     const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
 
@@ -201,24 +223,71 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     }
   };
 
+  const monthStr = format(currentMonth, 'yyyy-MM');
+  const studentIdsInGroup = new Set(students.map(s => s.id));
+  const lessonDaysInMonth = [
+    ...new Set(
+      Object.values(attendance)
+        .filter(record => 
+            record.date.startsWith(monthStr) && studentIdsInGroup.has(record.student_id)
+        )
+        .map(record => record.date)
+    )
+  ];
+
   // Davomat foizini hisoblash
   const getAttendancePercentage = (studentId: string): number => {
-    const studentDaysInMonth = daysInMonth.filter(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const student = students.find(s => s.id === studentId);
-      const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
-      return !effectiveJoinDate || dateStr >= effectiveJoinDate;
-    });
+    const student = students.find(s => s.id === studentId);
+    const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
 
-    const presentDays = studentDaysInMonth.filter(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const key = `${studentId}_${dateStr}`;
+    const applicableLessonDays = lessonDaysInMonth.filter(day => 
+      !effectiveJoinDate || day >= effectiveJoinDate
+    );
+
+    if (applicableLessonDays.length === 0) {
+      return 100;
+    }
+
+    const presentDays = applicableLessonDays.filter(day => {
+      const key = `${studentId}_${day}`;
       const record = attendance[key];
       return record && (record.status === 'present' || record.status === 'late');
     }).length;
 
-    if (studentDaysInMonth.length === 0) return 0;
-    return Math.round((presentDays / studentDaysInMonth.length) * 100);
+    return Math.round((presentDays / applicableLessonDays.length) * 100);
+  };
+  
+  const handleExportToExcel = () => {
+    const header = ["O'quvchi (Foiz)", ...daysInMonth.map(day => format(day, 'd'))];
+    
+    const data = students.map(student => {
+      const studentRow: (string | number)[] = [`${student.name} (${getAttendancePercentage(student.id)}%)`];
+      daysInMonth.forEach(day => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const key = `${student.id}_${dateStr}`;
+        const record = attendance[key];
+        const symbol = getStatusSymbol(record?.status);
+
+        const effectiveJoinDate = getEffectiveJoinDate(student);
+        const effectiveArchiveDate = getEffectiveArchiveDate(student);
+        const isBeforeJoinDate = effectiveJoinDate && dateStr < effectiveJoinDate;
+        const isAfterArchiveDate = effectiveArchiveDate && dateStr > effectiveArchiveDate;
+        const isDisabled = isBeforeJoinDate || isAfterArchiveDate || !student.is_active;
+
+        studentRow.push(isDisabled ? '' : symbol);
+      });
+      return studentRow;
+    });
+
+    const excelData = [header, ...data];
+
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Davomat");
+
+    const monthYear = format(currentMonth, 'MMMM_yyyy', { locale: uz });
+    const fileName = `Davomat_${groupName}_${monthYear}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   if (loading) {
@@ -231,9 +300,8 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        {/* Oyni o'zgartirishzuyi */}
-        <div className="flex items-center justify-between mb-4">
+      <Card className="p-4 w-full min-w-0">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -275,14 +343,13 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
             </Button>
           </div>
 
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button onClick={handleExportToExcel} variant="outline" size="sm" className="gap-2">
             <Download className="h-4 w-4" />
             Excel chiqarish
           </Button>
         </div>
 
-        {/* Davomat jadvali */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-w-0">
           <table className="w-full border-collapse">
             <thead>
               <tr>
@@ -330,7 +397,23 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                       const key = `${student.id}_${dateStr}`;
                       const record = attendance[key];
                       const effectiveJoinDate = getEffectiveJoinDate(student);
+                      const effectiveArchiveDate = getEffectiveArchiveDate(student);
+                      
                       const isBeforeJoinDate = effectiveJoinDate && dateStr < effectiveJoinDate;
+                      const isAfterArchiveDate = effectiveArchiveDate && dateStr > effectiveArchiveDate;
+                      const isFutureDate = dateStr > today;
+                      const isDisabled = isBeforeJoinDate || isAfterArchiveDate || !student.is_active || isFutureDate;
+                      
+                      let tooltipText = '';
+                      if (isFutureDate) {
+                        tooltipText = "Kelajak uchun belgilab bo'lmaydi";
+                      } else if (isBeforeJoinDate) {
+                        tooltipText = `O'quvchi ${format(parseISO(effectiveJoinDate!), 'd-MM-yyyy', { locale: uz })} da qo'shilgan.`;
+                      } else if (isAfterArchiveDate) {
+                        tooltipText = `O'quvchi ${format(parseISO(effectiveArchiveDate!), 'd-MM-yyyy', { locale: uz })} da chiqib ketgan.`;
+                      } else if (!student.is_active) {
+                        tooltipText = "O'quvchi guruhdan chiqarilgan.";
+                      }
 
                       return (
                         <td
@@ -338,16 +421,16 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                           className="border border-gray-200 p-1 text-center min-w-12"
                         >
                           <button
-                            onClick={() => !isBeforeJoinDate && toggleAttendance(student.id, dateStr)}
-                            disabled={isBeforeJoinDate}
+                            onClick={() => !isDisabled && toggleAttendance(student.id, dateStr)}
+                            disabled={isDisabled}
                             className={cn(
                               'w-full py-2 px-1 border-2 rounded font-semibold text-sm transition-colors',
-                              isBeforeJoinDate
+                              isDisabled
                                 ? 'opacity-30 cursor-not-allowed'
                                 : 'cursor-pointer hover:opacity-80',
                               getStatusColor(record?.status)
                             )}
-                            title={isBeforeJoinDate ? 'O\'quvchi bu sanada qo\'shilmagan' : ''}
+                            title={tooltipText}
                           >
                             {getStatusSymbol(record?.status) || '−'}
                           </button>
