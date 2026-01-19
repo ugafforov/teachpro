@@ -94,7 +94,8 @@ export async function calculateStudentScore(
   teacherId: string,
   groupName: string,
   studentCreatedAt: any,
-  studentJoinDateStr?: string
+  studentJoinDateStr?: string,
+  studentLeaveDateStr?: string | null
 ): Promise<StudentScoreResult> {
   // Fetch attendance and rewards
   const attendanceQ = query(
@@ -148,10 +149,16 @@ export async function calculateStudentScore(
     }
   }
 
-  const relevantClassDates = groupClassDates.filter(date => date >= studentJoinDate);
+  const studentLeaveDate = studentLeaveDateStr || '';
+
+  const relevantClassDates = groupClassDates.filter(date =>
+    date >= studentJoinDate && (!studentLeaveDate || date <= studentLeaveDate)
+  );
   const totalClasses = relevantClassDates.length;
 
-  const relevantAttendance = attendanceData.filter(a => a.date >= studentJoinDate);
+  const relevantAttendance = attendanceData.filter(a =>
+    a.date >= studentJoinDate && (!studentLeaveDate || a.date <= studentLeaveDate)
+  );
   const presentCount = relevantAttendance.filter(a => a.status === 'present').length;
   const lateCount = relevantAttendance.filter(a => a.status === 'late').length;
   const excusedAbsentCount = relevantAttendance.filter(a => a.status === 'absent_with_reason').length;
@@ -170,7 +177,13 @@ export async function calculateStudentScore(
   let jarimaPoints = 0;
   let bahoCount = 0;
 
-  rewardData.forEach(record => {
+  const relevantRewards = rewardData.filter((record: any) =>
+    record?.date &&
+    record.date >= studentJoinDate &&
+    (!studentLeaveDate || record.date <= studentLeaveDate)
+  );
+
+  relevantRewards.forEach(record => {
     const points = Number(record.points || 0);
     if (record.type === 'Baho') {
       bahoScore += points;

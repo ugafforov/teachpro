@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, BookOpen, Search, RotateCcw, Trash2, FileText } from 'lucide-react';
+import { Users, BookOpen, Search, RotateCcw, FileText, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -14,7 +15,6 @@ import {
   addDoc,
   deleteDoc,
   doc,
-  orderBy,
   serverTimestamp,
   updateDoc,
   writeBatch,
@@ -70,15 +70,16 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('students');
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'restore' | 'delete';
+    action: 'restore_exam' | 'delete';
     itemType: 'student' | 'group' | 'exam';
     itemId: string;
     itemName: string;
   }>({
     isOpen: false,
-    type: 'restore',
+    action: 'restore_exam',
     itemType: 'student',
     itemId: '',
     itemName: ''
@@ -165,8 +166,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     );
   };
 
-  const handleAction = (type: 'restore' | 'delete', itemType: 'student' | 'group' | 'exam', itemId: string, itemName: string) => {
-    if (type === 'restore' && (itemType === 'student' || itemType === 'group')) {
+  const handleRestore = (itemType: 'student' | 'group' | 'exam', itemId: string, itemName: string) => {
+    if (itemType === 'student' || itemType === 'group') {
       setRestoreDialog({
         isOpen: true,
         itemType,
@@ -176,7 +177,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     } else {
       setConfirmDialog({
         isOpen: true,
-        type,
+        action: 'restore_exam',
         itemType,
         itemId,
         itemName
@@ -184,19 +185,43 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     }
   };
 
+  const handleDelete = (itemType: 'student' | 'group' | 'exam', itemId: string, itemName: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      action: 'delete',
+      itemType,
+      itemId,
+      itemName
+    });
+  };
+
   const executeAction = async () => {
-    const { type, itemType, itemId, itemName } = confirmDialog;
+    const { action, itemType, itemId, itemName } = confirmDialog;
+    try {
+      if (action === 'restore_exam') {
+        if (itemType === 'exam') {
+          await restoreExam(itemId);
+          toast({ title: "Muvaffaqiyatli", description: "Imtihon tiklandi" });
+        }
+        return;
+      }
 
-    if (type === 'restore') {
-      // Exams are restored without date selection (or if logic changes, add here)
-      if (itemType === 'exam') await restoreExam(itemId);
-    } else {
-      if (itemType === 'student') await deleteArchivedStudent(itemId);
-      else if (itemType === 'group') await deleteArchivedGroup(itemId);
-      else if (itemType === 'exam') await deleteArchivedExam(itemId);
+      if (itemType === 'student') {
+        await deleteArchivedStudent(itemId);
+        toast({ title: "O'chirildi", description: `"${itemName}" arxivdan o'chirildi` });
+      } else if (itemType === 'group') {
+        await deleteArchivedGroup(itemId);
+        toast({ title: "O'chirildi", description: `"${itemName}" arxivdan o'chirildi` });
+      } else if (itemType === 'exam') {
+        await deleteArchivedExam(itemId);
+        toast({ title: "O'chirildi", description: `"${itemName}" arxivdan o'chirildi` });
+      }
+    } catch (error) {
+      console.error('Error executing archive action:', error);
+      toast({ title: "Xatolik", description: "Amal bajarilmadi", variant: "destructive" });
+    } finally {
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
-
-    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleRestoreConfirm = async (date: Date) => {
@@ -215,6 +240,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
       await updateDoc(doc(db, 'students', archivedStudent.original_student_id), {
         is_active: true,
+        left_date: null,
+        archived_at: null,
         updated_at: serverTimestamp(),
         ...(date && { join_date: format(date, 'yyyy-MM-dd') })
       });
@@ -291,74 +318,21 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   };
 
   const deleteArchivedStudent = async (studentId: string) => {
-    try {
-      const archivedStudent = archivedStudents.find(s => s.id === studentId);
-      if (!archivedStudent) return;
-
-      await addDoc(collection(db, 'deleted_students'), {
-        original_student_id: archivedStudent.original_student_id,
-        teacher_id: teacherId,
-        name: archivedStudent.name,
-        student_id: archivedStudent.student_id || '',
-        group_name: archivedStudent.group_name,
-        email: archivedStudent.email || '',
-        phone: archivedStudent.phone || '',
-        deleted_at: serverTimestamp()
-      });
-
-      await deleteDoc(doc(db, 'archived_students', studentId));
-
-      await fetchArchivedData();
-      if (onStatsUpdate) await onStatsUpdate();
-    } catch (error) {
-      console.error('Error moving archived student to trash:', error);
-    }
+    await deleteDoc(doc(db, 'archived_students', studentId));
+    await fetchArchivedData();
+    if (onStatsUpdate) await onStatsUpdate();
   };
 
   const deleteArchivedGroup = async (groupId: string) => {
-    try {
-      const archivedGroup = archivedGroups.find(g => g.id === groupId);
-      if (!archivedGroup) return;
-
-      await addDoc(collection(db, 'deleted_groups'), {
-        original_group_id: archivedGroup.original_group_id,
-        teacher_id: teacherId,
-        name: archivedGroup.name,
-        description: archivedGroup.description || '',
-        deleted_at: serverTimestamp()
-      });
-
-      await deleteDoc(doc(db, 'archived_groups', groupId));
-
-      await fetchArchivedData();
-      if (onStatsUpdate) await onStatsUpdate();
-    } catch (error) {
-      console.error('Error moving archived group to trash:', error);
-    }
+    await deleteDoc(doc(db, 'archived_groups', groupId));
+    await fetchArchivedData();
+    if (onStatsUpdate) await onStatsUpdate();
   };
 
   const deleteArchivedExam = async (examId: string) => {
-    try {
-      const archivedExam = archivedExams.find(e => e.id === examId);
-      if (!archivedExam) return;
-
-      await addDoc(collection(db, 'deleted_exams'), {
-        original_exam_id: archivedExam.original_exam_id,
-        teacher_id: teacherId,
-        exam_name: archivedExam.exam_name,
-        exam_date: archivedExam.exam_date,
-        group_name: archivedExam.group_name,
-        results_data: archivedExam.results_data || [],
-        deleted_at: serverTimestamp()
-      });
-
-      await deleteDoc(doc(db, 'archived_exams', examId));
-
-      await fetchArchivedData();
-      if (onStatsUpdate) await onStatsUpdate();
-    } catch (error) {
-      console.error('Error moving archived exam to trash:', error);
-    }
+    await deleteDoc(doc(db, 'archived_exams', examId));
+    await fetchArchivedData();
+    if (onStatsUpdate) await onStatsUpdate();
   };
 
   const renderStudentsTab = () => {
@@ -389,8 +363,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                       {student.archived_at?.seconds ? formatDateUz(new Date(student.archived_at.seconds * 1000).toISOString()) : ''}
                     </span>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('restore', 'student', student.id, student.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('delete', 'student', student.id, student.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('student', student.id, student.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('student', student.id, student.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -425,8 +399,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                       {group.archived_at?.seconds ? formatDateUz(new Date(group.archived_at.seconds * 1000).toISOString()) : ''}
                     </span>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('restore', 'group', group.id, group.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('delete', 'group', group.id, group.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('group', group.id, group.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('group', group.id, group.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -465,8 +439,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                       {exam.archived_at?.seconds ? formatDateUz(new Date(exam.archived_at.seconds * 1000).toISOString()) : ''}
                     </span>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('restore', 'exam', exam.id, exam.exam_name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleAction('delete', 'exam', exam.id, exam.exam_name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('exam', exam.id, exam.exam_name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('exam', exam.id, exam.exam_name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -507,10 +481,18 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
         onConfirm={executeAction}
-        title={confirmDialog.type === 'restore' ? "Qayta tiklash" : "Butunlay o'chirish"}
-        description={`"${confirmDialog.itemName}" ni ${confirmDialog.type === 'restore' ? 'qayta tiklashga' : "butunlay o'chirishga"} ishonchingiz komilmi?`}
-        confirmText={confirmDialog.type === 'restore' ? "Qayta tiklash" : "O'chirish"}
-        variant={confirmDialog.type === 'restore' ? 'info' : 'danger'}
+        title={confirmDialog.action === 'delete'
+          ? (confirmDialog.itemType === 'student'
+            ? "O'quvchini o'chirish"
+            : confirmDialog.itemType === 'group'
+              ? "Guruhni o'chirish"
+              : "Imtihonni o'chirish")
+          : "Imtihonni tiklash"}
+        description={confirmDialog.action === 'delete'
+          ? `"${confirmDialog.itemName}" ni arxivdan butunlay o'chirishni tasdiqlaysizmi?`
+          : `"${confirmDialog.itemName}" ni tiklashni tasdiqlaysizmi?`}
+        confirmText={confirmDialog.action === 'delete' ? "O'chirish" : "Tiklash"}
+        variant={confirmDialog.action === 'delete' ? "danger" : "info"}
       />
 
       <RestoreDialog

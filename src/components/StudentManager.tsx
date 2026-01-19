@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
@@ -13,7 +13,7 @@ import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { db, addDocument, updateDocument, getCollection } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, doc, setDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, setDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
 import { studentSchema, formatValidationError } from '@/lib/validations';
@@ -73,12 +73,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   });
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'archive' | 'delete';
     studentId: string;
     studentName: string;
   }>({
     isOpen: false,
-    type: 'archive',
     studentId: '',
     studentName: ''
   });
@@ -254,7 +252,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const archiveStudent = (studentId: string, studentName: string) => {
     setConfirmDialog({
       isOpen: true,
-      type: 'archive',
       studentId,
       studentName
     });
@@ -275,12 +272,17 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         group_name: student.group_name,
         email: student.email,
         phone: student.phone,
-        archived_at: new Date().toISOString()
+        join_date: student.join_date || null,
+        created_at: student.created_at || null,
+        left_date: new Date().toISOString().split('T')[0],
+        archived_at: serverTimestamp()
       });
 
       // Mark as inactive
       await updateDoc(doc(db, 'students', studentId), {
-        is_active: false
+        is_active: false,
+        left_date: new Date().toISOString().split('T')[0],
+        archived_at: serverTimestamp()
       });
 
       await fetchStudents();
@@ -294,55 +296,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       toast({
         title: "Xatolik",
         description: "Arxivlashda xatolik yuz berdi",
-        variant: "destructive"
-      });
-    } finally {
-      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-    }
-  };
-
-  const deleteStudent = (studentId: string, studentName: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      type: 'delete',
-      studentId,
-      studentName
-    });
-  };
-
-  const executeDeleteStudent = async () => {
-    const { studentId, studentName } = confirmDialog;
-    try {
-      const student = students.find(s => s.id === studentId);
-      if (!student) return;
-
-      // Add to deleted_students
-      await addDoc(collection(db, 'deleted_students'), {
-        original_student_id: studentId,
-        teacher_id: teacherId,
-        name: student.name,
-        student_id: student.student_id,
-        group_name: student.group_name,
-        email: student.email,
-        phone: student.phone,
-        deleted_at: new Date().toISOString()
-      });
-
-      // Delete from students
-      await deleteDoc(doc(db, 'students', studentId));
-
-      await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
-
-      toast({
-        title: "Muvaffaqiyatli",
-        description: "O'quvchi chiqindilar qutisiga o'tkazildi",
-      });
-    } catch (error) {
-      console.error('Error deleting student:', error);
-      toast({
-        title: "Xatolik",
-        description: "O'quvchini o'chirishda xatolik yuz berdi",
         variant: "destructive"
       });
     } finally {
@@ -445,9 +398,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
               <Button size="sm" variant="ghost" onClick={() => archiveStudent(student.id, student.name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                 <Archive className="w-4 h-4" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => deleteStudent(student.id, student.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                <Trash2 className="w-4 h-4" />
-              </Button>
             </div>
           </div>
         ))}
@@ -501,9 +451,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                 <Button size="sm" variant="ghost" onClick={() => archiveStudent(student.id, student.name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                   <Archive className="w-4 h-4" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => deleteStudent(student.id, student.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
               </div>
             </div>
           </div>
@@ -531,7 +478,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           <StudentImport teacherId={teacherId} groupName={selectedGroup !== 'all' ? selectedGroup : undefined} onImportComplete={() => {
             fetchStudents();
             if (onStatsUpdate) onStatsUpdate();
-          }} />
+          }} availableGroups={groups} />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="apple-button">
@@ -670,7 +617,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
               <StudentImport teacherId={teacherId} onImportComplete={() => {
                 fetchStudents();
                 if (onStatsUpdate) onStatsUpdate();
-              }} />
+              }} availableGroups={groups} />
             </div>
           )}
         </Card>
@@ -768,11 +715,11 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmDialog.type === 'archive' ? executeArchiveStudent : executeDeleteStudent}
-        title={confirmDialog.type === 'archive' ? "O'quvchini arxivlash" : "O'quvchini o'chirish"}
-        description={`"${confirmDialog.studentName}" ni ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
-        confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
-        variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+        onConfirm={executeArchiveStudent}
+        title="O'quvchini arxivlash"
+        description={`"${confirmDialog.studentName}" ni arxivlashga ishonchingiz komilmi?`}
+        confirmText="Arxivlash"
+        variant="warning"
       />
     </div>
   );

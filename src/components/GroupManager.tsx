@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Users, Calendar, Trash2, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
+import { Plus, Users, Calendar, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import GroupDetails from './GroupDetails';
 import { groupSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
@@ -37,11 +37,26 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   onStatsUpdate
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const selectedGroupStorageKey = `tp:groups:selectedGroup:${teacherId}`;
+  const groupViewModeStorageKey = `tp:groups:viewMode:${teacherId}`;
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(selectedGroupStorageKey);
+    } catch {
+      return null;
+    }
+  });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    try {
+      const saved = localStorage.getItem(groupViewModeStorageKey);
+      return saved === 'list' || saved === 'grid' ? saved : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
   const [newGroup, setNewGroup] = useState({
     name: '',
     description: ''
@@ -50,12 +65,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const [nameError, setNameError] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'archive' | 'delete';
     groupId: string;
     groupName: string;
   }>({
     isOpen: false,
-    type: 'archive',
     groupId: '',
     groupName: ''
   });
@@ -64,6 +77,27 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   useEffect(() => {
     fetchGroups();
   }, [teacherId]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(groupViewModeStorageKey);
+      if (saved === 'list' || saved === 'grid') {
+        setViewMode(saved);
+      } else {
+        setViewMode('grid');
+      }
+    } catch {
+      setViewMode('grid');
+    }
+  }, [groupViewModeStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(groupViewModeStorageKey, viewMode);
+    } catch {
+      // ignore
+    }
+  }, [groupViewModeStorageKey, viewMode]);
 
   const fetchGroups = async () => {
     try {
@@ -147,6 +181,15 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       });
 
       setGroups(groupsWithStats);
+
+      if (selectedGroup && !groupsWithStats.some(g => g.name === selectedGroup)) {
+        setSelectedGroup(null);
+        try {
+          localStorage.removeItem(selectedGroupStorageKey);
+        } catch {
+          // ignore
+        }
+      }
     } catch (error) {
       console.error('Error fetching groups:', error);
       toast({
@@ -257,11 +300,21 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   const handleGroupClick = (groupName: string) => {
     setSelectedGroup(groupName);
+    try {
+      localStorage.setItem(selectedGroupStorageKey, groupName);
+    } catch {
+      // ignore
+    }
     onGroupSelect(groupName);
   };
 
   const handleBackToGroups = () => {
     setSelectedGroup(null);
+    try {
+      localStorage.removeItem(selectedGroupStorageKey);
+    } catch {
+      // ignore
+    }
   };
 
   const handleEditGroup = async (e: React.MouseEvent, group: Group) => {
@@ -328,7 +381,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     e.stopPropagation();
     setConfirmDialog({
       isOpen: true,
-      type: 'archive',
       groupId,
       groupName
     });
@@ -345,7 +397,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           teacher_id: teacherId,
           name: group.name,
           description: group.description,
-          archived_at: new Date().toISOString()
+          archived_at: serverTimestamp()
         });
       }
 
@@ -368,9 +420,16 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           email: student.email,
           phone: student.phone,
           group_name: student.group_name,
-          archived_at: new Date().toISOString()
+          join_date: student.join_date || null,
+          created_at: student.created_at || null,
+          left_date: new Date().toISOString().split('T')[0],
+          archived_at: serverTimestamp()
         });
-        await updateDoc(doc(db, 'students', studentDoc.id), { is_active: false });
+        await updateDoc(doc(db, 'students', studentDoc.id), {
+          is_active: false,
+          left_date: new Date().toISOString().split('T')[0],
+          archived_at: serverTimestamp()
+        });
       }
 
       // Mark group as inactive
@@ -388,76 +447,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       toast({
         title: "Xatolik",
         description: "Guruhni arxivlashda xatolik yuz berdi",
-        variant: "destructive",
-      });
-    } finally {
-      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-    }
-  };
-
-  const handleDeleteGroup = (e: React.MouseEvent, groupId: string, groupName: string) => {
-    e.stopPropagation();
-    setConfirmDialog({
-      isOpen: true,
-      type: 'delete',
-      groupId,
-      groupName
-    });
-  };
-
-  const executeDeleteGroup = async () => {
-    const { groupId, groupName } = confirmDialog;
-    try {
-      const group = groups.find(g => g.id === groupId);
-      if (group) {
-        await addDoc(collection(db, 'deleted_groups'), {
-          original_group_id: group.id,
-          teacher_id: teacherId,
-          name: group.name,
-          description: group.description,
-          deleted_at: new Date().toISOString()
-        });
-      }
-
-      // Get and soft delete students
-      const studentsQuery = query(
-        collection(db, 'students'),
-        where('group_name', '==', groupName),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
-      );
-      const studentsSnapshot = await getDocs(studentsQuery);
-
-      for (const studentDoc of studentsSnapshot.docs) {
-        const student = studentDoc.data();
-        await addDoc(collection(db, 'deleted_students'), {
-          original_student_id: studentDoc.id,
-          teacher_id: teacherId,
-          name: student.name,
-          student_id: student.student_id,
-          email: student.email,
-          phone: student.phone,
-          group_name: student.group_name,
-          deleted_at: new Date().toISOString()
-        });
-        await deleteDoc(doc(db, 'students', studentDoc.id));
-      }
-
-      // Delete group
-      await deleteDoc(doc(db, 'groups', groupId));
-
-      await fetchGroups();
-      await onStatsUpdate();
-
-      toast({
-        title: "Muvaffaqiyat",
-        description: "Guruh muvaffaqiyatli o'chirildi",
-      });
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      toast({
-        title: "Xatolik",
-        description: "Guruhni o'chirishda xatolik yuz berdi",
         variant: "destructive",
       });
     } finally {
@@ -487,7 +476,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>
@@ -647,15 +636,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   >
                     <Archive className="w-4 h-4" />
                   </Button>
-                  <Button
-                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                    title="O'chirish"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
             </Card>
@@ -715,15 +695,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   >
                     <Archive className="w-4 h-4" />
                   </Button>
-                  <Button
-                    onClick={(e) => handleDeleteGroup(e, group.id, group.name)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
-                    title="O'chirish"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
             </Card>
@@ -775,11 +746,11 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmDialog.type === 'archive' ? executeArchiveGroup : executeDeleteGroup}
-        title={confirmDialog.type === 'archive' ? "Guruhni arxivlash" : "Guruhni o'chirish"}
-        description={`"${confirmDialog.groupName}" guruhini ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
-        confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
-        variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+        onConfirm={executeArchiveGroup}
+        title="Guruhni arxivlash"
+        description={`"${confirmDialog.groupName}" guruhini arxivlashga ishonchingiz komilmi?`}
+        confirmText="Arxivlash"
+        variant="warning"
       />
     </div>
   );

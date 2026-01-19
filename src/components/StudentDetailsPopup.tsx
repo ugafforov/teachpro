@@ -33,6 +33,9 @@ interface StudentDetails {
   email?: string;
   phone?: string;
   created_at: any;
+  join_date?: string;
+  left_date?: string;
+  archived_at?: any;
 }
 
 interface StudentStats extends StudentScoreResult {
@@ -75,15 +78,33 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       const studentData = { id: studentDoc.id, ...studentDoc.data() } as StudentDetails;
       setStudent(studentData);
 
+      const effectiveLeaveDate = (() => {
+        if (studentData.left_date) return studentData.left_date;
+        if (studentData.archived_at) {
+          if (studentData.archived_at instanceof Timestamp) {
+            return studentData.archived_at.toDate().toISOString().split('T')[0];
+          }
+          if (typeof studentData.archived_at === 'string') {
+            return studentData.archived_at.split('T')[0];
+          }
+          if (typeof (studentData.archived_at as any)?.seconds === 'number') {
+            return new Date((studentData.archived_at as any).seconds * 1000).toISOString().split('T')[0];
+          }
+        }
+        return null;
+      })();
+
       const [scoreResult, rank, recentRewards] = await Promise.all([
         calculateStudentScore(
           studentData.id,
           teacherId,
           studentData.group_name,
-          studentData.created_at
+          studentData.created_at,
+          studentData.join_date,
+          effectiveLeaveDate
         ),
         calculateStudentRank(studentData.id, teacherId),
-        fetchRecentRewards(studentData.id)
+        fetchRecentRewards(studentData.id, studentData.join_date, effectiveLeaveDate)
       ]);
 
       setStats({
@@ -99,7 +120,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
     }
   };
 
-  const fetchRecentRewards = async (studentId: string): Promise<StudentStats['recentRewards']> => {
+  const fetchRecentRewards = async (studentId: string, joinDate?: string, leaveDate?: string | null): Promise<StudentStats['recentRewards']> => {
     try {
       const q = query(
         collection(db, 'reward_penalty_history'),
@@ -107,10 +128,17 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
         where('teacher_id', '==', teacherId),
         where('type', 'in', ['Mukofot', 'Jarima']),
         orderBy('created_at', 'desc'),
-        limit(5)
+        limit(20)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => d.data() as any);
+      const rows = snapshot.docs.map(d => d.data() as any);
+      const filtered = rows.filter(r => {
+        if (!r?.date) return false;
+        if (joinDate && r.date < joinDate) return false;
+        if (leaveDate && r.date > leaveDate) return false;
+        return true;
+      });
+      return filtered.slice(0, 5);
     } catch (error) {
       console.error('Error fetching rewards:', error);
       return [];

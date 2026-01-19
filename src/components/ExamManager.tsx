@@ -15,14 +15,12 @@ import {
   getDocs,
   addDoc,
   updateDoc,
-  deleteDoc,
   doc,
-  orderBy,
   serverTimestamp,
   getDoc,
   writeBatch
 } from 'firebase/firestore';
-import { Plus, FileText, TrendingUp, Trash2, Archive, Edit2, Search, Calendar, Users, BookOpen } from 'lucide-react';
+import { Plus, FileText, TrendingUp, Archive, Edit2, Search, Calendar, Users, BookOpen } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { examSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
@@ -93,12 +91,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [editReason, setEditReason] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'archive' | 'delete';
     examId: string;
     examName: string;
   }>({
     isOpen: false,
-    type: 'archive',
     examId: '',
     examName: ''
   });
@@ -367,64 +363,18 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
-  const handleAction = (type: 'archive' | 'delete', examId: string, examName: string) => {
+  const handleAction = (examId: string, examName: string) => {
     setConfirmDialog({
       isOpen: true,
-      type,
       examId,
       examName
     });
   };
 
   const executeAction = async () => {
-    const { type, examId } = confirmDialog;
-    if (type === 'archive') {
-      await archiveExam(examId);
-    } else {
-      await deleteExam(examId);
-    }
+    const { examId } = confirmDialog;
+    await archiveExam(examId);
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-  };
-
-  const deleteExam = async (examId: string) => {
-    try {
-      const examRef = doc(db, 'exams', examId);
-      const examSnap = await getDoc(examRef);
-      const examData = examSnap.data();
-
-      const resultsQ = query(collection(db, 'exam_results'), where('exam_id', '==', examId));
-      const resultsSnap = await getDocs(resultsQ);
-      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      await addDoc(collection(db, 'deleted_exams'), {
-        teacher_id: teacherId,
-        original_exam_id: examId,
-        exam_name: examData?.exam_name,
-        exam_date: examData?.exam_date,
-        group_id: examData?.group_id,
-        results_data: resultsData,
-        deleted_at: serverTimestamp()
-      });
-
-      const batch = writeBatch(db);
-      resultsSnap.docs.forEach(d => batch.delete(d.ref));
-      batch.delete(examRef);
-      await batch.commit();
-
-      toast({
-        title: 'Muvaffaqiyatli',
-        description: 'Imtihon chiqindilar qutisiga yuborildi',
-      });
-
-      await fetchExams();
-    } catch (error) {
-      console.error('Error deleting exam:', error);
-      toast({
-        title: 'Xato',
-        description: 'Imtihonni o\'chirishda xatolik',
-        variant: 'destructive',
-      });
-    }
   };
 
   const archiveExam = async (examId: string) => {
@@ -887,11 +837,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                             <Button variant="ghost" size="sm" onClick={() => fetchExamDetails(exam.id)}>
                               <FileText className="h-4 w-4 mr-1" /> Natijalar
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleAction('archive', exam.id, exam.exam_name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                            <Button variant="ghost" size="sm" onClick={() => handleAction(exam.id, exam.exam_name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                               <Archive className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleAction('delete', exam.id, exam.exam_name)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -986,10 +933,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
         onConfirm={executeAction}
-        title={confirmDialog.type === 'archive' ? "Imtihonni arxivlash" : "Imtihonni o'chirish"}
-        description={`"${confirmDialog.examName}" ni ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
-        confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
-        variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+        title="Imtihonni arxivlash"
+        description={`"${confirmDialog.examName}" ni arxivlashga ishonchingiz komilmi?`}
+        confirmText="Arxivlash"
+        variant="warning"
       />
     </div>
   );

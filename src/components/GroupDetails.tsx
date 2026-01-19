@@ -5,13 +5,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, Trash2, ChevronDown, Edit2 } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, ChevronDown, Edit2, MoreVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { db } from '@/lib/firebase';
 import ConfirmDialog from './ConfirmDialog';
 import RestoreDialog from './RestoreDialog';
@@ -33,14 +34,14 @@ import {
 } from 'firebase/firestore';
 import StudentImport from './StudentImport';
 import StudentDetailsPopup from './StudentDetailsPopup';
-import GroupStatisticsCard from './GroupStatisticsCard';
 import AttendanceJournal from './AttendanceJournal';
+import GroupRankingSidebar from './GroupRankingSidebar';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { fetchAllRecords, calculateGroupStatistics, GroupStatistics } from '@/lib/firebaseHelpers';
+import { fetchAllRecords } from '@/lib/firebaseHelpers';
 import { PRESENT_POINTS, LATE_POINTS } from '@/lib/studentScoreCalculator';
 
 interface Student {
@@ -53,6 +54,7 @@ interface Student {
     teacher_id: string;
     created_at: any;
     join_date?: string; // O'quvchi qo'shilgan sana (YYYY-MM-DD format)
+    left_date?: string; // O'quvchi ketgan sana (YYYY-MM-DD format)
     is_active?: boolean;
     rewardPenaltyPoints?: number;
     averageScore?: number;
@@ -61,11 +63,13 @@ interface Student {
     bahoScore?: number;
     mukofotScore?: number;
     jarimaScore?: number;
+    attendancePoints?: number;
     archived_at?: any; // Sana o'quvchi arxivlandi
     archiveDocId?: string; // ID of the document in archived_students collection
 }
 
 type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
+type ScoreType = 'mukofot' | 'jarima';
 
 interface AttendanceRecord {
     id: string;
@@ -94,25 +98,35 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     availableGroups = [],
     onGroupChange
 }) => {
+    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const isFutureDate = selectedDate > today;
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
-    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [activeTab, setActiveTab] = useState<'journal' | 'attendance'>('journal');
+    const groupDetailsTabStorageKey = `tp:groupDetails:activeTab:${teacherId}:${groupName}`;
+    const [activeTab, setActiveTab] = useState<'journal' | 'attendance'>(() => {
+        try {
+            const saved = localStorage.getItem(groupDetailsTabStorageKey);
+            return saved === 'journal' || saved === 'attendance' ? saved : 'attendance';
+        } catch {
+            return 'attendance';
+        }
+    });
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
     const [rewardPoints, setRewardPoints] = useState('');
     const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
     const [loading, setLoading] = useState(true);
-    const [statsLoading, setStatsLoading] = useState(true);
-    const [groupStats, setGroupStats] = useState<GroupStatistics | null>(null);
+    const [pendingAttendance, setPendingAttendance] = useState<Record<string, boolean>>({});
+    const [savedAttendance, setSavedAttendance] = useState<Record<string, boolean>>({});
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
     const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
     const [showReasonInput, setShowReasonInput] = useState(false);
     const [absentReason, setAbsentReason] = useState('');
-    const [editingScoreCell, setEditingScoreCell] = useState<{ studentId: string, type: 'baho' | 'mukofot' | 'jarima' } | null>(null);
+    const [editingScoreCell, setEditingScoreCell] = useState<{ studentId: string, type: ScoreType } | null>(null);
     const [scoreInputValue, setScoreInputValue] = useState('');
-    const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{ studentId: string, newScore: number, type: 'baho' | 'mukofot' | 'jarima', existingRecordId?: string } | null>(null);
+    const [showScoreChangeDialog, setShowScoreChangeDialog] = useState<{ studentId: string, newScore: number, type: ScoreType, existingRecordId?: string } | null>(null);
     const [scoreChangeReason, setScoreChangeReason] = useState('');
     const [dailyScores, setDailyScores] = useState<Record<string, { baho?: { points: number, id: string }, mukofot?: { points: number, id: string }, jarima?: { points: number, id: string } }>>({});
     const [attendanceDates, setAttendanceDates] = useState<Date[]>([]);
@@ -129,12 +143,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const { toast } = useToast();
     const [confirmDialog, setConfirmDialog] = useState<{
         isOpen: boolean;
-        type: 'archive' | 'delete';
         studentId: string;
         studentName: string;
     }>({
         isOpen: false,
-        type: 'archive',
         studentId: '',
         studentName: ''
     });
@@ -151,6 +163,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         studentName: '',
     });
     const isNavigatingRef = useRef(false);
+    const attendanceWriteSeqRef = useRef<Record<string, number>>({});
+    const attendanceRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // 1. Initial load of students (only when group/teacher changes)
     useEffect(() => {
@@ -161,6 +175,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         };
         loadGroupData();
     }, [groupName, teacherId, selectedPeriod]);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(groupDetailsTabStorageKey);
+            if (saved === 'journal' || saved === 'attendance') {
+                setActiveTab(saved);
+            } else {
+                setActiveTab('attendance');
+            }
+        } catch {
+            setActiveTab('attendance');
+        }
+    }, [groupDetailsTabStorageKey]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(groupDetailsTabStorageKey, activeTab);
+        } catch {
+            // ignore
+        }
+    }, [groupDetailsTabStorageKey, activeTab]);
 
     // 2. Load daily data when date or students change (no global loading)
     useEffect(() => {
@@ -232,23 +267,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         teacher_id: data.teacher_id,
                         created_at: data.created_at,
                         join_date: data.join_date,
+                        left_date: data.left_date,
+                        archived_at: data.archived_at,
                         is_active: false,
                         archiveDocId: d.id
                     } as Student;
                 })
                 .sort((a, b) => a.name.localeCompare(b.name));
 
-            const studentIds = studentsData.map(s => s.id);
+            const allStudentsData = [...studentsData, ...archivedData];
+            const studentIds = Array.from(new Set(allStudentsData.map(s => s.id)));
             if (studentIds.length > 0) {
-                setStatsLoading(true);
-                const [historyData, attendanceData, stats] = await Promise.all([
+                const [historyData, attendanceData] = await Promise.all([
                     fetchAllRecords<{ student_id: string; points: number; type: string; date: string }>('reward_penalty_history', teacherId, undefined, studentIds),
-                    fetchAllRecords<{ student_id: string; status: string; date: string }>('attendance_records', teacherId, undefined, studentIds),
-                    calculateGroupStatistics(teacherId, groupName, studentIds, selectedPeriod)
+                    fetchAllRecords<{ student_id: string; status: string; date: string }>('attendance_records', teacherId, undefined, studentIds)
                 ]);
-
-                setGroupStats(stats);
-                setStatsLoading(false);
 
                 // Calculate start date for filtering
                 let startDate: string | null = null;
@@ -266,9 +299,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     startDate = now.toISOString().split('T')[0];
                 }
 
-                const studentsWithRewards = studentsData.map(student => {
-                    const studentHistory = historyData.filter(h => h.student_id === student.id && (!startDate || h.date >= startDate));
-                    const studentAttendance = attendanceData.filter(a => a.student_id === student.id && (!startDate || a.date >= startDate));
+                const studentsWithStats = allStudentsData.map(student => {
+                    const joinDate = getEffectiveJoinDate(student);
+                    const leaveDate = getEffectiveLeaveDate(student);
+                    const studentHistory = historyData.filter(h =>
+                        h.student_id === student.id &&
+                        (!startDate || h.date >= startDate) &&
+                        (!joinDate || h.date >= joinDate) &&
+                        (!leaveDate || h.date <= leaveDate)
+                    );
+                    const studentAttendance = attendanceData.filter(a =>
+                        a.student_id === student.id &&
+                        (!startDate || a.date >= startDate) &&
+                        (!joinDate || a.date >= joinDate) &&
+                        (!leaveDate || a.date <= leaveDate)
+                    );
 
                     let bahoScore = 0;
                     let mukofotScore = 0;
@@ -298,17 +343,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         bahoScore,
                         mukofotScore,
                         jarimaScore,
+                        attendancePoints,
                         totalRewards: mukofotScore,
                         totalPenalties: jarimaScore
                     };
                 });
-                // Combine active and archived students
-                const allStudents = [...studentsWithRewards, ...archivedData];
-                setStudents(allStudents);
+                setStudents(studentsWithStats);
             } else {
                 setStudents([]);
-                setGroupStats(null);
-                setStatsLoading(false);
             }
         } catch (error) {
             console.error('Error fetching students:', error);
@@ -328,6 +370,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             const attendanceMap: Record<string, AttendanceStatus> = {};
             snapshot.docs.forEach(d => {
                 const data = d.data();
+                const student = students.find(s => s.id === data.student_id);
+                if (!student) return;
+                if (!isDateWithinStudentPeriod(student, date)) return;
                 attendanceMap[data.student_id] = (data.status === 'absent' ? 'absent_without_reason' : data.status) as AttendanceStatus;
             });
             setAttendance(attendanceMap);
@@ -352,6 +397,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             snapshot.docs.forEach(d => {
                 const record = { id: d.id, ...d.data() } as any;
                 if (studentIds.includes(record.student_id)) {
+                    const student = students.find(s => s.id === record.student_id);
+                    if (!student) return;
+                    if (!isDateWithinStudentPeriod(student, date)) return;
                     if (!scoresMap[record.student_id]) scoresMap[record.student_id] = {};
                     if (record.type === 'Baho') scoresMap[record.student_id].baho = { points: record.points, id: record.id };
                     else if (record.type === 'Mukofot') scoresMap[record.student_id].mukofot = { points: record.points, id: record.id };
@@ -437,15 +485,34 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
 
     const markAttendance = async (studentId: string, status: AttendanceStatus, notes?: string | null) => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun davomat belgilab bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
         try {
-            // Tanlangan sana o'quvchining join_date dan oldin bo'lsa, davomat kiritmaslik
             const student = students.find(s => s.id === studentId);
-            const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
+            if (!student) return;
+
+            const effectiveJoinDate = getEffectiveJoinDate(student);
+            const effectiveLeaveDate = getEffectiveLeaveDate(student);
 
             if (effectiveJoinDate && selectedDate < effectiveJoinDate) {
                 toast({
                     title: "Xatolik",
-                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin davomat kiritib bo'lmaydi.`,
+                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin davomat kiritib bo'lmaydi.`, 
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            if (effectiveLeaveDate && selectedDate > effectiveLeaveDate) {
+                toast({
+                    title: "Xatolik",
+                    description: `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan. Ushbu sanadan keyin davomat kiritib bo'lmaydi.`,
                     variant: "destructive"
                 });
                 return;
@@ -484,6 +551,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 });
                 setAttendance(prev => ({ ...prev, [studentId]: status }));
             }
+            fetchStudents();
             onStatsUpdate?.();
         } catch (error) {
             console.error('Error marking attendance:', error);
@@ -492,9 +560,18 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
 
     const markAllAsPresent = async () => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun davomat belgilab bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
         try {
             const batch = writeBatch(db);
             students.forEach(student => {
+                if (!isDateWithinStudentPeriod(student, selectedDate)) return;
                 const docId = `${student.id}_${selectedDate}`;
                 batch.set(doc(db, 'attendance_records', docId), {
                     teacher_id: teacherId,
@@ -505,6 +582,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 }, { merge: true });
             });
             await batch.commit();
+            fetchStudents();
             fetchAttendanceForDate(selectedDate);
             onStatsUpdate?.();
         } catch (error) {
@@ -524,6 +602,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             snapshot.docs.forEach(d => batch.delete(d.ref));
             await batch.commit();
             setAttendance({});
+            fetchStudents();
             onStatsUpdate?.();
         } catch (error) {
             console.error('Error clearing attendance:', error);
@@ -555,7 +634,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const handleScoreCellClick = (studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
+    const handleScoreCellClick = (studentId: string, type: ScoreType) => {
         setEditingScoreCell({ studentId, type });
         setScoreInputValue('');
     };
@@ -567,7 +646,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const saveScore = async (studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
+    const saveScore = async (studentId: string, type: ScoreType) => {
         if (scoreInputValue === '' || scoreInputValue === '-') {
             return true; // Allow navigation if empty
         }
@@ -590,7 +669,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const handleScoreBlur = async (studentId: string, type: 'baho' | 'mukofot' | 'jarima') => {
+    const handleScoreBlur = async (studentId: string, type: ScoreType) => {
         // Give a small delay to check if navigation happened
         setTimeout(async () => {
             if (isNavigatingRef.current) return;
@@ -599,18 +678,37 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }, 100);
     };
 
-    const submitScore = async (studentId: string, newScore: number, reason: string | null, type: 'baho' | 'mukofot' | 'jarima', existingRecordId?: string) => {
+    const submitScore = async (studentId: string, newScore: number, reason: string | null, type: ScoreType, existingRecordId?: string) => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun baho kiritib bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
         try {
-            const typeLabel = type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima';
+            const typeLabel = type === 'mukofot' ? 'Mukofot' : 'Jarima';
 
             // Tanlangan sana o'quvchining join_date dan oldin bo'lsa, ball kiritmaslik
             const student = students.find(s => s.id === studentId);
-            const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
+            if (!student) return;
+            const effectiveJoinDate = getEffectiveJoinDate(student);
+            const effectiveLeaveDate = getEffectiveLeaveDate(student);
 
             if (effectiveJoinDate && selectedDate < effectiveJoinDate) {
                 toast({
                     title: "Xatolik",
-                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin ball kiritib bo'lmaydi.`,
+                    description: `${student?.name} ${effectiveJoinDate} sanasida qo'shilgan. Ushbu sanadan oldin ball kiritib bo'lmaydi.`, 
+                    variant: "destructive"
+                });
+                return;
+            }
+
+            if (effectiveLeaveDate && selectedDate > effectiveLeaveDate) {
+                toast({
+                    title: "Xatolik",
+                    description: `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan. Ushbu sanadan keyin ball kiritib bo'lmaydi.`,
                     variant: "destructive"
                 });
                 return;
@@ -650,8 +748,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const handleScoreKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, studentIndex: number, type: 'baho' | 'mukofot' | 'jarima') => {
-        const types: ('baho' | 'mukofot' | 'jarima')[] = ['baho', 'mukofot', 'jarima'];
+    const handleScoreKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>, studentIndex: number, type: ScoreType) => {
+        const types: ScoreType[] = ['mukofot', 'jarima'];
         const currentTypeIndex = types.indexOf(type);
 
         if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -700,22 +798,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         setIsStudentPopupOpen(true);
     };
 
-    const handleAction = (type: 'archive' | 'delete', studentId: string, studentName: string) => {
+    const handleAction = (studentId: string, studentName: string) => {
         setConfirmDialog({
             isOpen: true,
-            type,
             studentId,
             studentName
         });
     };
 
     const executeAction = async () => {
-        const { type, studentId } = confirmDialog;
-        if (type === 'archive') {
-            await handleArchive(studentId);
-        } else {
-            await handleDelete(studentId);
-        }
+        const { studentId } = confirmDialog;
+        await handleArchive(studentId);
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     };
 
@@ -725,10 +818,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             if (!studentDoc.exists()) return;
             const studentData = studentDoc.data();
 
-            await updateDoc(doc(db, 'students', studentId), { is_active: false });
+            await updateDoc(doc(db, 'students', studentId), {
+                is_active: false,
+                left_date: new Date().toISOString().split('T')[0],
+                archived_at: serverTimestamp()
+            });
             await addDoc(collection(db, 'archived_students'), {
                 ...studentData,
                 original_student_id: studentId,
+                left_date: new Date().toISOString().split('T')[0],
                 archived_at: serverTimestamp()
             });
 
@@ -737,27 +835,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi arxivlandi" });
         } catch (error) {
             console.error('Error archiving student:', error);
-        }
-    };
-
-    const handleDelete = async (studentId: string) => {
-        try {
-            const studentDoc = await getDoc(doc(db, 'students', studentId));
-            if (!studentDoc.exists()) return;
-            const studentData = studentDoc.data();
-
-            await updateDoc(doc(db, 'students', studentId), { is_active: false });
-            await addDoc(collection(db, 'deleted_students'), {
-                ...studentData,
-                original_student_id: studentId,
-                deleted_at: serverTimestamp()
-            });
-
-            await fetchStudents();
-            onStatsUpdate?.();
-            toast({ title: "Muvaffaqiyatli", description: "O'quvchi chiqindilar qutisiga o'tkazildi" });
-        } catch (error) {
-            console.error('Error deleting student:', error);
         }
     };
 
@@ -781,6 +858,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             await updateDoc(doc(db, 'students', studentId), {
                 is_active: true,
                 join_date: formattedDate,
+                left_date: null,
+                archived_at: null,
                 updated_at: serverTimestamp()
             });
 
@@ -820,6 +899,29 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         return null;
     };
 
+    const getEffectiveLeaveDate = (student: Student): string | null => {
+        if (student.left_date) return student.left_date;
+
+        if (student.archived_at) {
+            if (student.archived_at instanceof Timestamp) {
+                return student.archived_at.toDate().toISOString().split('T')[0];
+            } else if (typeof student.archived_at === 'string') {
+                return student.archived_at.split('T')[0];
+            } else if (typeof student.archived_at?.seconds === 'number') {
+                return new Date(student.archived_at.seconds * 1000).toISOString().split('T')[0];
+            }
+        }
+        return null;
+    };
+
+    const isDateWithinStudentPeriod = (student: Student, date: string): boolean => {
+        const joinDate = getEffectiveJoinDate(student);
+        if (joinDate && date < joinDate) return false;
+        const leaveDate = getEffectiveLeaveDate(student);
+        if (leaveDate && date > leaveDate) return false;
+        return true;
+    };
+
     // Get the note text to display for grayed out students
     const getStudentStatusNote = (student: Student, selectedDate: string): string | null => {
         const effectiveJoinDate = getEffectiveJoinDate(student);
@@ -831,15 +933,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
 
         // Check if archived (after archive date)
-        if (!student.is_active && student.archived_at) {
-            let archivedDate = '';
-            if (student.archived_at instanceof Timestamp) {
-                archivedDate = student.archived_at.toDate().toISOString().split('T')[0];
-            } else if (typeof student.archived_at === 'string') {
-                archivedDate = student.archived_at.split('T')[0];
-            }
-            if (archivedDate) {
-                const [year, month, day] = archivedDate.split('-');
+        if (!student.is_active) {
+            const leaveDate = getEffectiveLeaveDate(student);
+            if (leaveDate) {
+                const [year, month, day] = leaveDate.split('-');
                 return `${day}-${month}-${year} da chiqib ketgan`;
             }
         }
@@ -853,7 +950,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         const student = students.find(s => s.id === studentId);
         const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
         const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
-        const baseStyle = `w-10 h-10 p-0 border ${isBeforeJoinDate ? 'opacity-40 cursor-not-allowed' : ''}`;
+        const effectiveLeaveDate = student ? getEffectiveLeaveDate(student) : null;
+        const isAfterLeaveDate = effectiveLeaveDate && selectedDate > effectiveLeaveDate;
+        const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
+        const baseStyle = `w-10 h-10 p-0 border ${isOutsidePeriod ? 'opacity-40 cursor-not-allowed' : ''}`;
 
         if (targetStatus !== 'absent') {
             const isActive = normalized === targetStatus;
@@ -867,6 +967,127 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         if (normalized === 'absent_with_reason') return `${baseStyle} border-yellow-500 bg-yellow-500 hover:bg-yellow-600 text-white`;
         if (normalized === 'absent_without_reason') return `${baseStyle} border-red-500 bg-red-500 hover:bg-red-600 text-white`;
         return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
+    };
+
+    const getToggleButtonStyle = (status?: AttendanceStatus) => {
+        const baseStyle = "w-10 h-10 p-0 border";
+        switch (status) {
+            case 'present': return `${baseStyle} border-green-500 bg-green-500 hover:bg-green-600 text-white`;
+            case 'late': return `${baseStyle} border-orange-500 bg-orange-500 hover:bg-orange-600 text-white`;
+            case 'absent_without_reason': return `${baseStyle} border-red-500 bg-red-500 hover:bg-red-600 text-white`;
+            case 'absent_with_reason': return `${baseStyle} border-yellow-500 bg-yellow-500 hover:bg-yellow-600 text-white`;
+            default: return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
+        }
+    };
+
+    const getNextAttendanceStatus = (current?: AttendanceStatus): AttendanceStatus => {
+        switch (current) {
+            case 'present': return 'late';
+            case 'late': return 'absent_without_reason';
+            case 'absent_without_reason': return 'absent_with_reason';
+            case 'absent_with_reason': return 'present';
+            default: return 'present';
+        }
+    };
+
+    const getAttendanceLabel = (status?: AttendanceStatus) => {
+        switch (status) {
+            case 'present': return 'Keldi';
+            case 'late': return 'Kechikdi';
+            case 'absent_without_reason': return "Kelmadi";
+            case 'absent_with_reason': return "Sababli Kelmadi";
+            default: return 'Belgilash';
+        }
+    };
+
+    const scheduleAttendanceRefresh = () => {
+        if (attendanceRefreshTimerRef.current) {
+            clearTimeout(attendanceRefreshTimerRef.current);
+        }
+        attendanceRefreshTimerRef.current = setTimeout(() => {
+            fetchStudents();
+            onStatsUpdate?.();
+            attendanceRefreshTimerRef.current = null;
+        }, 350);
+    };
+
+    const persistAttendance = async (studentId: string, status: AttendanceStatus, notes: string | null, seq: number) => {
+        try {
+            const docId = `${studentId}_${selectedDate}`;
+            const docRef = doc(db, 'attendance_records', docId);
+            await setDoc(docRef, {
+                teacher_id: teacherId,
+                student_id: studentId,
+                date: selectedDate,
+                status,
+                notes: notes ?? null,
+                updated_at: serverTimestamp()
+            }, { merge: true });
+
+            if (attendanceWriteSeqRef.current[studentId] !== seq) return;
+
+            setPendingAttendance(prev => {
+                const nextPending = { ...prev };
+                delete nextPending[studentId];
+                return nextPending;
+            });
+            setSavedAttendance(prev => ({ ...prev, [studentId]: true }));
+            setTimeout(() => {
+                setSavedAttendance(prev => {
+                    const nextSaved = { ...prev };
+                    delete nextSaved[studentId];
+                    return nextSaved;
+                });
+            }, 900);
+
+            scheduleAttendanceRefresh();
+        } catch (error) {
+            console.error('Error marking attendance:', error);
+            if (attendanceWriteSeqRef.current[studentId] !== seq) return;
+            setPendingAttendance(prev => {
+                const nextPending = { ...prev };
+                delete nextPending[studentId];
+                return nextPending;
+            });
+            toast({ title: "Xatolik", description: "Davomatni saqlashda xatolik yuz berdi", variant: "destructive" });
+            fetchAttendanceForDate(selectedDate);
+        }
+    };
+
+    const toggleAttendance = (studentId: string) => {
+        if (isFutureDate) {
+            toast({
+                title: "Xatolik",
+                description: "Kelajakdagi sana uchun davomat belgilab bo'lmaydi.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        const effectiveJoinDate = getEffectiveJoinDate(student);
+        const effectiveLeaveDate = getEffectiveLeaveDate(student);
+        if (effectiveJoinDate && selectedDate < effectiveJoinDate) return;
+        if (effectiveLeaveDate && selectedDate > effectiveLeaveDate) return;
+
+        const current = attendance[studentId] as AttendanceStatus | undefined;
+        const next = getNextAttendanceStatus(current);
+        const notes = next === 'absent_with_reason' ? 'Sababli' : null;
+
+        const nextSeq = (attendanceWriteSeqRef.current[studentId] || 0) + 1;
+        attendanceWriteSeqRef.current[studentId] = nextSeq;
+
+        setAttendance(prev => ({ ...prev, [studentId]: next }));
+        setPendingAttendance(prev => ({ ...prev, [studentId]: true }));
+        setSavedAttendance(prev => {
+            const nextSaved = { ...prev };
+            delete nextSaved[studentId];
+            return nextSaved;
+        });
+
+        void persistAttendance(studentId, next, notes, nextSeq);
     };
 
     const getScoreCellStyle = (type: string, points: number) => {
@@ -892,14 +1113,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
 
     return (
-        <div className="space-y-6">
-            <GroupStatisticsCard
-                totalStudents={groupStats?.totalStudents || students.length}
-                attendancePercentage={groupStats?.attendancePercentage || 0}
-                totalLessons={groupStats?.totalLessons || 0}
-                topStudent={groupStats?.topStudent || null}
-                loading={statsLoading}
-            />
+        <div className="space-y-6 w-full min-w-0">
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                     <Button onClick={onBack} variant="ghost" size="sm"><ArrowLeft className="w-4 h-4" /></Button>
@@ -935,7 +1149,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} />
+                    <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} availableGroups={availableGroups} />
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                         <DialogTrigger asChild><Button className="apple-button"><Plus className="w-4 h-4 mr-2" />O'quvchi qo'shish</Button></DialogTrigger>
                         <DialogContent>
@@ -1035,185 +1249,260 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 </div>
             </div>
 
-            {/* Tab panel */}
-            <div className="flex gap-2 border-b border-gray-200">
-                <button
-                    onClick={() => setActiveTab('journal')}
-                    className={cn(
-                        'px-4 py-2 font-medium text-sm transition-all border-b-2',
-                        activeTab === 'journal'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-600 hover:text-gray-900'
+            <div className="flex flex-col">
+                <div className="flex gap-2 border-b border-gray-200">
+                    <button
+                        onClick={() => setActiveTab('attendance')}
+                        className={cn(
+                            'px-4 py-2 font-medium text-sm transition-all border-b-2',
+                            activeTab === 'attendance'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                        )}
+                    >
+                        Kunlik Jurnal
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('journal')}
+                        className={cn(
+                            'px-4 py-2 font-medium text-sm transition-all border-b-2',
+                            activeTab === 'journal'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                        )}
+                    >
+                        Davomat Jurnali
+                    </button>
+                </div>
+
+                <div className="mt-6">
+                    {activeTab === 'journal' && (
+                        <AttendanceJournal teacherId={teacherId} groupName={groupName} />
                     )}
-                >
-                    Davomat Jurnali
-                </button>
-                <button
-                    onClick={() => setActiveTab('attendance')}
-                    className={cn(
-                        'px-4 py-2 font-medium text-sm transition-all border-b-2',
-                        activeTab === 'attendance'
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-600 hover:text-gray-900'
-                    )}
-                >
-                    Kunlik Jurnal
-                </button>
-            </div>
 
-            {/* Davomat Jurnali tab */}
-            {activeTab === 'journal' && (
-                <AttendanceJournal teacherId={teacherId} groupName={groupName} />
-            )}
+                    {activeTab === 'attendance' && (
+                        <div className="flex flex-col lg:flex-row gap-6 items-start">
+                            <Card className="apple-card overflow-hidden w-full lg:flex-[65_65_0%] min-w-0">
+                                <div className="p-6 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
+                                    <div className="flex items-center space-x-4">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className={cn("w-[240px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={parseISO(selectedDate)}
+                                                    onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
+                                                    initialFocus
+                                                    locale={uz}
+                                                    modifiers={{ hasAttendance: attendanceDates }}
+                                                    modifiersStyles={{
+                                                        hasAttendance: {
+                                                            backgroundColor: '#22c55e',
+                                                            color: 'white',
+                                                            borderRadius: '50%'
+                                                        }
+                                                    }}
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                        <div className="flex gap-2">
+                                            <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
+                                            <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
+                                        </div>
+                                    </div>
+                                </div>
 
-            {/* Kunlik Jurnal tab */}
-            {activeTab === 'attendance' && (
-                <Card className="apple-card overflow-hidden">
-                    <div className="p-6 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
-                        <div className="flex items-center space-x-4">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className={cn("w-[240px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={parseISO(selectedDate)}
-                                        onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
-                                        initialFocus
-                                        locale={uz}
-                                        modifiers={{ hasAttendance: attendanceDates }}
-                                        modifiersStyles={{
-                                            hasAttendance: {
-                                                backgroundColor: '#22c55e',
-                                                color: 'white',
-                                                borderRadius: '50%'
-                                            }
-                                        }}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                            <div className="flex gap-2">
-                                <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
-                                <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-gray-50/50">
-                                    <TableHead className="w-[50px] text-center">#</TableHead>
-                                    <TableHead>O'quvchi</TableHead>
-                                    <TableHead className="text-center">Davomat</TableHead>
-                                    <TableHead className="text-center">Baholash</TableHead>
-                                    <TableHead className="text-center">Umumiy ball</TableHead>
-                                    <TableHead className="text-right">Amallar</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {students.map((student, index) => {
-                                    const effectiveJoinDate = getEffectiveJoinDate(student);
-                                    const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
-                                    const isArchived = !student.is_active;
-                                    const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
-                                    return (
-                                        <>
-                                            {isFirstArchived && (
-                                                <TableRow className="bg-gray-100 hover:bg-gray-100">
-                                                    <TableCell colSpan={6} className="text-center py-2">
-                                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                            <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50", isBeforeJoinDate && "opacity-40")}>
-                                                <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{student.name}</span>
-                                                            {getStudentStatusNote(student, selectedDate) && (
-                                                                <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
-                                                                    {getStudentStatusNote(student, selectedDate)}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex justify-center space-x-1">
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'present')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'present')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><CheckCircle className="w-4 h-4" /></Button>
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'late')} disabled={isBeforeJoinDate} onClick={() => markAttendance(student.id, 'late')} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><Clock className="w-4 h-4" /></Button>
-                                                        <Button size="sm" variant="outline" className={getButtonStyle(student.id, 'absent')} disabled={isBeforeJoinDate} onClick={() => { setShowReasonInput(false); setAbsentReason(''); setShowAbsentDialog(student.id); }} title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : ''}><XCircle className="w-4 h-4" /></Button>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex justify-center gap-1">
-                                                        {['baho', 'mukofot', 'jarima'].map((type) => (
-                                                            <div key={type}>
-                                                                {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isBeforeJoinDate ? (
-                                                                    <Input
-                                                                        className="w-10 h-10 mx-auto text-center p-0"
-                                                                        value={scoreInputValue}
-                                                                        onChange={handleScoreInputChange}
-                                                                        onBlur={() => handleScoreBlur(student.id, type as any)}
-                                                                        onKeyDown={(e) => handleScoreKeyDown(e, index, type as any)}
-                                                                        autoFocus
-                                                                    />
-                                                                ) : (
-                                                                    <div
-                                                                        className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", isBeforeJoinDate ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type as any]?.points || 0))}
-                                                                        onClick={() => !isBeforeJoinDate && handleScoreCellClick(student.id, type as any)}
-                                                                        title={isBeforeJoinDate ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan` : (type === 'baho' ? 'Baho' : type === 'mukofot' ? 'Mukofot' : 'Jarima')}
-                                                                    >
-                                                                        {dailyScores[student.id]?.[type as any]?.points || 0}
-                                                                    </div>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-gray-50/50">
+                                                <TableHead className="w-[50px] text-center">#</TableHead>
+                                                <TableHead>O'quvchi</TableHead>
+                                                <TableHead className="text-center">Davomat</TableHead>
+                                                <TableHead className="text-center">Mukofot/Jarima</TableHead>
+                                                <TableHead className="text-center">Umumiy ball</TableHead>
+                                                <TableHead className="text-right">Amallar</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {students.map((student, index) => {
+                                        const effectiveJoinDate = getEffectiveJoinDate(student);
+                                        const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
+                                        const effectiveLeaveDate = getEffectiveLeaveDate(student);
+                                        const isAfterLeaveDate = effectiveLeaveDate && selectedDate > effectiveLeaveDate;
+                                        const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
+                                        const isArchived = !student.is_active;
+                                        const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
+                                        return (
+                                            <React.Fragment key={student.id}>
+                                                {isFirstArchived && (
+                                                    <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
+                                                        <TableCell colSpan={6} className="text-center py-2">
+                                                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                                <TableRow className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
+                                                    <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{student.name}</span>
+                                                                {getStudentStatusNote(student, selectedDate) && (
+                                                                    <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
+                                                                        {getStudentStatusNote(student, selectedDate)}
+                                                                    </span>
                                                                 )}
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
-                                                        {student.rewardPenaltyPoints?.toFixed(1) || 0}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        {!isArchived ? (
-                                                            <>
-                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
-                                                                    const studentWithJoinDate = {
-                                                                        ...student,
-                                                                        join_date: student.join_date || getEffectiveJoinDate(student) || format(new Date(), 'yyyy-MM-dd')
-                                                                    };
-                                                                    setEditingStudent(studentWithJoinDate);
-                                                                    setIsEditDialogOpen(true);
-                                                                }}><Edit2 className="w-4 h-4" /></Button>
-                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50" onClick={() => handleAction('archive', student.id, student.name)}><Archive className="w-4 h-4" /></Button>
-                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleAction('delete', student.id, student.name)}><Trash2 className="w-4 h-4" /></Button>
-                                                            </>
-                                                        ) : (
-                                                            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
-                                                                Tiklash
+                                                            <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col items-center justify-center gap-1">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className={getToggleButtonStyle(attendance[student.id])}
+                                                                disabled={isOutsidePeriod || isFutureDate}
+                                                                onClick={() => toggleAttendance(student.id)}
+                                                                title={isFutureDate
+                                                                    ? "Kelajak uchun belgilab bo'lmaydi"
+                                                                    : isBeforeJoinDate
+                                                                        ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
+                                                                        : isAfterLeaveDate
+                                                                            ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
+                                                                            : getAttendanceLabel(attendance[student.id])}
+                                                            >
+                                                                <span className="relative inline-flex items-center justify-center">
+                                                                    {attendance[student.id] === 'present' ? (
+                                                                    <CheckCircle className="w-4 h-4" />
+                                                                ) : attendance[student.id] === 'late' ? (
+                                                                    <Clock className="w-4 h-4" />
+                                                                ) : attendance[student.id] === 'absent_with_reason' ? (
+                                                                    <AlertTriangle className="w-4 h-4" />
+                                                                ) : attendance[student.id] === 'absent_without_reason' ? (
+                                                                    <XCircle className="w-4 h-4" />
+                                                                ) : (
+                                                                    <CheckCircle className="w-4 h-4" />
+                                                                )}
+                                                                    {pendingAttendance[student.id] && (
+                                                                        <span className="absolute -right-2 -top-2 inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current opacity-80" />
+                                                                    )}
+                                                                </span>
                                                             </Button>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        </>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </Card>
-            )}
+                                                            <span className={cn(
+                                                                "text-[10px] font-medium leading-none",
+                                                                pendingAttendance[student.id] ? "text-gray-500" :
+                                                                savedAttendance[student.id] ? "text-emerald-600" :
+                                                                attendance[student.id] === 'present' ? "text-emerald-600" :
+                                                                attendance[student.id] === 'late' ? "text-orange-600" :
+                                                                attendance[student.id] === 'absent_with_reason' ? "text-yellow-700" :
+                                                                attendance[student.id] === 'absent_without_reason' ? "text-red-600" :
+                                                                "text-gray-500"
+                                                            )}>
+                                                                {pendingAttendance[student.id] ? "Saqlanmoqda..." :
+                                                                    savedAttendance[student.id] ? "Saqlandi" :
+                                                                        getAttendanceLabel(attendance[student.id])}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex justify-center gap-1">
+                                                            {(['mukofot', 'jarima'] as const).map((type) => (
+                                                                <div key={type}>
+                                                                    {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isOutsidePeriod && !isFutureDate ? (
+                                                                        <Input
+                                                                            className="w-10 h-10 mx-auto text-center p-0"
+                                                                            value={scoreInputValue}
+                                                                            onChange={handleScoreInputChange}
+                                                                            onBlur={() => handleScoreBlur(student.id, type)}
+                                                                            onKeyDown={(e) => handleScoreKeyDown(e, index, type)}
+                                                                            autoFocus
+                                                                        />
+                                                                    ) : (
+                                                                        <div
+                                                                            className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isOutsidePeriod || isFutureDate) ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type]?.points || 0))}
+                                                                            onClick={() => !isOutsidePeriod && !isFutureDate && handleScoreCellClick(student.id, type)}
+                                                                            title={isFutureDate
+                                                                                ? "Kelajak uchun belgilab bo'lmaydi"
+                                                                                : isBeforeJoinDate
+                                                                                    ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
+                                                                                    : isAfterLeaveDate
+                                                                                        ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
+                                                                                        : (type === 'mukofot' ? 'Mukofot' : 'Jarima')}
+                                                                        >
+                                                                            {dailyScores[student.id]?.[type]?.points || 0}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                                                            {student.rewardPenaltyPoints?.toFixed(1) || 0}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex justify-end gap-1">
+                                                            {!isArchived ? (
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-50">
+                                                                            <MoreVertical className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="end" className="w-44">
+                                                                        <DropdownMenuItem
+                                                                            onSelect={() => {
+                                                                                const studentWithJoinDate = {
+                                                                                    ...student,
+                                                                                    join_date: student.join_date || getEffectiveJoinDate(student) || format(new Date(), 'yyyy-MM-dd')
+                                                                                };
+                                                                                setEditingStudent(studentWithJoinDate);
+                                                                                setIsEditDialogOpen(true);
+                                                                            }}
+                                                                            className="gap-2"
+                                                                        >
+                                                                            <Edit2 className="w-4 h-4 text-blue-600" />
+                                                                            Tahrirlash
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onSelect={() => handleAction(student.id, student.name)}
+                                                                            className="gap-2"
+                                                                        >
+                                                                            <Archive className="w-4 h-4 text-orange-600" />
+                                                                            Arxivlash
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            ) : (
+                                                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
+                                                                    Tiklash
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </Card>
+                            <div className="w-full lg:flex-[35_35_0%] min-w-0">
+                                <GroupRankingSidebar students={students} loading={loading} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Dialogs */}
             {showAbsentDialog && (
@@ -1270,10 +1559,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 isOpen={confirmDialog.isOpen}
                 onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
                 onConfirm={executeAction}
-                title={confirmDialog.type === 'archive' ? "O'quvchini arxivlash" : "O'quvchini o'chirish"}
-                description={`"${confirmDialog.studentName}" ni ${confirmDialog.type === 'archive' ? 'arxivlashga' : "o'chirishga"} ishonchingiz komilmi?`}
-                confirmText={confirmDialog.type === 'archive' ? "Arxivlash" : "O'chirish"}
-                variant={confirmDialog.type === 'archive' ? 'warning' : 'danger'}
+                title="O'quvchini arxivlash"
+                description={`"${confirmDialog.studentName}" ni arxivlashga ishonchingiz komilmi?`}
+                confirmText="Arxivlash"
+                variant="warning"
             />
 
             <RestoreDialog

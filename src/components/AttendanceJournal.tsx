@@ -3,11 +3,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, addMonths, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   collection,
   query,
@@ -19,6 +20,8 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import * as XLSX from 'xlsx';
+import { DateRange } from 'react-day-picker';
 
 interface Student {
   id: string;
@@ -28,7 +31,9 @@ interface Student {
   teacher_id: string;
   created_at: any;
   join_date?: string;
+  left_date?: string;
   is_active?: boolean;
+  archived_at?: any;
 }
 
 interface AttendanceRecord {
@@ -44,16 +49,14 @@ interface AttendanceJournalProps {
 }
 
 const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupName }) => {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [filterMode, setFilterMode] = useState<'all' | 'month' | 'range'>('all');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceRecord>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  // Oyning barcha kunlarini olish
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   // O'quvchilarni olish
   const fetchStudents = async () => {
@@ -61,8 +64,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
       const q = query(
         collection(db, 'students'),
         where('teacher_id', '==', teacherId),
-        where('group_name', '==', groupName),
-        where('is_active', '==', true)
+        where('group_name', '==', groupName)
       );
       const snapshot = await getDocs(q);
       const studentsData = snapshot.docs
@@ -100,7 +102,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
   useEffect(() => {
     fetchStudents();
     fetchAttendance();
-  }, []);
+  }, [groupName, teacherId]);
 
   // Effective join date olish
   const getEffectiveJoinDate = (student: Student): string | null => {
@@ -115,15 +117,48 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     return null;
   };
 
+  // Effective archive date olish
+  const getEffectiveArchiveDate = (student: Student): string | null => {
+    if (student.left_date) return student.left_date;
+    if (student.archived_at) {
+      if (student.archived_at instanceof Timestamp) {
+        return student.archived_at.toDate().toISOString().split('T')[0];
+      } else if (typeof student.archived_at === 'string') {
+        return student.archived_at.split('T')[0];
+      } else if (typeof student.archived_at?.seconds === 'number') {
+        return new Date(student.archived_at.seconds * 1000).toISOString().split('T')[0];
+      }
+    }
+    return null;
+  };
+
   // Davomat holatini o'zgartirishazuyi
   const toggleAttendance = async (studentId: string, date: string) => {
+    if (date > today) {
+      toast({
+        title: 'Xatolik',
+        description: `Kelajakdagi sana uchun davomat belgilab bo'lmaydi`,
+        variant: 'destructive'
+      });
+      return;
+    }
     const student = students.find(s => s.id === studentId);
     const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
+    const effectiveArchiveDate = student ? getEffectiveArchiveDate(student) : null;
 
     if (effectiveJoinDate && date < effectiveJoinDate) {
       toast({
         title: 'Xatolik',
         description: `Bu sana o'quvchining kelgan sanasidan oldin`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (effectiveArchiveDate && date > effectiveArchiveDate) {
+      toast({
+        title: 'Xatolik',
+        description: `Bu sana o'quvchining ketgan sanasidan keyin`,
         variant: 'destructive'
       });
       return;
@@ -201,24 +236,96 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     }
   };
 
+  const studentIdsInGroup = new Set(students.map(s => s.id));
+  const allLessonDays = [
+    ...new Set(
+      Object.values(attendance)
+        .filter(record => 
+            studentIdsInGroup.has(record.student_id)
+        )
+        .map(record => record.date)
+    )
+  ];
+  const sortedLessonDays = [...allLessonDays].sort();
+  const monthStr = format(currentMonth, 'yyyy-MM');
+  const rangeFromStr = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null;
+  const rangeToStr = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : null;
+
+  const displayedLessonDays = (() => {
+    if (filterMode === 'month') {
+      return sortedLessonDays.filter(d => d.startsWith(monthStr));
+    }
+    if (filterMode === 'range') {
+      if (rangeFromStr && rangeToStr) {
+        return sortedLessonDays.filter(d => d >= rangeFromStr && d <= rangeToStr);
+      }
+      if (rangeFromStr) {
+        return sortedLessonDays.filter(d => d === rangeFromStr);
+      }
+      return [];
+    }
+    return sortedLessonDays;
+  })();
+
   // Davomat foizini hisoblash
   const getAttendancePercentage = (studentId: string): number => {
-    const studentDaysInMonth = daysInMonth.filter(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const student = students.find(s => s.id === studentId);
-      const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
-      return !effectiveJoinDate || dateStr >= effectiveJoinDate;
-    });
+    const student = students.find(s => s.id === studentId);
+    const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
+    const effectiveArchiveDate = student ? getEffectiveArchiveDate(student) : null;
 
-    const presentDays = studentDaysInMonth.filter(day => {
-      const dateStr = format(day, 'yyyy-MM-dd');
-      const key = `${studentId}_${dateStr}`;
+    const applicableLessonDays = displayedLessonDays.filter(day => 
+      (!effectiveJoinDate || day >= effectiveJoinDate) &&
+      (!effectiveArchiveDate || day <= effectiveArchiveDate)
+    );
+
+    if (applicableLessonDays.length === 0) {
+      return 100;
+    }
+
+    const presentDays = applicableLessonDays.filter(day => {
+      const key = `${studentId}_${day}`;
       const record = attendance[key];
       return record && (record.status === 'present' || record.status === 'late');
     }).length;
 
-    if (studentDaysInMonth.length === 0) return 0;
-    return Math.round((presentDays / studentDaysInMonth.length) * 100);
+    return Math.round((presentDays / applicableLessonDays.length) * 100);
+  };
+  
+  const handleExportToExcel = () => {
+    const header = ["O'quvchi (Foiz)", ...displayedLessonDays.map(dateStr => format(parseISO(dateStr), 'd'))];
+    
+    const data = students.map(student => {
+      const studentRow: (string | number)[] = [`${student.name} (${getAttendancePercentage(student.id)}%)`];
+      displayedLessonDays.forEach(dateStr => {
+        const key = `${student.id}_${dateStr}`;
+        const record = attendance[key];
+        const symbol = getStatusSymbol(record?.status);
+
+        const effectiveJoinDate = getEffectiveJoinDate(student);
+        const effectiveArchiveDate = getEffectiveArchiveDate(student);
+        const isBeforeJoinDate = effectiveJoinDate && dateStr < effectiveJoinDate;
+        const isAfterArchiveDate = effectiveArchiveDate && dateStr > effectiveArchiveDate;
+        const isDisabled = isBeforeJoinDate || isAfterArchiveDate || dateStr > today;
+
+        studentRow.push(isDisabled ? '' : symbol);
+      });
+      return studentRow;
+    });
+
+    const excelData = [header, ...data];
+
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Davomat");
+
+    const periodLabel =
+      filterMode === 'month'
+        ? format(currentMonth, 'MMMM_yyyy', { locale: uz })
+        : filterMode === 'range'
+          ? (rangeFromStr && rangeToStr ? `${rangeFromStr}_${rangeToStr}` : rangeFromStr ? rangeFromStr : 'Tanlanmagan')
+          : 'Barchasi';
+    const fileName = `Davomat_${groupName}_${periodLabel}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   if (loading) {
@@ -231,65 +338,109 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        {/* Oyni o'zgartirishzuyi */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+      <Card className="p-4 w-full min-w-0">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={filterMode} onValueChange={(v) => setFilterMode(v as any)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filtr" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Barchasi</SelectItem>
+                <SelectItem value="month">Oy</SelectItem>
+                <SelectItem value="range">Sana oralig'i</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <Popover>
-              <PopoverTrigger asChild>
+            {filterMode === 'month' && (
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  className="w-48"
+                  size="sm"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+                  className="h-8 w-8 p-0"
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(currentMonth, 'MMMM yyyy', { locale: uz })}
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={currentMonth}
-                  onSelect={(date) => date && setCurrentMonth(date)}
-                  initialFocus
-                  locale={uz}
-                />
-              </PopoverContent>
-            </Popover>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-48"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(currentMonth, 'MMMM yyyy', { locale: uz })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={currentMonth}
+                      onSelect={(date) => date && setCurrentMonth(date)}
+                      initialFocus
+                      locale={uz}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {filterMode === 'range' && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="min-w-[220px] justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {rangeFromStr && rangeToStr
+                      ? `${rangeFromStr} — ${rangeToStr}`
+                      : rangeFromStr
+                        ? rangeFromStr
+                        : "Sana tanlang"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    initialFocus
+                    locale={uz}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            <div className="text-xs text-gray-500">
+              {displayedLessonDays.length} dars kuni
+            </div>
           </div>
 
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button onClick={handleExportToExcel} variant="outline" size="sm" className="gap-2">
             <Download className="h-4 w-4" />
             Excel chiqarish
           </Button>
         </div>
 
-        {/* Davomat jadvali */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-w-0">
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 <th className="sticky left-0 bg-gray-50 border border-gray-200 px-3 py-2 text-left text-sm font-semibold w-48 z-10">
                   O'quvchi (Foiz)
                 </th>
-                {daysInMonth.map((day, idx) => (
+                {displayedLessonDays.map((dateStr, idx) => {
+                  const day = parseISO(dateStr);
+                  return (
                   <th
                     key={idx}
                     className="border border-gray-200 px-2 py-2 text-center text-xs font-medium bg-gray-50 min-w-12"
@@ -297,13 +448,20 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                     <div className="text-gray-600">{format(day, 'd')}</div>
                     <div className="text-gray-400">{format(day, 'EEE', { locale: uz }).substring(0, 2)}</div>
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {students.length === 0 ? (
+              {displayedLessonDays.length === 0 ? (
                 <tr>
-                  <td colSpan={daysInMonth.length + 1} className="text-center py-8 text-gray-500">
+                  <td colSpan={1} className="text-center py-8 text-gray-500">
+                    Tanlangan davrda dars o'tilmagan (davomat belgilanmagan)
+                  </td>
+                </tr>
+              ) : students.length === 0 ? (
+                <tr>
+                  <td colSpan={displayedLessonDays.length + 1} className="text-center py-8 text-gray-500">
                     O'quvchilar topilmadi
                   </td>
                 </tr>
@@ -325,12 +483,26 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                         </span>
                       </div>
                     </td>
-                    {daysInMonth.map((day, idx) => {
-                      const dateStr = format(day, 'yyyy-MM-dd');
+                    {displayedLessonDays.map((dateStr, idx) => {
                       const key = `${student.id}_${dateStr}`;
                       const record = attendance[key];
                       const effectiveJoinDate = getEffectiveJoinDate(student);
+                      const effectiveArchiveDate = getEffectiveArchiveDate(student);
+                      
                       const isBeforeJoinDate = effectiveJoinDate && dateStr < effectiveJoinDate;
+                      const isAfterArchiveDate = effectiveArchiveDate && dateStr > effectiveArchiveDate;
+                      const isFutureDate = dateStr > today;
+                      const isDisabled = isBeforeJoinDate || isAfterArchiveDate || isFutureDate;
+                      const effectiveRecord = (isBeforeJoinDate || isAfterArchiveDate) ? undefined : record;
+                      
+                      let tooltipText = '';
+                      if (isFutureDate) {
+                        tooltipText = "Kelajak uchun belgilab bo'lmaydi";
+                      } else if (isBeforeJoinDate) {
+                        tooltipText = `O'quvchi ${format(parseISO(effectiveJoinDate!), 'd-MM-yyyy', { locale: uz })} da qo'shilgan.`;
+                      } else if (isAfterArchiveDate) {
+                        tooltipText = `O'quvchi ${format(parseISO(effectiveArchiveDate!), 'd-MM-yyyy', { locale: uz })} da chiqib ketgan.`;
+                      }
 
                       return (
                         <td
@@ -338,18 +510,18 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                           className="border border-gray-200 p-1 text-center min-w-12"
                         >
                           <button
-                            onClick={() => !isBeforeJoinDate && toggleAttendance(student.id, dateStr)}
-                            disabled={isBeforeJoinDate}
+                            onClick={() => !isDisabled && toggleAttendance(student.id, dateStr)}
+                            disabled={isDisabled}
                             className={cn(
                               'w-full py-2 px-1 border-2 rounded font-semibold text-sm transition-colors',
-                              isBeforeJoinDate
+                              isDisabled
                                 ? 'opacity-30 cursor-not-allowed'
                                 : 'cursor-pointer hover:opacity-80',
-                              getStatusColor(record?.status)
+                              getStatusColor(effectiveRecord?.status)
                             )}
-                            title={isBeforeJoinDate ? 'O\'quvchi bu sanada qo\'shilmagan' : ''}
+                            title={tooltipText}
                           >
-                            {getStatusSymbol(record?.status) || '−'}
+                            {getStatusSymbol(effectiveRecord?.status) || '−'}
                           </button>
                         </td>
                       );

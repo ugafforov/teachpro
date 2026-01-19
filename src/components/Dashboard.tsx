@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Trash2, Menu, Database, Shield } from 'lucide-react';
+import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Menu, Database } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -9,10 +9,8 @@ import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
 import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
-import TrashManager from './TrashManager';
 import ExamManager from './ExamManager';
 import DataManager from './DataManager';
-import DataIntegrityManager from './DataIntegrityManager';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStatistics } from '@/components/statistics/hooks/useStatistics';
 import MonthlyAnalysis from './statistics/MonthlyAnalysis';
@@ -26,7 +24,17 @@ interface DashboardProps {
 
 
 const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const activeTabStorageKey = `tp:dashboard:activeTab:${teacherId}`;
+  const selectedGroupStorageKey = `tp:groups:selectedGroup:${teacherId}`;
+
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem(activeTabStorageKey);
+      return saved || 'overview';
+    } catch {
+      return 'overview';
+    }
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,6 +47,48 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   useEffect(() => {
     fetchGroups();
   }, [teacherId]);
+
+  useEffect(() => {
+    const validTabIds = new Set([
+      'overview',
+      'groups',
+      'students',
+      'exams',
+      'rankings',
+      'archive',
+      'data'
+    ]);
+
+    try {
+      const saved = localStorage.getItem(activeTabStorageKey);
+      if (saved && validTabIds.has(saved)) {
+        setActiveTab(saved);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!validTabIds.has(activeTab)) {
+      setActiveTab('overview');
+    }
+  }, [activeTabStorageKey, teacherId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(activeTabStorageKey, activeTab);
+    } catch {
+      // ignore
+    }
+
+    if (activeTab !== 'groups') {
+      try {
+        localStorage.removeItem(selectedGroupStorageKey);
+      } catch {
+        // ignore
+      }
+    }
+  }, [activeTab, activeTabStorageKey, selectedGroupStorageKey]);
 
   const fetchGroups = async () => {
     try {
@@ -67,9 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     { id: 'exams', label: 'Imtihonlar', icon: TrendingUp },
     { id: 'rankings', label: 'Reyting', icon: Trophy },
     { id: 'archive', label: 'Arxiv', icon: Archive },
-    { id: 'trash', label: 'Chiqindilar qutisi', icon: Trash2 },
     { id: 'data', label: 'Ma\'lumotlar', icon: Database },
-    { id: 'integrity', label: 'Yaxlitlik', icon: Shield },
   ];
 
   const renderContent = () => {
@@ -84,12 +132,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         return <StudentRankings teacherId={teacherId} />;
       case 'archive':
         return <ArchiveManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
-      case 'trash':
-        return <TrashManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
       case 'data':
         return <DataManager teacherId={teacherId} />;
-      case 'integrity':
-        return <DataIntegrityManager teacherId={teacherId} />;
       default:
         return (
           <div className="space-y-8">
@@ -216,9 +260,9 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   };
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="h-screen overflow-hidden bg-white flex flex-col">
       {/* Top Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
@@ -248,46 +292,50 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             </div>
           </div>
         </div>
-
-        <Button
-          onClick={onLogout}
-          variant="ghost"
-          className="flex items-center space-x-2"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Chiqish</span>
-        </Button>
       </div>
 
-      <div className="flex">
+      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <div className={`
           ${sidebarCollapsed ? 'w-16' : 'w-64'} 
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          bg-white shadow-lg h-screen fixed lg:relative z-40 transition-all duration-300 ease-in-out
-          ${sidebarCollapsed ? '' : 'top-[73px]'} lg:top-0
+          bg-white shadow-lg lg:h-full fixed lg:relative z-40 transition-all duration-300 ease-in-out
+          ${mobileMenuOpen ? 'top-0 h-screen' : ''}
         `}>
-          <nav className="mt-6 pb-20 overflow-y-auto">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center px-6 py-3 text-left transition-colors ${activeTab === item.id
-                    ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
-                    : 'text-gray-600 hover:bg-gray-50'
-                    } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
-                  title={sidebarCollapsed ? item.label : ''}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  {!sidebarCollapsed && <span className="ml-3">{item.label}</span>}
-                </button>
-              );
-            })}
+          <nav className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto py-6">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center px-6 py-3 text-left transition-colors ${activeTab === item.id
+                      ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                    title={sidebarCollapsed ? item.label : ''}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    {!sidebarCollapsed && <span className="ml-3">{item.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-auto border-t border-gray-100 p-2">
+              <button
+                onClick={onLogout}
+                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-red-600 hover:bg-red-50 rounded-lg ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                title={sidebarCollapsed ? "Chiqish" : ''}
+              >
+                <LogOut className="w-5 h-5 flex-shrink-0" />
+                {!sidebarCollapsed && <span className="ml-3 font-medium">Chiqish</span>}
+              </button>
+            </div>
           </nav>
         </div>
 
@@ -300,8 +348,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         )}
 
         {/* Main Content */}
-        <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-0' : 'lg:ml-0'}`}>
-          <div className="p-4 lg:p-8 bg-white min-h-screen">
+        <div className="flex-1 overflow-y-auto h-full bg-white">
+          <div className="p-4 lg:p-8">
             {renderContent()}
           </div>
         </div>
