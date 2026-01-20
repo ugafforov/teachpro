@@ -1,8 +1,25 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { format, addMinutes } from "date-fns"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/**
+ * Toshkent vaqtini (UTC+5) olish
+ */
+export function getTashkentDate(date: Date = new Date()): Date {
+  // Brauzer vaqtini UTC ga o'tkazamiz va 5 soat (300 minut) qo'shamiz
+  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+  return new Date(utc + (3600000 * 5));
+}
+
+/**
+ * Toshkent vaqti bo'yicha bugungi sanani YYYY-MM-DD formatida olish
+ */
+export function getTashkentToday(): string {
+  return format(getTashkentDate(), 'yyyy-MM-dd');
 }
 
 const uzbekMonths = [
@@ -27,9 +44,11 @@ export function formatDateUz(date: any, style: 'short' | 'long' = 'long'): strin
     return style === 'short' ? '--.--.----' : "Noma'lum sana";
   }
 
-  const day = d.getDate();
-  const month = d.getMonth();
-  const year = d.getFullYear();
+  // Formatlashda Toshkent vaqtiga o'tkazamiz
+  const tashkentDate = getTashkentDate(d);
+  const day = tashkentDate.getDate();
+  const month = tashkentDate.getMonth();
+  const year = tashkentDate.getFullYear();
 
   if (style === 'short') {
     return `${day.toString().padStart(2, '0')}.${(month + 1).toString().padStart(2, '0')}.${year}`;

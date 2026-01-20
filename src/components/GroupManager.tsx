@@ -12,7 +12,7 @@ import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimest
 import GroupDetails from './GroupDetails';
 import { groupSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
-import { formatDateUz } from '@/lib/utils';
+import { formatDateUz, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 
 interface Group {
@@ -274,7 +274,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         name: newGroup.name.trim(),
         description: newGroup.description.trim() || null,
         is_active: true,
-        created_at: new Date().toISOString()
+        created_at: getTashkentDate().toISOString()
       });
 
       await fetchGroups();
@@ -422,12 +422,12 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           group_name: student.group_name,
           join_date: student.join_date || null,
           created_at: student.created_at || null,
-          left_date: new Date().toISOString().split('T')[0],
+          left_date: getTashkentToday(),
           archived_at: serverTimestamp()
         });
         await updateDoc(doc(db, 'students', studentDoc.id), {
           is_active: false,
-          left_date: new Date().toISOString().split('T')[0],
+          left_date: getTashkentToday(),
           archived_at: serverTimestamp()
         });
       }

@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getTashkentDate } from '@/lib/utils';
 
 interface RestoreDialogProps {
     isOpen: boolean;
@@ -36,7 +36,7 @@ const RestoreDialog: React.FC<RestoreDialogProps> = ({
     confirmText = "Tiklash",
     cancelText = "Bekor qilish"
 }) => {
-    const [date, setDate] = useState<Date>(new Date());
+    const [date, setDate] = useState<Date>(getTashkentDate());
 
     const handleConfirm = () => {
         onConfirm(date);

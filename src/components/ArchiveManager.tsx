@@ -20,7 +20,7 @@ import {
   writeBatch,
   Timestamp
 } from 'firebase/firestore';
-import { formatDateUz } from '@/lib/utils';
+import { formatDateUz, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 import RestoreDialog from './RestoreDialog';
 import { format } from 'date-fns';
@@ -113,8 +113,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         studentsSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as ArchivedStudent))
           .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : new Date(a.archived_at).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : new Date(b.archived_at).getTime() / 1000;
+            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
+            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
             return dateB - dateA;
           })
       );
@@ -128,8 +128,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         groupsSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as ArchivedGroup))
           .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : new Date(a.archived_at).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : new Date(b.archived_at).getTime() / 1000;
+            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
+            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
             return dateB - dateA;
           })
       );
@@ -143,8 +143,8 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         examsSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as ArchivedExam))
           .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : new Date(a.archived_at).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : new Date(b.archived_at).getTime() / 1000;
+            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
+            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
             return dateB - dateA;
           })
       );
@@ -360,7 +360,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {student.archived_at?.seconds ? formatDateUz(new Date(student.archived_at.seconds * 1000).toISOString()) : ''}
+                      {student.archived_at?.seconds ? formatDateUz(student.archived_at) : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('student', student.id, student.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
@@ -396,7 +396,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {group.archived_at?.seconds ? formatDateUz(new Date(group.archived_at.seconds * 1000).toISOString()) : ''}
+                      {group.archived_at?.seconds ? formatDateUz(group.archived_at) : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('group', group.id, group.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
@@ -436,7 +436,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {exam.archived_at?.seconds ? formatDateUz(new Date(exam.archived_at.seconds * 1000).toISOString()) : ''}
+                      {exam.archived_at?.seconds ? formatDateUz(exam.archived_at) : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('exam', exam.id, exam.exam_name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>

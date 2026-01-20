@@ -40,7 +40,7 @@ import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getTashkentToday } from '@/lib/utils';
 import { fetchAllRecords } from '@/lib/firebaseHelpers';
 import { PRESENT_POINTS, LATE_POINTS } from '@/lib/studentScoreCalculator';
 
@@ -98,8 +98,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     availableGroups = [],
     onGroupChange
 }) => {
-    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const [selectedDate, setSelectedDate] = useState(getTashkentToday());
+    const today = getTashkentToday();
     const isFutureDate = selectedDate > today;
     const [students, setStudents] = useState<Student[]>([]);
     const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
@@ -135,7 +135,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
     const [newStudent, setNewStudent] = useState({
         name: '',
-        join_date: format(new Date(), 'yyyy-MM-dd'),
+        join_date: getTashkentToday(),
         student_id: '',
         email: '',
         phone: ''
@@ -286,7 +286,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 // Calculate start date for filtering
                 let startDate: string | null = null;
                 if (selectedPeriod !== 'all') {
-                    const now = new Date();
+                    const now = getTashkentDate();
                     switch (selectedPeriod) {
                         case '1_day': now.setDate(now.getDate() - 1); break;
                         case '1_week': now.setDate(now.getDate() - 7); break;
@@ -443,7 +443,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             });
             await fetchStudents();
             await onStatsUpdate();
-            setNewStudent({ name: '', join_date: format(new Date(), 'yyyy-MM-dd'), student_id: '', email: '', phone: '' });
+            setNewStudent({ name: '', join_date: getTashkentToday(), student_id: '', email: '', phone: '' });
             setIsAddDialogOpen(false);
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi qo'shildi" });
         } catch (error) {
@@ -622,7 +622,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 points: Math.abs(points),
                 type,
                 reason: type,
-                date: format(new Date(), 'yyyy-MM-dd'),
+                date: getTashkentToday(),
                 created_at: serverTimestamp()
             });
             setShowRewardDialog(null);
@@ -820,13 +820,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
             await updateDoc(doc(db, 'students', studentId), {
                 is_active: false,
-                left_date: new Date().toISOString().split('T')[0],
+                left_date: getTashkentToday(),
                 archived_at: serverTimestamp()
             });
             await addDoc(collection(db, 'archived_students'), {
                 ...studentData,
                 original_student_id: studentId,
-                left_date: new Date().toISOString().split('T')[0],
+                left_date: getTashkentToday(),
                 archived_at: serverTimestamp()
             });
 
@@ -908,7 +908,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             } else if (typeof student.archived_at === 'string') {
                 return student.archived_at.split('T')[0];
             } else if (typeof student.archived_at?.seconds === 'number') {
-                return new Date(student.archived_at.seconds * 1000).toISOString().split('T')[0];
+                return format(getTashkentDate(new Date(student.archived_at.seconds * 1000)), 'yyyy-MM-dd');
             }
         }
         return null;
@@ -1233,7 +1233,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                             <PopoverContent className="w-auto p-0" align="start">
                                                 <Calendar
                                                     mode="single"
-                                                    selected={editingStudent.join_date ? parseISO(editingStudent.join_date) : new Date()}
+                                                    selected={editingStudent.join_date ? parseISO(editingStudent.join_date) : getTashkentDate()}
                                                     onSelect={(date) => date && setEditingStudent({ ...editingStudent, join_date: format(date, 'yyyy-MM-dd') })}
                                                     initialFocus
                                                     locale={uz}
@@ -1462,7 +1462,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                             onSelect={() => {
                                                                                 const studentWithJoinDate = {
                                                                                     ...student,
-                                                                                    join_date: student.join_date || getEffectiveJoinDate(student) || format(new Date(), 'yyyy-MM-dd')
+                                                                                    join_date: student.join_date || getEffectiveJoinDate(student) || getTashkentToday()
                                                                                 };
                                                                                 setEditingStudent(studentWithJoinDate);
                                                                                 setIsEditDialogOpen(true);

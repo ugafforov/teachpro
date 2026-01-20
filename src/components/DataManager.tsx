@@ -3,6 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2, Shield, Database } from 'lucide-react';
+import { cn, getTashkentDate, getTashkentToday } from '@/lib/utils';
+import { format } from 'date-fns';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -144,7 +146,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       const checksum = calculateChecksum(data);
 
       const exportObject: UniversalExportData = {
-        exportDate: new Date().toISOString(),
+        exportDate: getTashkentDate().toISOString(),
         version: '3.0',
         format: 'universal',
         sourceDatabase: 'firebase-firestore',
@@ -163,7 +165,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       a.href = url;
 
       // Format: teachpro_backup_2024-01-07T14-30-45_1234-records.json
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const timestamp = format(getTashkentDate(), "yyyy-MM-dd'T'HH-mm-ss");
       const totalRecords = Object.values(data).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
       a.download = `teachpro_backup_${timestamp}_${totalRecords}-records.json`;
 
@@ -225,7 +227,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
   const convertToTimestamp = (value: any) => {
     if (!value) return serverTimestamp();
     if (typeof value === 'string') {
-      const date = new Date(value);
+      const date = getTashkentDate(new Date(value));
       return isNaN(date.getTime()) ? serverTimestamp() : Timestamp.fromDate(date);
     }
     if (value && typeof value === 'object') {

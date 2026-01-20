@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Calendar as CalendarIcon } from 'lucide-react';
+import { Users, Plus, Edit2, Archive, Gift, AlertTriangle, Search, List, LayoutGrid, Calendar as CalendarIcon, CheckSquare, Square, Trash2 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, formatDateUz, getTashkentToday, getTashkentDate } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { db, addDocument, updateDocument, getCollection } from '@/lib/firebase';
 import { collection, query, where, orderBy, getDocs, doc, setDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -18,7 +18,6 @@ import StudentDetailsPopup from './StudentDetailsPopup';
 import StudentImport from './StudentImport';
 import { studentSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
-import { formatDateUz } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 
 interface Student {
@@ -51,9 +50,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -63,9 +63,11 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
+  const [displayedCount, setDisplayedCount] = useState(20);
+  const PAGE_SIZE = 20;
   const [newStudent, setNewStudent] = useState({
     name: '',
-    join_date: format(new Date(), 'yyyy-MM-dd'),
+    join_date: getTashkentToday(),
     student_id: '',
     email: '',
     phone: '',
@@ -88,8 +90,34 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   }, [teacherId]);
 
   useEffect(() => {
-    filterStudents();
-  }, [students, selectedGroup, searchTerm]);
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setDisplayedCount(PAGE_SIZE);
+  }, [debouncedSearchTerm, selectedGroup]);
+
+  const filteredStudents = useMemo(() => {
+    let filtered = students;
+    if (selectedGroup !== 'all') {
+      filtered = filtered.filter(student => student.group_name === selectedGroup);
+    }
+    if (debouncedSearchTerm) {
+      const lowerSearch = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter(student =>
+        student.name.toLowerCase().includes(lowerSearch) ||
+        (student.student_id && student.student_id.toLowerCase().includes(lowerSearch))
+      );
+    }
+    return filtered;
+  }, [students, selectedGroup, debouncedSearchTerm]);
+
+  const pagedStudents = useMemo(() => {
+    return filteredStudents.slice(0, displayedCount);
+  }, [filteredStudents, displayedCount]);
 
   const fetchStudents = async () => {
     try {
@@ -132,18 +160,80 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
-  const filterStudents = () => {
-    let filtered = students;
-    if (selectedGroup !== 'all') {
-      filtered = filtered.filter(student => student.group_name === selectedGroup);
+  const toggleStudentSelection = (studentId: string) => {
+    setSelectedStudentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedStudentIds.size === filteredStudents.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(filteredStudents.map(s => s.id)));
     }
-    if (searchTerm) {
-      filtered = filtered.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.student_id && student.student_id.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+  };
+
+  const handleBatchArchive = async () => {
+    if (selectedStudentIds.size === 0) return;
+    
+    if (!window.confirm(`${selectedStudentIds.size} ta o'quvchini arxivlashni tasdiqlaysizmi?`)) {
+      return;
     }
-    setFilteredStudents(filtered);
+
+    setLoading(true);
+    try {
+      const promises = Array.from(selectedStudentIds).map(async (studentId) => {
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        // Add to archived_students
+        await addDoc(collection(db, 'archived_students'), {
+          original_student_id: studentId,
+          teacher_id: teacherId,
+          name: student.name,
+          student_id: student.student_id,
+          group_name: student.group_name,
+          email: student.email,
+          phone: student.phone,
+          join_date: student.join_date || null,
+          created_at: student.created_at || null,
+          left_date: getTashkentToday(),
+          archived_at: serverTimestamp()
+        });
+
+        // Mark as inactive
+        await updateDoc(doc(db, 'students', studentId), {
+          is_active: false,
+          left_date: getTashkentToday(),
+          archived_at: serverTimestamp()
+        });
+      });
+
+      await Promise.all(promises);
+      await fetchStudents();
+      if (onStatsUpdate) await onStatsUpdate();
+      setSelectedStudentIds(new Set());
+      toast({
+        title: "Muvaffaqiyat",
+        description: `${selectedStudentIds.size} ta o'quvchi arxivlandi`
+      });
+    } catch (error) {
+      console.error('Error batch archiving:', error);
+      toast({
+        title: "Xatolik",
+        description: "Ommaviy arxivlashda xatolik yuz berdi",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addStudent = async () => {
@@ -185,14 +275,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         phone: newStudent.phone.trim() || null,
         group_name: newStudent.group_name,
         is_active: true,
-        created_at: new Date().toISOString()
+        created_at: getTashkentDate().toISOString()
       });
 
       await fetchStudents();
       if (onStatsUpdate) await onStatsUpdate();
       setNewStudent({
         name: '',
-        join_date: format(new Date(), 'yyyy-MM-dd'),
+        join_date: getTashkentToday(),
         student_id: '',
         email: '',
         phone: '',
@@ -274,14 +364,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         phone: student.phone,
         join_date: student.join_date || null,
         created_at: student.created_at || null,
-        left_date: new Date().toISOString().split('T')[0],
+        left_date: getTashkentToday(),
         archived_at: serverTimestamp()
       });
 
       // Mark as inactive
       await updateDoc(doc(db, 'students', studentId), {
         is_active: false,
-        left_date: new Date().toISOString().split('T')[0],
+        left_date: getTashkentToday(),
         archived_at: serverTimestamp()
       });
 
@@ -329,8 +419,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         points: Math.abs(points),
         type,
         reason: type,
-        date: new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString()
+        date: getTashkentToday(),
+        created_at: getTashkentDate().toISOString()
       });
 
       setShowRewardDialog(null);
@@ -353,16 +443,44 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
   const renderStudentsList = () => (
     <Card className="apple-card">
-      <div className="p-6 border-b border-border/50">
-        <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
-        <p className="text-sm text-muted-foreground">
-          {filteredStudents.length} o'quvchi topildi
-        </p>
+      <div className="p-6 border-b border-border/50 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">O'quvchilar ro'yxati</h3>
+          <p className="text-sm text-muted-foreground">
+            {filteredStudents.length} o'quvchi topildi
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          {selectedStudentIds.size > 0 && (
+            <Button variant="outline" size="sm" className="text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100" onClick={handleBatchArchive}>
+              <Archive className="w-4 h-4 mr-2" />
+              Arxivlash ({selectedStudentIds.size})
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={toggleAllSelection}>
+            {selectedStudentIds.size === filteredStudents.length ? (
+              <CheckSquare className="w-4 h-4 mr-2" />
+            ) : (
+              <Square className="w-4 h-4 mr-2" />
+            )}
+            Barchasini tanlash
+          </Button>
+        </div>
       </div>
       <div className="divide-y divide-border/50">
         {filteredStudents.map(student => (
           <div key={student.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
             <div className="flex items-center space-x-4">
+              <div 
+                className="cursor-pointer text-muted-foreground hover:text-primary transition-colors"
+                onClick={() => toggleStudentSelection(student.id)}
+              >
+                {selectedStudentIds.has(student.id) ? (
+                  <CheckSquare className="w-5 h-5 text-primary" />
+                ) : (
+                  <Square className="w-5 h-5" />
+                )}
+              </div>
               <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
                 <span className="text-sm font-medium">
                   {student.name.split(' ').map(n => n[0]).join('')}
@@ -474,11 +592,16 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           <h2 className="text-2xl font-bold">O'quvchilar boshqaruvi</h2>
           <p className="text-muted-foreground">O'quvchilarni qo'shing va boshqaring</p>
         </div>
-        <div className="flex gap-2">
-          <StudentImport teacherId={teacherId} groupName={selectedGroup !== 'all' ? selectedGroup : undefined} onImportComplete={() => {
-            fetchStudents();
-            if (onStatsUpdate) onStatsUpdate();
-          }} availableGroups={groups} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StudentImport 
+            teacherId={teacherId} 
+            groupName={selectedGroup !== 'all' ? selectedGroup : undefined} 
+            onImportComplete={async () => {
+              await fetchStudents();
+              if (onStatsUpdate) await onStatsUpdate();
+            }} 
+            availableGroups={groups} 
+          />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="apple-button">
@@ -486,56 +609,40 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                 Yangi o'quvchi
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Yangi o'quvchi qo'shish</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="studentName">O'quvchi nomi *</Label>
-                  <Input id="studentName" value={newStudent.name} onChange={e => setNewStudent({
-                    ...newStudent,
-                    name: e.target.value
-                  })} placeholder="To'liq ism sharif" />
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">F.I.SH</Label>
+                  <Input
+                    id="name"
+                    value={newStudent.name}
+                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                    placeholder="Masalan: Ali Valiyev"
+                  />
                 </div>
-                <div>
-                  <Label>Qo'shilgan sana *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !newStudent.join_date && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newStudent.join_date ? format(parseISO(newStudent.join_date), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={parseISO(newStudent.join_date)}
-                        onSelect={(date) => date && setNewStudent({ ...newStudent, join_date: format(date, 'yyyy-MM-dd') })}
-                        initialFocus
-                        locale={uz}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                <div className="grid gap-2">
+                  <Label htmlFor="student_id">O'quvchi ID (ixtiyoriy)</Label>
+                  <Input
+                    id="student_id"
+                    value={newStudent.student_id}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })}
+                    placeholder="Masalan: S12345"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="studentId">O'quvchi ID</Label>
-                  <Input id="studentId" value={newStudent.student_id} onChange={e => setNewStudent({
-                    ...newStudent,
-                    student_id: e.target.value
-                  })} placeholder="Masalan: 2024001" />
-                </div>
-                <div>
-                  <Label htmlFor="studentGroup">Guruh *</Label>
-                  <Select value={newStudent.group_name} onValueChange={value => setNewStudent({
-                    ...newStudent,
-                    group_name: value
-                  })}>
+                <div className="grid gap-2">
+                  <Label>Guruh</Label>
+                  <Select
+                    value={newStudent.group_name}
+                    onValueChange={(value) => setNewStudent({ ...newStudent, group_name: value })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Guruhni tanlang" />
                     </SelectTrigger>
                     <SelectContent>
-                      {groups.map(group => (
+                      {groups.map((group) => (
                         <SelectItem key={group.id} value={group.name}>
                           {group.name}
                         </SelectItem>
@@ -543,63 +650,116 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="studentEmail">Email</Label>
-                  <Input id="studentEmail" type="email" value={newStudent.email} onChange={e => setNewStudent({
-                    ...newStudent,
-                    email: e.target.value
-                  })} placeholder="student@example.com" />
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Telefon raqam (ixtiyoriy)</Label>
+                  <Input
+                    id="phone"
+                    value={newStudent.phone}
+                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                    placeholder="Masalan: +998901234567"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="studentPhone">Telefon</Label>
-                  <Input id="studentPhone" value={newStudent.phone} onChange={e => setNewStudent({
-                    ...newStudent,
-                    phone: e.target.value
-                  })} placeholder="+998 90 123 45 67" />
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email (ixtiyoriy)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newStudent.email}
+                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                    placeholder="Masalan: ali@example.com"
+                  />
                 </div>
-                <div className="flex space-x-2">
-                  <Button onClick={addStudent} className="apple-button flex-1">
-                    Qo'shish
-                  </Button>
-                  <Button onClick={() => setIsAddDialogOpen(false)} variant="outline" className="flex-1">
-                    Bekor qilish
-                  </Button>
+                <div className="grid gap-2">
+                  <Label>A'zo bo'lgan sana</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !newStudent.join_date && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newStudent.join_date ? (
+                          format(parseISO(newStudent.join_date), 'PPP', { locale: uz })
+                        ) : (
+                          <span>Sana tanlang</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newStudent.join_date ? parseISO(newStudent.join_date) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            setNewStudent({
+                              ...newStudent,
+                              join_date: format(date, 'yyyy-MM-dd')
+                            });
+                          }
+                        }}
+                        initialFocus
+                        locale={uz}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
+              </div>
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Bekor qilish
+                </Button>
+                <Button onClick={addStudent}>Qo'shish</Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      <Card className="apple-card p-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input placeholder="O'quvchi nomi yoki ID bo'yicha qidiring..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-          </div>
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Ism yoki ID bo'yicha qidirish..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2">
           <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Barcha guruhlar" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Barcha guruhlar</SelectItem>
               {groups.map(group => (
-                <SelectItem key={group.id} value={group.name}>
-                  {group.name}
-                </SelectItem>
+                <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <div className="flex gap-2">
-            <Button variant={viewMode === 'grid' ? 'default' : 'outline'} onClick={() => setViewMode('grid')} size="sm" title="Grid ko'rinishi">
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
-            <Button variant={viewMode === 'list' ? 'default' : 'outline'} onClick={() => setViewMode('list')} size="sm" title="Ro'yxat ko'rinishi">
+          <div className="flex border rounded-lg overflow-hidden">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="rounded-none"
+              onClick={() => setViewMode('list')}
+            >
               <List className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="rounded-none"
+              onClick={() => setViewMode('grid')}
+            >
+              <LayoutGrid className="w-4 h-4" />
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {filteredStudents.length === 0 ? (
         <Card className="apple-card p-12 text-center">

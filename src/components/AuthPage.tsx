@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { getTashkentDate } from '@/lib/utils';
 import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
 import { firebaseSignIn, firebaseSignUp, db, addDocument } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -78,7 +79,7 @@ const AuthPage: React.FC = () => {
           institution_name: formData.institution_name,
           institution_address: formData.institution_address,
           is_approved: false,
-          created_at: new Date().toISOString()
+          created_at: getTashkentDate().toISOString()
         });
 
         toast({

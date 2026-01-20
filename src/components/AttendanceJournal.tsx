@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { format, addMonths, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -49,9 +49,9 @@ interface AttendanceJournalProps {
 }
 
 const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupName }) => {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = getTashkentToday();
   const [filterMode, setFilterMode] = useState<'all' | 'month' | 'range'>('all');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(getTashkentDate());
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceRecord>>({});
@@ -109,9 +109,9 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     if (student.join_date) return student.join_date;
     if (student.created_at) {
       if (student.created_at instanceof Timestamp) {
-        return student.created_at.toDate().toISOString().split('T')[0];
+        return format(getTashkentDate(student.created_at.toDate()), 'yyyy-MM-dd');
       } else if (typeof student.created_at === 'string') {
-        return student.created_at.split('T')[0];
+        return getTashkentDate(new Date(student.created_at)).toISOString().split('T')[0];
       }
     }
     return null;
@@ -122,11 +122,11 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     if (student.left_date) return student.left_date;
     if (student.archived_at) {
       if (student.archived_at instanceof Timestamp) {
-        return student.archived_at.toDate().toISOString().split('T')[0];
+        return format(getTashkentDate(student.archived_at.toDate()), 'yyyy-MM-dd');
       } else if (typeof student.archived_at === 'string') {
-        return student.archived_at.split('T')[0];
+        return getTashkentDate(new Date(student.archived_at)).toISOString().split('T')[0];
       } else if (typeof student.archived_at?.seconds === 'number') {
-        return new Date(student.archived_at.seconds * 1000).toISOString().split('T')[0];
+        return format(getTashkentDate(new Date(student.archived_at.seconds * 1000)), 'yyyy-MM-dd');
       }
     }
     return null;

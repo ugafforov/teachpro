@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { examSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
-import { formatDateUz } from '@/lib/utils';
+import { formatDateUz, getTashkentToday, getTashkentDate } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 
 interface ExamManagerProps {
@@ -77,7 +77,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [selectedExamType, setSelectedExamType] = useState<string>('');
   const [customExamName, setCustomExamName] = useState<string>('');
-  const [examDate, setExamDate] = useState<string>('');
+  const [examDate, setExamDate] = useState<string>(getTashkentToday());
   const [currentExamId, setCurrentExamId] = useState<string>('');
 
   const [examResults, setExamResults] = useState<Record<string, string>>({});
@@ -136,21 +136,26 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         return false;
       }
 
-      const examDateObj = new Date(exam.exam_date);
-      const today = new Date();
+      const examDateObj = getTashkentDate(new Date(exam.exam_date));
+      const today = getTashkentDate();
       today.setHours(0, 0, 0, 0);
 
+      const examDateOnly = new Date(examDateObj);
+      examDateOnly.setHours(0, 0, 0, 0);
+
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+      weekAgo.setHours(0, 0, 0, 0);
+
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(today.getMonth() - 1);
+      monthAgo.setHours(0, 0, 0, 0);
+
       if (dateFilter === 'today') {
-        const examDateOnly = new Date(examDateObj);
-        examDateOnly.setHours(0, 0, 0, 0);
         return examDateOnly.getTime() === today.getTime();
       } else if (dateFilter === 'week') {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
         return examDateObj >= weekAgo;
       } else if (dateFilter === 'month') {
-        const monthAgo = new Date(today);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
         return examDateObj >= monthAgo;
       }
 
@@ -161,7 +166,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const groupedExams = useMemo(() => {
     const groups: Record<string, Exam[]> = {};
     filteredExams.forEach(exam => {
-      const date = new Date(exam.exam_date);
+      const date = getTashkentDate(new Date(exam.exam_date));
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!groups[monthKey]) groups[monthKey] = [];
       groups[monthKey].push(exam);
@@ -175,8 +180,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const stats = useMemo(() => {
     const total = exams.length;
     const thisMonth = exams.filter(e => {
-      const date = new Date(e.exam_date);
-      const now = new Date();
+      const date = getTashkentDate(new Date(e.exam_date));
+      const now = getTashkentDate();
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
     const uniqueTypes = new Set(exams.map(e => e.exam_name)).size;

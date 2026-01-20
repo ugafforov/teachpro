@@ -11,7 +11,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -37,7 +37,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
   const [isOpen, setIsOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [selectedGroup, setSelectedGroup] = useState(groupName || '');
-  const [joinDate, setJoinDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [joinDate, setJoinDate] = useState(getTashkentToday());
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 

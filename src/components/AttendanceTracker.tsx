@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, formatDateUz, getTashkentToday } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -24,7 +24,6 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import StudentDetailsPopup from './StudentDetailsPopup';
-import { formatDateUz } from '@/lib/utils';
 
 interface Student {
   id: string;
@@ -51,7 +50,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState<string>(getTashkentToday());
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
@@ -263,7 +262,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         points: Math.abs(points),
         type,
         reason: type,
-        date: format(new Date(), 'yyyy-MM-dd'),
+        date: getTashkentToday(),
         created_at: serverTimestamp()
       });
 

@@ -6,6 +6,8 @@ import {
   getDocs,
   Timestamp
 } from 'firebase/firestore';
+import { getTashkentDate } from './utils';
+import { format } from 'date-fns';
 
 /**
  * =============================================================================
@@ -143,9 +145,9 @@ export async function calculateStudentScore(
   let studentJoinDate = studentJoinDateStr || '';
   if (!studentJoinDate) {
     if (studentCreatedAt instanceof Timestamp) {
-      studentJoinDate = studentCreatedAt.toDate().toISOString().split('T')[0];
+      studentJoinDate = getTashkentDate(studentCreatedAt.toDate()).toISOString().split('T')[0];
     } else if (typeof studentCreatedAt === 'string') {
-      studentJoinDate = studentCreatedAt.split('T')[0];
+      studentJoinDate = getTashkentDate(new Date(studentCreatedAt)).toISOString().split('T')[0];
     }
   }
 
@@ -265,7 +267,7 @@ export async function calculateAllStudentScores(
 
   let startDate: string | null = null;
   if (period !== 'all') {
-    const now = new Date();
+    const now = getTashkentDate();
     switch (period) {
       case '1_day': now.setDate(now.getDate() - 1); break;
       case '1_week': now.setDate(now.getDate() - 7); break;
@@ -275,7 +277,7 @@ export async function calculateAllStudentScores(
       case '6_months': now.setMonth(now.getMonth() - 6); break;
       case '10_months': now.setMonth(now.getMonth() - 10); break;
     }
-    startDate = now.toISOString().split('T')[0];
+    startDate = format(now, 'yyyy-MM-dd');
   }
 
   const groupClassDates = new Map<string, Set<string>>();
@@ -424,7 +426,7 @@ export async function calculateDashboardStats(
 
   let startDateStr = '2000-01-01';
   if (period !== 'all') {
-    const now = new Date();
+    const now = getTashkentDate();
     switch (period) {
       case '1_day': now.setDate(now.getDate() - 1); break;
       case '1_week': now.setDate(now.getDate() - 7); break;
@@ -449,7 +451,7 @@ export async function calculateDashboardStats(
   const uzbekMonths = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
 
   filteredAttendance.forEach(record => {
-    const date = new Date(record.date);
+    const date = getTashkentDate(new Date(record.date));
     const month = `${uzbekMonths[date.getMonth()]}, ${date.getFullYear()}`;
 
     if (!monthlyStats[month]) {
