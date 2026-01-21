@@ -21,6 +21,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { DateRange } from 'react-day-picker';
 
 interface Student {
@@ -221,7 +223,6 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     }
   };
 
-  // Davomat holati uchun qisqa belgi
   const getStatusSymbol = (status?: string) => {
     switch (status) {
       case 'present':
@@ -267,7 +268,6 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     return sortedLessonDays;
   })();
 
-  // Davomat foizini hisoblash
   const getAttendancePercentage = (studentId: string): number => {
     const student = students.find(s => s.id === studentId);
     const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
@@ -291,10 +291,10 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     return Math.round((presentDays / applicableLessonDays.length) * 100);
   };
   
-  const handleExportToExcel = () => {
+  const buildExportTable = () => {
     const header = ["O'quvchi (Foiz)", ...displayedLessonDays.map(dateStr => format(parseISO(dateStr), 'd'))];
-    
-    const data = students.map(student => {
+
+    const rows = students.map(student => {
       const studentRow: (string | number)[] = [`${student.name} (${getAttendancePercentage(student.id)}%)`];
       displayedLessonDays.forEach(dateStr => {
         const key = `${student.id}_${dateStr}`;
@@ -312,20 +312,62 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
       return studentRow;
     });
 
-    const excelData = [header, ...data];
+    return { header, rows };
+  };
+
+  const getPeriodLabel = () => {
+    if (filterMode === 'month') {
+      return format(currentMonth, 'MMMM_yyyy', { locale: uz });
+    }
+    if (filterMode === 'range') {
+      if (rangeFromStr && rangeToStr) {
+        return `${rangeFromStr}_${rangeToStr}`;
+      }
+      if (rangeFromStr) {
+        return rangeFromStr;
+      }
+      return 'Tanlanmagan';
+    }
+    return 'Barchasi';
+  };
+
+  const handleExportToExcel = () => {
+    const { header, rows } = buildExportTable();
+    const excelData = [header, ...rows];
 
     const ws = XLSX.utils.aoa_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Davomat");
 
-    const periodLabel =
-      filterMode === 'month'
-        ? format(currentMonth, 'MMMM_yyyy', { locale: uz })
-        : filterMode === 'range'
-          ? (rangeFromStr && rangeToStr ? `${rangeFromStr}_${rangeToStr}` : rangeFromStr ? rangeFromStr : 'Tanlanmagan')
-          : 'Barchasi';
+    const periodLabel = getPeriodLabel();
     const fileName = `Davomat_${groupName}_${periodLabel}.xlsx`;
     XLSX.writeFile(wb, fileName);
+  };
+
+  const handleExportToPdf = () => {
+    const { header, rows } = buildExportTable();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    const periodLabel = getPeriodLabel();
+
+    doc.setFontSize(14);
+    doc.text(`Davomat - ${groupName}`, 14, 16);
+    doc.setFontSize(10);
+    doc.text(`Davr: ${periodLabel}`, 14, 24);
+
+    const head = [header.map(cell => String(cell))];
+    const body = rows.map(r => r.map(cell => String(cell ?? '')));
+
+    (doc as any).autoTable({
+      head,
+      body,
+      startY: 30,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [240, 240, 240] },
+      margin: { left: 14, right: 14 }
+    });
+
+    doc.save(`Davomat_${groupName}_${periodLabel}.pdf`);
   };
 
   if (loading) {
@@ -425,10 +467,16 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
             </div>
           </div>
 
-          <Button onClick={handleExportToExcel} variant="outline" size="sm" className="gap-2">
-            <Download className="h-4 w-4" />
-            Excel chiqarish
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExportToExcel} variant="outline" size="sm" className="gap-2">
+              <Download className="h-4 w-4" />
+              Excel chiqarish
+            </Button>
+            <Button onClick={handleExportToPdf} variant="outline" size="sm" className="gap-2">
+              <Download className="h-4 w-4" />
+              PDF chiqarish
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-x-auto min-w-0">
