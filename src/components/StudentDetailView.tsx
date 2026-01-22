@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Calendar, Gift, AlertTriangle, Award, User, BarChart3, TrendingUp, PieChart, FileSpreadsheet, FileText, ChevronLeft, Phone, Mail, Hash, Clock, Target, Zap, CheckCircle, XCircle, MinusCircle, ArrowLeft, Download } from 'lucide-react';
+import { Trophy, Calendar, Gift, AlertTriangle, Award, User, BarChart3, TrendingUp, TrendingDown, PieChart, FileSpreadsheet, FileText, ChevronLeft, Phone, Mail, Hash, Clock, Target, Zap, CheckCircle, XCircle, MinusCircle, ArrowLeft, Download, GraduationCap, BookOpen, Minus } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import {
   collection,
@@ -71,6 +71,15 @@ interface AttendanceHistoryRecord {
   notes?: string;
 }
 
+interface ExamResultRecord {
+  id: string;
+  exam_id: string;
+  exam_name: string;
+  exam_date: string;
+  score: number;
+  notes?: string;
+}
+
 const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   studentId,
   teacherId,
@@ -80,7 +89,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceHistoryRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'rewards' | 'analysis'>('overview');
+  const [examResults, setExamResults] = useState<ExamResultRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'rewards' | 'exams' | 'analysis'>('overview');
 
   const attendanceChartData = useMemo(() => {
     if (!attendanceHistory.length) return [];
@@ -108,6 +118,112 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       };
     });
   }, [stats]);
+
+  const examChartData = useMemo(() => {
+    if (!examResults.length) return [];
+    // Sort by date and take last 15
+    const sorted = [...examResults].sort((a, b) => 
+      new Date(a.exam_date).getTime() - new Date(b.exam_date).getTime()
+    ).slice(-15);
+    return sorted.map(r => ({
+      date: formatDateUz(r.exam_date).split(',')[0],
+      score: r.score,
+      name: r.exam_name
+    }));
+  }, [examResults]);
+
+  const examStats = useMemo(() => {
+    if (!examResults.length) return { avg: 0, max: 0, min: 0, total: 0 };
+    const scores = examResults.map(r => r.score);
+    return {
+      avg: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10,
+      max: Math.max(...scores),
+      min: Math.min(...scores),
+      total: examResults.length
+    };
+  }, [examResults]);
+
+  // Imtihon turlariga ko'ra guruhlangan tahlil
+  const examsByType = useMemo(() => {
+    if (!examResults.length) return [];
+    
+    // Imtihonlarni turlariga ko'ra guruhlash
+    const typeMap = new Map<string, ExamResultRecord[]>();
+    
+    examResults.forEach(result => {
+      const examName = result.exam_name.toLowerCase();
+      // Tur nomini aniqlash
+      let typeName = result.exam_name;
+      
+      // Typing exam va boshqa turlarni ajratish
+      if (examName.includes('typing') || examName.includes('tezlik') || examName.includes('yozish')) {
+        typeName = 'Typing exam';
+      } else if (examName.includes('nazorat') || examName.includes('control')) {
+        typeName = 'Nazorat ishi';
+      } else if (examName.includes('test')) {
+        typeName = 'Test';
+      } else if (examName.includes('oraliq')) {
+        typeName = 'Oraliq nazorat';
+      } else if (examName.includes('yakuniy')) {
+        typeName = 'Yakuniy nazorat';
+      }
+      
+      if (!typeMap.has(typeName)) {
+        typeMap.set(typeName, []);
+      }
+      typeMap.get(typeName)!.push(result);
+    });
+    
+    // Har bir tur uchun statistika hisoblash
+    const typeStats: Array<{
+      typeName: string;
+      results: ExamResultRecord[];
+      avg: number;
+      trend: 'up' | 'down' | 'stable';
+      trendValue: number;
+      chartData: Array<{ date: string; score: number; name: string }>;
+    }> = [];
+    
+    typeMap.forEach((results, typeName) => {
+      // Sanaga ko'ra tartiblash
+      const sortedResults = [...results].sort((a, b) => 
+        new Date(a.exam_date).getTime() - new Date(b.exam_date).getTime()
+      );
+      
+      const scores = sortedResults.map(r => r.score);
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      
+      // Trend hisoblash (oxirgi 2 natija solishtiriladi)
+      let trend: 'up' | 'down' | 'stable' = 'stable';
+      let trendValue = 0;
+      
+      if (sortedResults.length >= 2) {
+        const lastScore = sortedResults[sortedResults.length - 1].score;
+        const prevScore = sortedResults[sortedResults.length - 2].score;
+        trendValue = lastScore - prevScore;
+        if (trendValue > 0) trend = 'up';
+        else if (trendValue < 0) trend = 'down';
+      }
+      
+      // Grafik uchun ma'lumot
+      const chartData = sortedResults.slice(-10).map(r => ({
+        date: formatDateUz(r.exam_date).split(',')[0],
+        score: r.score,
+        name: r.exam_name
+      }));
+      
+      typeStats.push({
+        typeName,
+        results: sortedResults,
+        avg: Math.round(avg * 10) / 10,
+        trend,
+        trendValue,
+        chartData
+      });
+    });
+    
+    return typeStats;
+  }, [examResults]);
 
   useEffect(() => {
     if (studentId) {
@@ -175,6 +291,61 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     }
   };
 
+  const fetchExamResults = async (id: string, joinDate?: string, leaveDate?: string | null): Promise<ExamResultRecord[]> => {
+    try {
+      // First get exam results for this student
+      const resultsQ = query(
+        collection(db, 'exam_results'),
+        where('student_id', '==', id),
+        where('teacher_id', '==', teacherId)
+      );
+      const resultsSnap = await getDocs(resultsQ);
+      
+      if (resultsSnap.empty) return [];
+      
+      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      const examIds = [...new Set(resultsData.map(r => r.exam_id))];
+      
+      // Get exam details
+      const examsQ = query(
+        collection(db, 'exams'),
+        where('teacher_id', '==', teacherId)
+      );
+      const examsSnap = await getDocs(examsQ);
+      const examsMap = new Map<string, { name: string; date: string }>();
+      examsSnap.docs.forEach(d => {
+        const data = d.data();
+        examsMap.set(d.id, { name: data.exam_name, date: data.exam_date });
+      });
+      
+      // Combine results with exam info
+      const combined = resultsData
+        .filter(r => examsMap.has(r.exam_id))
+        .map(r => {
+          const examInfo = examsMap.get(r.exam_id)!;
+          return {
+            id: r.id,
+            exam_id: r.exam_id,
+            exam_name: examInfo.name,
+            exam_date: examInfo.date,
+            score: r.score,
+            notes: r.notes
+          };
+        })
+        .filter(r => {
+          if (joinDate && r.exam_date < joinDate) return false;
+          if (leaveDate && r.exam_date > leaveDate) return false;
+          return true;
+        })
+        .sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+      
+      return combined;
+    } catch (error) {
+      console.error('Error fetching exam results:', error);
+      return [];
+    }
+  };
+
   const fetchStudentDetails = async () => {
     try {
       setLoading(true);
@@ -207,7 +378,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         return null;
       })();
 
-      const [scoreResult, rank, recentRewards, attendance] = await Promise.all([
+      const [scoreResult, rank, recentRewards, attendance, exams] = await Promise.all([
         calculateStudentScore(
           studentData.id,
           teacherId,
@@ -218,7 +389,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         ),
         calculateStudentRank(studentData.id, teacherId),
         fetchRecentRewards(studentData.id, studentData.join_date, effectiveLeaveDate),
-        fetchAttendanceHistory(studentData.id, studentData.join_date, effectiveLeaveDate)
+        fetchAttendanceHistory(studentData.id, studentData.join_date, effectiveLeaveDate),
+        fetchExamResults(studentData.id, studentData.join_date, effectiveLeaveDate)
       ]);
 
       setStats({
@@ -227,6 +399,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         recentRewards
       });
       setAttendanceHistory(attendance);
+      setExamResults(exams);
     } catch (error) {
       console.error('Error fetching student details:', error);
     } finally {
@@ -428,11 +601,11 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       {/* Profile Header Card */}
       <Card className="apple-card overflow-hidden">
         <div className={cn(
-          "h-24 bg-gradient-to-r",
+          "h-32 bg-gradient-to-r",
           performanceColors[performanceLevel]
         )} />
         <div className="px-6 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10">
             <div className={cn(
               "w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold text-white shadow-lg border-4 border-white bg-gradient-to-br",
               performanceColors[performanceLevel]
@@ -563,6 +736,20 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           >
             Mukofot/Jarima
             {activeTab === 'rewards' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+            )}
+          </button>
+          <button
+            className={cn(
+              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              activeTab === 'exams'
+                ? 'text-blue-600'
+                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+            )}
+            onClick={() => setActiveTab('exams')}
+          >
+            Imtihonlar
+            {activeTab === 'exams' && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
             )}
           </button>
@@ -882,8 +1069,344 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             </div>
           )}
 
+          {activeTab === 'exams' && (
+            <div className="p-6 space-y-6">
+              {/* Imtihon statistikasi */}
+              {examResults.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="text-2xl font-bold text-blue-600">{examStats.total}</div>
+                    <div className="text-xs text-blue-600/70">Jami imtihon</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-100">
+                    <div className="text-2xl font-bold text-purple-600">{examStats.avg}</div>
+                    <div className="text-xs text-purple-600/70">O'rtacha ball</div>
+                  </div>
+                  <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <div className="text-2xl font-bold text-emerald-600">{examStats.max}</div>
+                    <div className="text-xs text-emerald-600/70">Eng yuqori</div>
+                  </div>
+                  <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-100">
+                    <div className="text-2xl font-bold text-amber-600">{examStats.min}</div>
+                    <div className="text-xs text-amber-600/70">Eng past</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Imtihon turlariga ko'ra guruhlangan natijalar */}
+              {examsByType.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-indigo-500" />
+                    Imtihon turlari bo'yicha natijalar
+                  </h3>
+                  
+                  {examsByType.map((typeData, typeIndex) => (
+                    <div 
+                      key={typeData.typeName} 
+                      className="p-4 rounded-xl border bg-gradient-to-r from-gray-50 to-slate-50"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <GraduationCap className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{typeData.typeName}</h4>
+                            <p className="text-xs text-muted-foreground">{typeData.results.length} ta imtihon</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-gray-700">{typeData.avg}</div>
+                            <div className="text-xs text-muted-foreground">O'rtacha</div>
+                          </div>
+                          <div className={cn(
+                            "flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium",
+                            typeData.trend === 'up' && "bg-emerald-100 text-emerald-700",
+                            typeData.trend === 'down' && "bg-red-100 text-red-700",
+                            typeData.trend === 'stable' && "bg-gray-100 text-gray-600"
+                          )}>
+                            {typeData.trend === 'up' && <TrendingUp className="w-4 h-4" />}
+                            {typeData.trend === 'down' && <TrendingDown className="w-4 h-4" />}
+                            {typeData.trend === 'stable' && <Minus className="w-4 h-4" />}
+                            {typeData.trend === 'up' && `+${typeData.trendValue}`}
+                            {typeData.trend === 'down' && typeData.trendValue}
+                            {typeData.trend === 'stable' && 'Barqaror'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Mini chart for this type */}
+                      {typeData.chartData.length > 1 && (
+                        <div className="h-[150px] w-full mb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={typeData.chartData}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                              <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                              <YAxis domain={[0, 100]} fontSize={10} tickLine={false} axisLine={false} hide />
+                              <RechartsTooltip 
+                                contentStyle={{ 
+                                  backgroundColor: 'white', 
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '8px',
+                                  fontSize: '12px'
+                                }}
+                                formatter={(value: number) => [`${value} ball`, typeData.typeName]}
+                              />
+                              <Area 
+                                type="monotone" 
+                                dataKey="score" 
+                                stroke={typeData.trend === 'up' ? '#10b981' : typeData.trend === 'down' ? '#ef4444' : '#6366f1'}
+                                strokeWidth={2}
+                                fill={`url(#colorType${typeIndex})`}
+                                fillOpacity={0.3} 
+                              />
+                              <defs>
+                                <linearGradient id={`colorType${typeIndex}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={typeData.trend === 'up' ? '#10b981' : typeData.trend === 'down' ? '#ef4444' : '#6366f1'} stopOpacity={0.8}/>
+                                  <stop offset="95%" stopColor={typeData.trend === 'up' ? '#10b981' : typeData.trend === 'down' ? '#ef4444' : '#6366f1'} stopOpacity={0.1}/>
+                                </linearGradient>
+                              </defs>
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                      
+                      {/* Results list for this type */}
+                      <div className="space-y-2">
+                        {typeData.results.slice(-5).reverse().map((result) => {
+                          const scoreColor = result.score >= 90 ? 'emerald' : result.score >= 70 ? 'blue' : result.score >= 50 ? 'amber' : 'red';
+                          return (
+                            <div 
+                              key={result.id} 
+                              className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm text-muted-foreground">
+                                  {formatDateUz(result.exam_date).split(',')[0]}
+                                </div>
+                                <div className="text-sm font-medium">{result.exam_name}</div>
+                              </div>
+                              <Badge 
+                                className={cn(
+                                  "font-bold",
+                                  scoreColor === 'emerald' && 'bg-emerald-100 text-emerald-700',
+                                  scoreColor === 'blue' && 'bg-blue-100 text-blue-700',
+                                  scoreColor === 'amber' && 'bg-amber-100 text-amber-700',
+                                  scoreColor === 'red' && 'bg-red-100 text-red-700'
+                                )}
+                              >
+                                {result.score}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Imtihon natijalari ro'yxati */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-indigo-500" />
+                  Barcha imtihon natijalari
+                </h3>
+                {examResults.length > 0 && (
+                  <Badge variant="outline">
+                    {examResults.length} ta imtihon
+                  </Badge>
+                )}
+              </div>
+              
+              {examResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium mb-2">
+                    Imtihon natijalari topilmadi
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Bu o'quvchi hali imtihon topshirmagan
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                  {examResults.map((result) => {
+                    const scoreColor = result.score >= 90 
+                      ? 'emerald' 
+                      : result.score >= 70 
+                        ? 'blue' 
+                        : result.score >= 50 
+                          ? 'amber' 
+                          : 'red';
+                    return (
+                      <div
+                        key={result.id}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-xl border transition-colors",
+                          `bg-${scoreColor}-50/50 border-${scoreColor}-200 hover:bg-${scoreColor}-50`
+                        )}
+                        style={{
+                          backgroundColor: scoreColor === 'emerald' ? 'rgb(236 253 245 / 0.5)' :
+                            scoreColor === 'blue' ? 'rgb(239 246 255 / 0.5)' :
+                            scoreColor === 'amber' ? 'rgb(255 251 235 / 0.5)' :
+                            'rgb(254 242 242 / 0.5)',
+                          borderColor: scoreColor === 'emerald' ? 'rgb(167 243 208)' :
+                            scoreColor === 'blue' ? 'rgb(191 219 254)' :
+                            scoreColor === 'amber' ? 'rgb(253 230 138)' :
+                            'rgb(254 202 202)'
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-12 h-12 rounded-xl flex items-center justify-center"
+                            style={{
+                              backgroundColor: scoreColor === 'emerald' ? 'rgb(167 243 208)' :
+                                scoreColor === 'blue' ? 'rgb(191 219 254)' :
+                                scoreColor === 'amber' ? 'rgb(253 230 138)' :
+                                'rgb(254 202 202)'
+                            }}
+                          >
+                            <GraduationCap 
+                              className="w-6 h-6" 
+                              style={{
+                                color: scoreColor === 'emerald' ? 'rgb(4 120 87)' :
+                                  scoreColor === 'blue' ? 'rgb(29 78 216)' :
+                                  scoreColor === 'amber' ? 'rgb(180 83 9)' :
+                                  'rgb(185 28 28)'
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {result.exam_name}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDateUz(result.exam_date)}
+                            </div>
+                            {result.notes && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {result.notes}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div 
+                          className="text-2xl font-bold px-4 py-2 rounded-lg"
+                          style={{
+                            backgroundColor: scoreColor === 'emerald' ? 'rgb(209 250 229)' :
+                              scoreColor === 'blue' ? 'rgb(219 234 254)' :
+                              scoreColor === 'amber' ? 'rgb(254 243 199)' :
+                              'rgb(254 226 226)',
+                            color: scoreColor === 'emerald' ? 'rgb(4 120 87)' :
+                              scoreColor === 'blue' ? 'rgb(29 78 216)' :
+                              scoreColor === 'amber' ? 'rgb(180 83 9)' :
+                              'rgb(185 28 28)'
+                          }}
+                        >
+                          {result.score}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'analysis' && (
             <div className="p-6 space-y-6">
+              {/* Imtihon turlari bo'yicha o'sish/pasayish tahlili */}
+              {examsByType.length > 0 && (
+                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-indigo-500" />
+                    Imtihon turlari bo'yicha tahlil
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {examsByType.map((typeData, typeIndex) => (
+                      <div 
+                        key={typeData.typeName}
+                        className={cn(
+                          "p-4 rounded-xl border",
+                          typeData.trend === 'up' && "bg-emerald-50/50 border-emerald-200",
+                          typeData.trend === 'down' && "bg-red-50/50 border-red-200",
+                          typeData.trend === 'stable' && "bg-gray-50 border-gray-200"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{typeData.typeName}</h4>
+                            <p className="text-xs text-muted-foreground">{typeData.results.length} ta natija</p>
+                          </div>
+                          <div className={cn(
+                            "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold",
+                            typeData.trend === 'up' && "bg-emerald-200 text-emerald-800",
+                            typeData.trend === 'down' && "bg-red-200 text-red-800",
+                            typeData.trend === 'stable' && "bg-gray-200 text-gray-700"
+                          )}>
+                            {typeData.trend === 'up' && <TrendingUp className="w-4 h-4" />}
+                            {typeData.trend === 'down' && <TrendingDown className="w-4 h-4" />}
+                            {typeData.trend === 'stable' && <Minus className="w-4 h-4" />}
+                            {typeData.trend === 'up' && `+${typeData.trendValue} o'sish`}
+                            {typeData.trend === 'down' && `${typeData.trendValue} pasayish`}
+                            {typeData.trend === 'stable' && 'Barqaror'}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-gray-700">{typeData.avg}</div>
+                            <div className="text-xs text-muted-foreground">O'rtacha</div>
+                          </div>
+                          {typeData.results.length >= 2 && (
+                            <>
+                              <div className="text-center">
+                                <div className="text-lg font-semibold text-gray-600">
+                                  {typeData.results[typeData.results.length - 2].score}
+                                </div>
+                                <div className="text-xs text-muted-foreground">Oldingi</div>
+                              </div>
+                              <div className="text-center">
+                                <div className={cn(
+                                  "text-lg font-bold",
+                                  typeData.trend === 'up' && "text-emerald-600",
+                                  typeData.trend === 'down' && "text-red-600",
+                                  typeData.trend === 'stable' && "text-gray-600"
+                                )}>
+                                  {typeData.results[typeData.results.length - 1].score}
+                                </div>
+                                <div className="text-xs text-muted-foreground">Oxirgi</div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        
+                        {typeData.chartData.length > 1 && (
+                          <div className="h-[100px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={typeData.chartData}>
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="score" 
+                                  stroke={typeData.trend === 'up' ? '#10b981' : typeData.trend === 'down' ? '#ef4444' : '#6b7280'}
+                                  strokeWidth={2}
+                                  fill={typeData.trend === 'up' ? '#d1fae5' : typeData.trend === 'down' ? '#fee2e2' : '#f3f4f6'}
+                                  fillOpacity={0.5} 
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-blue-500" />

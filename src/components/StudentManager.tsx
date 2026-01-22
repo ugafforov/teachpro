@@ -404,7 +404,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const avgAttendance = totalStudents > 0 
     ? Math.round(filteredStudents.reduce((acc, s) => acc + s.stats.attendancePercentage, 0) / totalStudents)
     : 0;
-  const totalPoints = filteredStudents.reduce((acc, s) => acc + s.stats.totalScore, 0);
+  const avgScore = totalStudents > 0 
+    ? filteredStudents.reduce((acc, s) => acc + s.stats.totalScore, 0) / totalStudents
+    : 0;
   const insights = useMemo(() => {
     const riskStudents = filteredStudents.filter(s => s.stats.attendancePercentage < 70);
     const topStudents = filteredStudents.filter(s => s.stats.attendancePercentage >= 90 && s.stats.totalScore >= 0);
@@ -731,8 +733,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
               <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Jami ballar</p>
-              <h3 className="text-2xl font-bold">{totalPoints.toFixed(1)}</h3>
+              <p className="text-sm text-muted-foreground">O'rtacha ball</p>
+              <h3 className="text-2xl font-bold">{avgScore.toFixed(1)}</h3>
             </div>
           </div>
         </Card>
