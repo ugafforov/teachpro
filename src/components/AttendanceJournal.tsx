@@ -22,7 +22,7 @@ import {
 import { db } from '@/lib/firebase';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { DateRange } from 'react-day-picker';
 
 interface Student {
@@ -358,7 +358,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
     const head = [header.map(cell => String(cell))];
     const body = rows.map(r => r.map(cell => String(cell ?? '')));
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head,
       body,
       startY: 30,
