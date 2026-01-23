@@ -407,7 +407,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <div className={`
-          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
+          ${sidebarCollapsed ? 'w-16' : 'w-56'} 
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           bg-white shadow-lg lg:h-full fixed lg:relative z-40 transition-all duration-300 ease-in-out
           ${mobileMenuOpen ? 'top-0 h-screen' : ''}

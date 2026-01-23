@@ -1571,17 +1571,19 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                 <button
                                                     onClick={() => setIsNoteExpanded(true)}
                                                     className={cn(
-                                                        "flex items-center gap-2 text-sm transition-colors",
+                                                        "flex items-center gap-2 text-sm font-medium rounded-full border px-3 py-1.5 transition-all",
+                                                        "shadow-sm hover:shadow-md",
                                                         notesCreatedOnSelectedDate.length > 0
-                                                            ? "text-amber-600 hover:text-amber-700"
-                                                            : "text-gray-400 hover:text-gray-600"
+                                                            ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                                                            : "bg-orange-50/50 text-orange-700 border-orange-100 hover:bg-orange-100/70",
+                                                        "focus:outline-none focus:ring-2 focus:ring-orange-200"
                                                     )}
                                                 >
-                                                    <StickyNote className="w-4 h-4" />
+                                                    <StickyNote className="w-4 h-4 text-orange-500" />
                                                     <span className="hidden sm:inline">
                                                         {notesCreatedOnSelectedDate.length > 0
                                                             ? `Eslatmalar (${notesCreatedOnSelectedDate.length})`
-                                                            : "Eslatma qo'shish..."}
+                                                            : "Eslatma qo'shish"}
                                                     </span>
                                                     <span className="sm:hidden">Eslatma</span>
                                                 </button>

@@ -472,10 +472,10 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       </Card>
 
       <Tabs defaultValue="students" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="students" onClick={() => setActiveTab('students')}>O'quvchilar</TabsTrigger>
-          <TabsTrigger value="groups" onClick={() => setActiveTab('groups')}>Guruhlar</TabsTrigger>
-          <TabsTrigger value="exams" onClick={() => setActiveTab('exams')}>Imtihonlar</TabsTrigger>
+        <TabsList className="rounded-lg">
+          <TabsTrigger value="students" onClick={() => setActiveTab('students')} className="rounded-lg">O'quvchilar</TabsTrigger>
+          <TabsTrigger value="groups" onClick={() => setActiveTab('groups')} className="rounded-lg">Guruhlar</TabsTrigger>
+          <TabsTrigger value="exams" onClick={() => setActiveTab('exams')} className="rounded-lg">Imtihonlar</TabsTrigger>
         </TabsList>
         <TabsContent value="students">{loading ? <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div> : renderStudentsTab()}</TabsContent>
         <TabsContent value="groups">{loading ? <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div> : renderGroupsTab()}</TabsContent>

@@ -488,7 +488,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('list')}
-              className={`rounded-none px-3 ${viewMode === 'list' ? 'bg-gray-100' : ''}`}
+              className={`rounded-l-lg rounded-r-none px-3 ${viewMode === 'list' ? 'bg-gray-100' : ''}`}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -496,14 +496,14 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('grid')}
-              className={`rounded-none px-3 ${viewMode === 'grid' ? 'bg-gray-100' : ''}`}
+              className={`rounded-l-none rounded-r-lg px-3 ${viewMode === 'grid' ? 'bg-gray-100' : ''}`}
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-black text-white hover:bg-gray-800 rounded-lg px-4 py-2">
+              <Button className="bg-black text-white hover:bg-gray-800 rounded-xl px-4 py-2">
                 <Plus className="w-4 h-4 mr-2" />
                 Yangi guruh
               </Button>
