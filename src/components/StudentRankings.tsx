@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trophy, Medal, Award, Users, Calendar, BarChart3 } from 'lucide-react';
-import StudentDetailsPopup from './StudentDetailsPopup';
+import StudentProfileLink from './StudentProfileLink';
 import { calculateAllStudentScores, StudentWithScore } from '@/lib/studentScoreCalculator';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 
 interface StudentRanking {
   id: string;
@@ -45,7 +44,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
   const [groups, setGroups] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     fetchAllRankings();
@@ -111,15 +111,8 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
     }
   };
 
-  const handleStudentClick = async (studentId: string) => {
-    try {
-      const studentDoc = await getDoc(doc(db, 'students', studentId));
-      if (studentDoc.exists()) {
-        setSelectedStudent({ id: studentDoc.id, ...studentDoc.data() });
-      }
-    } catch (error) {
-      console.error('Error fetching student details:', error);
-    }
+  const handleStudentClick = (studentId: string) => {
+    navigate(`/students/${studentId}`, { state: { from: `${location.pathname}${location.search}` } });
   };
 
   const getRankIcon = (position: number) => {
@@ -200,7 +193,11 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
                 }`} onClick={() => handleStudentClick(student.student_id)}>
                 <div className="flex flex-col items-center">
                   {getRankIcon(student.class_rank)}
-                  <h3 className="text-lg font-semibold mt-2 mb-1">{student.student_name}</h3>
+                  <h3 className="text-lg font-semibold mt-2 mb-1">
+                    <StudentProfileLink studentId={student.student_id} className="text-inherit hover:text-inherit">
+                      {student.student_name}
+                    </StudentProfileLink>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-3">{student.group_name}</p>
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl mb-4 ${getScoreColor(student.total_score)}`}>
                     {student.total_score.toFixed(1)}
@@ -234,7 +231,11 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
                         {student.student_name.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium">{student.student_name}</p>
+                        <p className="font-medium">
+                          <StudentProfileLink studentId={student.student_id} className="text-inherit hover:text-inherit">
+                            {student.student_name}
+                          </StudentProfileLink>
+                        </p>
                         <p className="text-xs text-muted-foreground">{student.group_name}</p>
                       </div>
                     </div>
@@ -254,14 +255,6 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         </Card>
       </div>
 
-      {selectedStudent && (
-        <StudentDetailsPopup
-          studentId={selectedStudent.id}
-          isOpen={!!selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-          teacherId={teacherId}
-        />
-      )}
     </div>
   );
 };

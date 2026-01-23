@@ -20,10 +20,9 @@ import {
   doc,
   addDoc,
   serverTimestamp,
-  getDoc,
   writeBatch
 } from 'firebase/firestore';
-import StudentDetailsPopup from './StudentDetailsPopup';
+import StudentProfileLink from './StudentProfileLink';
 
 interface Student {
   id: string;
@@ -52,7 +51,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(getTashkentToday());
   const [loading, setLoading] = useState(true);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
@@ -223,16 +221,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
     }
   };
 
-  const handleStudentClick = async (studentId: string) => {
-    try {
-      const studentDoc = await getDoc(doc(db, 'students', studentId));
-      if (studentDoc.exists()) {
-        setSelectedStudent({ id: studentDoc.id, ...studentDoc.data() });
-      }
-    } catch (error) {
-      console.error('Error fetching student details:', error);
-    }
-  };
 
   const addReward = async (studentId: string) => {
     if (!rewardPoints) {
@@ -459,7 +447,11 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
                       <span className="text-sm font-medium">{student.name[0]}</span>
                     </div>
                     <div>
-                      <p className="font-medium cursor-pointer hover:text-blue-600" onClick={() => handleStudentClick(student.id)}>{student.name}</p>
+                      <p className="font-medium">
+                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-600">
+                          {student.name}
+                        </StudentProfileLink>
+                      </p>
                       <p className="text-sm text-muted-foreground">{student.group_name}</p>
                     </div>
                   </div>
@@ -529,14 +521,6 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         </div>
       )}
 
-      {selectedStudent && (
-        <StudentDetailsPopup
-          studentId={selectedStudent.id}
-          isOpen={!!selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-          teacherId={teacherId}
-        />
-      )}
     </div>
   );
 };

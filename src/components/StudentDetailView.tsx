@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,7 @@ interface StudentDetailViewProps {
   studentId: string;
   teacherId: string;
   onBack: () => void;
+  isAnimating?: boolean;
 }
 
 interface StudentDetails {
@@ -60,6 +61,7 @@ interface StudentStats extends StudentScoreResult {
     reason: string;
     created_at: any;
     type: string;
+    date?: string;
   }>;
 }
 
@@ -83,8 +85,11 @@ interface ExamResultRecord {
 const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   studentId,
   teacherId,
-  onBack
+  onBack,
+  isAnimating = false
 }) => {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
   const [student, setStudent] = useState<StudentDetails | null>(null);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -521,6 +526,20 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   const handleExportStudentExcel = () => handleExportStudent('excel');
   const handleExportStudentPdf = () => handleExportStudent('pdf');
 
+  // Removed animations - simple and fast
+  // useLayoutEffect(() => {
+  //   if (loading) return;
+  //   const el = rootRef.current;
+  //   if (!el) return;
+  //   gsap animations removed
+  // }, [studentId, loading]);
+
+  // Simple back handler without animations
+  const handleBackWithAnimation = () => {
+    if (isAnimating) return;
+    onBack();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -569,10 +588,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div ref={rootRef} className="space-y-6 max-w-4xl mx-auto">
       {/* Header with back button and export */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="gap-2 hover:bg-gray-100">
+        <Button variant="ghost" onClick={handleBackWithAnimation} className="gap-2 hover:bg-gray-100 transition-colors duration-150">
           <ArrowLeft className="w-4 h-4" />
           Orqaga
         </Button>

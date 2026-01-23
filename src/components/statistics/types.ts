@@ -1,9 +1,15 @@
 
+export interface TopStudentSummary {
+  id: string;
+  name: string;
+  score: number;
+}
+
 export interface StatsData {
   totalStudents: number;
   totalClasses: number;
   averageAttendance: number;
-  topStudent: string;
+  topStudent: TopStudentSummary | null;
 }
 
 export interface MonthlyData {

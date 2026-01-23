@@ -23,6 +23,7 @@ import {
 import { formatDateUz, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 import RestoreDialog from './RestoreDialog';
+import StudentProfileLink from './StudentProfileLink';
 import { format } from 'date-fns';
 
 interface ArchivedStudent {
@@ -354,7 +355,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                       <span className="text-lg font-medium">{student.name[0]}</span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold">{student.name}</h3>
+                      <h3 className="font-semibold">
+                        <StudentProfileLink studentId={student.original_student_id} className="text-inherit hover:text-blue-700">
+                          {student.name}
+                        </StudentProfileLink>
+                      </h3>
                       <Badge variant="secondary" className="text-xs">{student.group_name}</Badge>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +32,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { StudentScoreResult } from '@/lib/studentScoreCalculator';
 import StudentImport from './StudentImport';
-import StudentDetailView from './StudentDetailView';
+import StudentProfileLink from './StudentProfileLink';
 import ConfirmDialog from './ConfirmDialog';
 
 // Validation schema
@@ -151,6 +152,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   teacherId,
   onStatsUpdate
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
@@ -165,7 +168,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
   const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
   const [rewardPoints, setRewardPoints] = useState('');
   const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
@@ -663,15 +665,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     );
   }
 
-  if (detailStudentId) {
-    return (
-      <StudentDetailView
-        studentId={detailStudentId}
-        teacherId={teacherId}
-        onBack={() => setDetailStudentId(null)}
-      />
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -697,9 +690,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
             }} 
             availableGroups={groups} 
           />
-          <Button onClick={() => setIsAddDialogOpen(true)} className="apple-button">
-            <Plus className="w-4 h-4 mr-2" /> Yangi o'quvchi
-          </Button>
         </div>
       </div>
 
@@ -811,7 +801,11 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                 {insights.riskList.map(student => (
                   <div key={student.id} className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-medium">{student.name}</div>
+                      <div className="text-sm font-medium">
+                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                          {student.name}
+                        </StudentProfileLink>
+                      </div>
                       <div className="text-xs text-muted-foreground">{student.group_name}</div>
                     </div>
                     <div className="text-right">
@@ -1005,13 +999,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                   <TableRow 
                     key={student.id} 
                     className={cn(
-                      "group cursor-pointer transition-all duration-200",
+                      "group transition-all duration-200",
                       "hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/50",
                       isRiskStudent && "bg-red-50/30",
                       isTopStudent && "bg-emerald-50/30",
                       selectedStudentIds.has(student.id) && "bg-blue-50"
                     )}
-                    onClick={() => setDetailStudentId(student.id)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <div onClick={() => toggleStudentSelection(student.id)} className="cursor-pointer p-1 rounded hover:bg-gray-100 transition-colors">
@@ -1032,9 +1025,12 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate">
+                            <StudentProfileLink
+                              studentId={student.id}
+                              className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate"
+                            >
                               {student.name}
-                            </span>
+                            </StudentProfileLink>
                             {isTopStudent && (
                               <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0" />
                             )}
@@ -1130,7 +1126,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuLabel>Amallar</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => setDetailStudentId(student.id)}>
+                            <DropdownMenuItem
+                              onClick={() => navigate(`/students/${student.id}`, { state: { from: `${location.pathname}${location.search}` } })}
+                            >
                               <UserIcon className="w-4 h-4 mr-2" /> Profilni ko'rish
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setShowRewardDialog(student.id)}>

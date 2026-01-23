@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowDown, FileText, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, FileText, Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
@@ -106,12 +106,12 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" className="flex items-center gap-2">
-          <ArrowDown className="w-4 h-4" />
-          O'quvchilarni import qilish
+          <Plus className="w-4 h-4" />
+          O'quvchi qo'shish
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>O'quvchilarni import qilish</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>O'quvchi qo'shish</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <Card className="p-4 bg-blue-50 border-blue-200">
             <div className="flex items-start gap-3">

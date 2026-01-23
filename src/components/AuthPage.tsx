@@ -14,6 +14,7 @@ const AuthPage: React.FC = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -28,6 +29,7 @@ const AuthPage: React.FC = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoginError(null); // Xatolikni tozalash
 
     try {
       const result = await firebaseSignIn(formData.email, formData.password);
@@ -41,6 +43,7 @@ const AuthPage: React.FC = () => {
     } catch (error: unknown) {
       logError('AuthPage.handleSignIn', error);
       const { message } = sanitizeError(error, 'auth');
+      setLoginError(message); // Xatolikni saqlash
       toast({
         title: "Kirish muvaffaqiyatsiz",
         description: message,
@@ -53,11 +56,14 @@ const AuthPage: React.FC = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null); // Xatolikni tozalash
 
     if (!formData.name || !formData.school || !formData.institution_name) {
+      const errorMsg = "Iltimos, barcha majburiy maydonlarni to'ldiring.";
+      setLoginError(errorMsg);
       toast({
         title: "Ma'lumot yetishmayapti",
-        description: "Iltimos, barcha majburiy maydonlarni to'ldiring.",
+        description: errorMsg,
         variant: "destructive",
       });
       return;
@@ -90,6 +96,7 @@ const AuthPage: React.FC = () => {
     } catch (error: unknown) {
       logError('AuthPage.handleSignUp', error);
       const { message } = sanitizeError(error, 'auth');
+      setLoginError(message);
       toast({
         title: "Ro'yxatdan o'tish muvaffaqiyatsiz",
         description: message,
@@ -140,6 +147,17 @@ const AuthPage: React.FC = () => {
         </div>
 
         <form onSubmit={authMode === 'signin' ? handleSignIn : handleSignUp} className="space-y-4">
+          {/* Xatolik xabarini ko'rsatish */}
+          {loginError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                {loginError}
+              </div>
+            </div>
+          )}
           {authMode === 'signup' && (
             <>
               <div className="space-y-2">
@@ -227,9 +245,12 @@ const AuthPage: React.FC = () => {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value });
+                  setLoginError(null); // Xatolikni tozalash
+                }}
                 placeholder="sizning.email@maktab.uz"
-                className="pl-10 border-gray-300 focus:border-black focus:ring-black"
+                className={`pl-10 ${loginError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-black focus:ring-black'}`}
                 required
               />
             </div>
@@ -242,9 +263,12 @@ const AuthPage: React.FC = () => {
                 id="password"
                 type={showPassword ? "text" : "password"}
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, password: e.target.value });
+                  setLoginError(null); // Xatolikni tozalash
+                }}
                 placeholder="Parolingizni kiriting"
-                className="pr-10 border-gray-300 focus:border-black focus:ring-black"
+                className={`pr-10 ${loginError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-black focus:ring-black'}`}
                 required
                 minLength={6}
               />
@@ -257,6 +281,11 @@ const AuthPage: React.FC = () => {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+            {authMode === 'signin' && (
+              <p className="text-xs text-gray-500 mt-1">
+                Kamida 6 ta belgidan iborat parol kiriting
+              </p>
+            )}
           </div>
 
           <Button type="submit" disabled={loading} className="w-full bg-black hover:bg-gray-800 text-white rounded-xl py-2.5">

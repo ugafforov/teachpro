@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { onAuthChange, firebaseSignOut, db, User } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { XCircle } from 'lucide-react';
+import { Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
@@ -141,7 +142,12 @@ const Index = () => {
   }
 
   // Show dashboard for approved teachers
-  return <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />;
+  return (
+    <>
+      <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />
+      <Outlet />
+    </>
+  );
 };
 
 export default Index;

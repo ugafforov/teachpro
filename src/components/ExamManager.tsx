@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,13 +20,17 @@ import {
   getDoc,
   writeBatch
 } from 'firebase/firestore';
-import { Plus, FileText, TrendingUp, Archive, Edit2, Search, Calendar, Users, BookOpen } from 'lucide-react';
+import { Plus, FileText, Archive, Edit2, Search, Calendar, Users, BookOpen, Download, FileSpreadsheet } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { examSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
 import { Badge } from '@/components/ui/badge';
 import { formatDateUz, getTashkentToday, getTashkentDate } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
+import StudentProfileLink from './StudentProfileLink';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ExamManagerProps {
   teacherId: string;
@@ -63,9 +67,340 @@ interface ExamResult {
   student_id: string;
   score: number;
   notes?: string;
-  student_name?: string;
-  group_name?: string;
+  student_name: string;
+  group_name: string;
 }
+
+type AnalysisRow = {
+  studentName: string;
+  groupName: string;
+  examDate: string;
+  score: number;
+};
+
+const sanitizeFileName = (name: string) => {
+  return name
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 120);
+};
+
+const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
+  if (chunkSize <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
+interface ExamAnalysisProps {
+  teacherId: string;
+  exams: Exam[];
+  groups: Group[];
+}
+
+const ExamAnalysis: React.FC<ExamAnalysisProps> = ({ teacherId, exams, groups }) => {
+  const exportAnalysis = (format: 'excel' | 'pdf') => {
+    if (!selectedExamName || Object.keys(analysisData).length === 0) return;
+
+    const selectedGroupName = selectedAnalysisGroup === 'all'
+      ? 'Barcha guruhlar'
+      : (groups.find(g => g.id === selectedAnalysisGroup)?.name || '');
+
+    const fileBase = sanitizeFileName(`${selectedExamName}_tahlil`);
+    const title = `${selectedExamName} - Natijalar tahlili`;
+
+    const headers = ['O\'quvchi', 'Guruh', ...allDates.map(d => formatDateUz(d, 'short')), "O'rtacha"];
+
+    const rows = Object.values(analysisData)
+      .map((results) => {
+        const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length);
+        const scoresByDate = new Map(results.map(r => [r.examDate, r.score] as const));
+
+        return [
+          results[0]?.studentName || '',
+          results[0]?.groupName || '',
+          ...allDates.map((d) => {
+            const score = scoresByDate.get(d);
+            return score === undefined ? '' : String(score);
+          }),
+          avgScore.toFixed(1)
+        ];
+      })
+      .sort((a, b) => Number(b[b.length - 1]) - Number(a[a.length - 1]));
+
+    const exportedAt = formatDateUz(getTashkentToday());
+
+    if (format === 'excel') {
+      const metaRows: (string | number)[][] = [
+        [title],
+        ['Guruh:', selectedGroupName],
+        ['Export sanasi:', exportedAt],
+        [],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([...metaRows, headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+
+      const totalCols = headers.length;
+      if (totalCols > 1) {
+        (ws as any)['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }];
+      }
+
+      (ws as any)['!cols'] = Array.from({ length: totalCols }, (_, idx) => {
+        if (idx === 0) return { wch: 24 };
+        if (idx === 1) return { wch: 16 };
+        return { wch: 10 };
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Analysis');
+      XLSX.writeFile(wb, `${fileBase}.xlsx`);
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(14);
+    doc.text(title, 14, 14);
+
+    doc.setFontSize(10);
+    doc.text(`Guruh: ${selectedGroupName}`, 14, 22);
+    doc.text(`Export sanasi: ${exportedAt}`, 14, 28);
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: 34,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [17, 24, 39] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(`${fileBase}.pdf`);
+  };
+  const [selectedExamName, setSelectedExamName] = useState<string>('');
+  const [selectedAnalysisGroup, setSelectedAnalysisGroup] = useState<string>('all');
+  const [analysisData, setAnalysisData] = useState<Record<string, AnalysisRow[]>>({});
+  const [loading, setLoading] = useState(false);
+
+  const uniqueExamNames = useMemo(() => {
+    return [...new Set(exams.map(e => e.exam_name))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+  }, [exams]);
+
+  const allDates = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(analysisData).forEach(rows => {
+      rows.forEach(r => {
+        if (r.examDate) set.add(r.examDate);
+      });
+    });
+    return [...set].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  }, [analysisData]);
+
+  const fetchAnalysisData = useCallback(async () => {
+    if (!selectedExamName) {
+      setAnalysisData({});
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let examsQ = query(
+        collection(db, 'exams'),
+        where('teacher_id', '==', teacherId),
+        where('exam_name', '==', selectedExamName)
+      );
+
+      if (selectedAnalysisGroup && selectedAnalysisGroup !== 'all') {
+        examsQ = query(examsQ, where('group_id', '==', selectedAnalysisGroup));
+      }
+
+      const examsSnap = await getDocs(examsQ);
+      const examIds = examsSnap.docs.map(d => d.id);
+      const examIdToDate = new Map(
+        examsSnap.docs.map(d => {
+          const data = d.data() as { exam_date?: string };
+          return [d.id, data.exam_date ?? ''] as const;
+        })
+      );
+
+      if (examIds.length === 0) {
+        setAnalysisData({});
+        return;
+      }
+
+      // Firestore `in` query supports max 10 values. Chunk to avoid failures.
+      const examIdChunks = chunkArray(examIds, 10);
+      const resultsSnaps = await Promise.all(
+        examIdChunks.map((ids) => {
+          const resultsQ = query(
+            collection(db, 'exam_results'),
+            where('teacher_id', '==', teacherId),
+            where('exam_id', 'in', ids)
+          );
+          return getDocs(resultsQ);
+        })
+      );
+
+      const grouped: Record<string, AnalysisRow[]> = {};
+      resultsSnaps.flatMap(s => s.docs).forEach((docSnap) => {
+        const data = docSnap.data() as {
+          student_id?: string;
+          student_name?: string;
+          group_name?: string;
+          exam_id?: string;
+          score?: number;
+        };
+
+        const studentId = data.student_id;
+        if (!studentId) return;
+
+        if (!grouped[studentId]) grouped[studentId] = [];
+        grouped[studentId].push({
+          studentName: data.student_name ?? '',
+          groupName: data.group_name ?? '',
+          examDate: data.exam_id ? (examIdToDate.get(data.exam_id) ?? '') : '',
+          score: data.score ?? 0,
+        });
+      });
+
+      Object.keys(grouped).forEach(studentId => {
+        grouped[studentId].sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+      });
+
+      setAnalysisData(grouped);
+    } catch (error) {
+      console.error('Error fetching analysis:', error);
+      setAnalysisData({});
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedExamName, selectedAnalysisGroup, teacherId]);
+
+  useEffect(() => {
+    void fetchAnalysisData();
+  }, [fetchAnalysisData]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <Label>Imtihon turi</Label>
+          <Select value={selectedExamName} onValueChange={setSelectedExamName}>
+            <SelectTrigger>
+              <SelectValue placeholder="Imtihon turini tanlang" />
+            </SelectTrigger>
+            <SelectContent>
+              {uniqueExamNames.map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Label>Guruh (ixtiyoriy)</Label>
+          <Select value={selectedAnalysisGroup} onValueChange={setSelectedAnalysisGroup}>
+            <SelectTrigger>
+              <SelectValue placeholder="Barcha guruhlar" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha guruhlar</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      )}
+
+      {!loading && selectedExamName && Object.keys(analysisData).length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          Tahlil uchun natijalar topilmadi
+        </div>
+      )}
+
+      {!loading && selectedExamName && Object.keys(analysisData).length > 0 && (
+        <Card className="p-6 overflow-x-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h3 className="text-lg font-semibold">
+              {selectedExamName} - Natijalar tahlili
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportAnalysis('excel')}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportAnalysis('pdf')}>
+                <Download className="w-4 h-4 mr-2" /> PDF
+              </Button>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[180px]">O'quvchi</TableHead>
+                <TableHead className="min-w-[120px]">Guruh</TableHead>
+                {allDates.map((date, idx) => (
+                  <TableHead key={idx} className="text-center min-w-[100px]">
+                    {formatDateUz(date, 'short')}
+                  </TableHead>
+                ))}
+                <TableHead className="text-center min-w-[80px]">O'rtacha</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Object.entries(analysisData)
+                .sort(([, aRes], [, bRes]) => {
+                  const aAvg = aRes.reduce((sum, r) => sum + r.score, 0) / aRes.length;
+                  const bAvg = bRes.reduce((sum, r) => sum + r.score, 0) / bRes.length;
+                  return bAvg - aAvg;
+                })
+                .map(([studentId, results]) => {
+                  const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
+                  const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
+                  return (
+                    <TableRow key={studentId}>
+                      <TableCell className="font-medium">
+                        <StudentProfileLink studentId={studentId} className="text-inherit hover:text-blue-700">
+                          {results[0]?.studentName}
+                        </StudentProfileLink>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
+                      {allDates.map((date, idx) => {
+                        const score = scoresByDate.get(date);
+                        return (
+                          <TableCell key={idx} className="text-center">
+                            {score !== undefined ? (
+                              <span className={`inline-block px-3 py-1 rounded-md font-semibold ${score >= 90 ? 'bg-green-100 text-green-700' :
+                                score >= 70 ? 'bg-blue-100 text-blue-700' :
+                                  score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-red-100 text-red-700'
+                                }`}>
+                                {score}
+                              </span>
+                            ) : <span className="text-muted-foreground">-</span>}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-center font-bold text-primary">{avgScore}</TableCell>
+                    </TableRow>
+                  );
+                })}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+};
 
 const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const { toast } = useToast();
@@ -81,11 +416,17 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [currentExamId, setCurrentExamId] = useState<string>('');
 
   const [examResults, setExamResults] = useState<Record<string, string>>({});
+  const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [showExamDetailsDialog, setShowExamDetailsDialog] = useState(false);
-  const [examDetailsData, setExamDetailsData] = useState<any[]>([]);
+  const [examDetailsExamId, setExamDetailsExamId] = useState<string>('');
+  const [examDetailsData, setExamDetailsData] = useState<ExamResult[]>([]);
+  const [loadingExamDetails, setLoadingExamDetails] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [creatingExam, setCreatingExam] = useState(false);
+  const [savingResults, setSavingResults] = useState(false);
+  const [updatingResult, setUpdatingResult] = useState(false);
   const [editingResult, setEditingResult] = useState<{ id: string, studentName: string, currentScore: number } | null>(null);
   const [editScore, setEditScore] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -105,6 +446,19 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [filterExamType, setFilterExamType] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
 
+  const DEFAULT_VISIBLE_EXAMS = 18;
+  const VISIBLE_EXAMS_STEP = 18;
+  const [visibleExamsLimit, setVisibleExamsLimit] = useState<number>(DEFAULT_VISIBLE_EXAMS);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const groupNameById = useMemo(() => new Map(groups.map(g => [g.id, g.name] as const)), [groups]);
+  const examTypeNameById = useMemo(() => new Map(examTypes.map(t => [t.id, t.name] as const)), [examTypes]);
+  const uniqueExamNames = useMemo(() => {
+    return [...new Set(exams.map(e => e.exam_name))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+  }, [exams]);
+
   useEffect(() => {
     const init = async () => {
       await Promise.all([
@@ -122,6 +476,51 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       fetchStudents(selectedGroup);
     }
   }, [selectedGroup]);
+
+  const setScoreInputRef = useCallback((studentId: string) => {
+    return (el: HTMLInputElement | null) => {
+      scoreInputRefs.current[studentId] = el;
+    };
+  }, []);
+
+  const focusScoreInputAtIndex = useCallback((index: number) => {
+    const studentId = students[index]?.id;
+    if (!studentId) return;
+    const el = scoreInputRefs.current[studentId];
+    if (!el) return;
+    el.focus();
+    try {
+      el.select();
+    } catch {
+      // ignore
+    }
+  }, [students]);
+
+  const handleScoreKeyDown = useCallback((studentIndex: number) => {
+    return (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== 'Enter') return;
+
+      e.preventDefault();
+      const nextIndex = e.shiftKey ? studentIndex - 1 : studentIndex + 1;
+      focusScoreInputAtIndex(nextIndex);
+    };
+  }, [focusScoreInputAtIndex]);
+
+  useEffect(() => {
+    if (!showResultsDialog) return;
+    if (students.length === 0) return;
+
+    const t = setTimeout(() => {
+      focusScoreInputAtIndex(0);
+    }, 0);
+
+    return () => clearTimeout(t);
+  }, [showResultsDialog, students.length, focusScoreInputAtIndex]);
+
+  useEffect(() => {
+    // Reset pagination whenever filters change
+    setVisibleExamsLimit(DEFAULT_VISIBLE_EXAMS);
+  }, [searchQuery, filterGroup, filterExamType, dateFilter]);
 
   // Filtered and grouped exams
   const filteredExams = useMemo(() => {
@@ -163,19 +562,47 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     });
   }, [exams, searchQuery, filterGroup, filterExamType, dateFilter]);
 
+  const visibleExams = useMemo(() => {
+    return filteredExams.slice(0, visibleExamsLimit);
+  }, [filteredExams, visibleExamsLimit]);
+
+  const hasMoreExams = filteredExams.length > visibleExams.length;
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+    if (!hasMoreExams) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        setVisibleExamsLimit((v) => Math.min(v + VISIBLE_EXAMS_STEP, filteredExams.length));
+      },
+      { root: null, rootMargin: '300px', threshold: 0.01 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreExams, filteredExams.length]);
+
   const groupedExams = useMemo(() => {
-    const groups: Record<string, Exam[]> = {};
-    filteredExams.forEach(exam => {
+    const byMonth: Record<string, Exam[]> = {};
+    visibleExams.forEach(exam => {
       const date = getTashkentDate(new Date(exam.exam_date));
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push(exam);
+      if (!byMonth[monthKey]) byMonth[monthKey] = [];
+      byMonth[monthKey].push(exam);
     });
-    Object.keys(groups).forEach(key => {
-      groups[key].sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+    Object.keys(byMonth).forEach(key => {
+      byMonth[key].sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
     });
-    return groups;
-  }, [filteredExams]);
+    return byMonth;
+  }, [visibleExams]);
+
+  const monthKeys = useMemo(() => {
+    return Object.keys(groupedExams).sort((a, b) => b.localeCompare(a));
+  }, [groupedExams]);
 
   const stats = useMemo(() => {
     const total = exams.length;
@@ -184,10 +611,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       const now = getTashkentDate();
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
-    const uniqueTypes = new Set(exams.map(e => e.exam_name)).size;
+    const uniqueTypes = uniqueExamNames.length;
     const groupsWithExams = new Set(exams.map(e => e.group_id)).size;
     return { total, thisMonth, uniqueTypes, groupsWithExams };
-  }, [exams]);
+  }, [exams, uniqueExamNames]);
 
   const getMonthName = (monthKey: string) => {
     const [year, month] = monthKey.split('-');
@@ -251,7 +678,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   };
 
   const createExam = async () => {
-    const examName = customExamName || examTypes.find(t => t.id === selectedExamType)?.name || '';
+    if (creatingExam) return;
+
+    const examName = customExamName || examTypeNameById.get(selectedExamType) || '';
 
     try {
       examSchema.parse({
@@ -270,6 +699,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       return;
     }
 
+    setCreatingExam(true);
     try {
       let examTypeId = selectedExamType;
       if (customExamName) {
@@ -292,6 +722,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       });
 
       setCurrentExamId(examDoc.id);
+      setExamResults({});
       setShowCreateDialog(false);
       await fetchStudents(selectedGroup);
       setShowResultsDialog(true);
@@ -308,27 +739,44 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Imtihon yaratishda xatolik',
         variant: 'destructive',
       });
+    } finally {
+      setCreatingExam(false);
     }
   };
 
   const saveExamResults = async () => {
-    if (!currentExamId) return;
+    if (!currentExamId || savingResults) return;
 
+    setSavingResults(true);
     try {
-      const resultsToInsert = Object.entries(examResults)
+      type NewExamResult = {
+        teacher_id: string;
+        exam_id: string;
+        student_id: string;
+        score: number;
+        student_name: string;
+        group_name: string;
+        created_at: ReturnType<typeof serverTimestamp>;
+      };
+
+      const resultsToInsert: NewExamResult[] = Object.entries(examResults)
         .filter(([_, score]) => score && score.trim() !== '')
         .map(([studentId, score]) => {
+          const parsed = Number(score);
+          if (!Number.isFinite(parsed)) return null;
+
           const student = students.find(s => s.id === studentId);
           return {
             teacher_id: teacherId,
             exam_id: currentExamId,
             student_id: studentId,
-            score: parseFloat(score),
+            score: parsed,
             student_name: student?.name || '',
-            group_name: groups.find(g => g.id === selectedGroup)?.name || '',
+            group_name: groupNameById.get(selectedGroup) || '',
             created_at: serverTimestamp()
           };
-        });
+        })
+        .filter((r): r is NewExamResult => r !== null);
 
       if (resultsToInsert.length === 0) {
         toast({
@@ -357,7 +805,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       setSelectedGroup('');
       setSelectedExamType('');
       setCustomExamName('');
-      setExamDate('');
+      setExamDate(getTashkentToday());
     } catch (error) {
       console.error('Error saving results:', error);
       toast({
@@ -365,6 +813,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Natijalarni saqlashda xatolik',
         variant: 'destructive',
       });
+    } finally {
+      setSavingResults(false);
     }
   };
 
@@ -423,7 +873,77 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
+  const exportExamDetails = (format: 'excel' | 'pdf') => {
+    const exam = exams.find(e => e.id === examDetailsExamId);
+    const examName = exam?.exam_name || 'Imtihon';
+    const examDate = exam?.exam_date || '';
+    const groupName = exam?.group_id ? (groupNameById.get(exam.group_id) || '') : '';
+
+    const fileBase = sanitizeFileName(`${examName}_${examDate || getTashkentToday()}`);
+
+    const headers = ["O'quvchi", 'Guruh', 'Ball', 'Izoh'];
+    const body = examDetailsData.map(r => [r.student_name, r.group_name || groupName, String(r.score), r.notes || '']);
+
+    const avg = examDetailsData.length > 0
+      ? (examDetailsData.reduce((sum, r) => sum + (Number(r.score) || 0), 0) / examDetailsData.length)
+      : 0;
+
+    const exportedAt = formatDateUz(getTashkentToday());
+
+    if (format === 'excel') {
+      const metaRows: (string | number)[][] = [
+        [examName],
+        ['Sana:', examDate ? formatDateUz(examDate) : ''],
+        ['Guruh:', groupName],
+        ['Jami o\'quvchi:', examDetailsData.length],
+        ["O'rtacha ball:", avg.toFixed(1)],
+        ['Export sanasi:', exportedAt],
+        [],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([...metaRows, headers, ...body]);
+      const wb = XLSX.utils.book_new();
+
+      (ws as any)['!cols'] = [
+        { wch: 26 },
+        { wch: 18 },
+        { wch: 8 },
+        { wch: 32 },
+      ];
+      (ws as any)['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Results');
+      XLSX.writeFile(wb, `${fileBase}.xlsx`);
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text(examName, 14, 14);
+
+    doc.setFontSize(10);
+    if (examDate) doc.text(`Sana: ${formatDateUz(examDate)}`, 14, 22);
+    if (groupName) doc.text(`Guruh: ${groupName}`, 14, 28);
+    doc.text(`Jami o'quvchi: ${examDetailsData.length}   O'rtacha ball: ${avg.toFixed(1)}`, 14, 34);
+    doc.text(`Export sanasi: ${exportedAt}`, 14, 40);
+
+    autoTable(doc, {
+      head: [headers],
+      body,
+      startY: 46,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [17, 24, 39] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    doc.save(`${fileBase}.pdf`);
+  };
+
   const fetchExamDetails = async (examId: string) => {
+    setShowExamDetailsDialog(true);
+    setExamDetailsExamId(examId);
+    setLoadingExamDetails(true);
+
     try {
       const q = query(
         collection(db, 'exam_results'),
@@ -431,10 +951,20 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       );
       const snapshot = await getDocs(q);
       const results = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+        .map((docSnap) => {
+          const data = docSnap.data() as Partial<ExamResult>;
+          return {
+            id: docSnap.id,
+            exam_id: String(data.exam_id ?? ''),
+            student_id: String(data.student_id ?? ''),
+            score: Number(data.score ?? 0),
+            notes: typeof data.notes === 'string' ? data.notes : undefined,
+            student_name: typeof data.student_name === 'string' ? data.student_name : '',
+            group_name: typeof data.group_name === 'string' ? data.group_name : '',
+          } as ExamResult;
+        })
+        .sort((a, b) => (b.score || 0) - (a.score || 0));
       setExamDetailsData(results);
-      setShowExamDetailsDialog(true);
     } catch (error) {
       console.error('Error fetching exam details:', error);
       toast({
@@ -442,11 +972,14 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Imtihon natijalarini yuklashda xatolik',
         variant: 'destructive',
       });
+      setExamDetailsData([]);
+    } finally {
+      setLoadingExamDetails(false);
     }
   };
 
   const updateExamResult = async () => {
-    if (!editingResult || !editScore || !editReason.trim()) {
+    if (!editingResult || !editScore || !editReason.trim() || updatingResult) {
       toast({
         title: 'Xato',
         description: 'Ball va izohni kiriting',
@@ -455,10 +988,21 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       return;
     }
 
+    const parsed = Number(editScore);
+    if (!Number.isFinite(parsed)) {
+      toast({
+        title: 'Xato',
+        description: 'Ball noto\'g\'ri',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUpdatingResult(true);
     try {
       const resultRef = doc(db, 'exam_results', editingResult.id);
       await updateDoc(resultRef, {
-        score: parseFloat(editScore),
+        score: parsed,
         notes: editReason.trim(),
         updated_at: serverTimestamp()
       });
@@ -468,8 +1012,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Natija yangilandi',
       });
 
-      const currentExam = examDetailsData[0]?.exam_id;
-      if (currentExam) await fetchExamDetails(currentExam);
+      if (examDetailsExamId) await fetchExamDetails(examDetailsExamId);
 
       setEditingResult(null);
       setEditScore('');
@@ -481,164 +1024,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Natijani yangilashda xatolik',
         variant: 'destructive',
       });
+    } finally {
+      setUpdatingResult(false);
     }
-  };
-
-  const ExamAnalysis = () => {
-    const [selectedExamName, setSelectedExamName] = useState<string>('');
-    const [selectedAnalysisGroup, setSelectedAnalysisGroup] = useState<string>('');
-    const [analysisData, setAnalysisData] = useState<Record<string, any[]>>({});
-
-    useEffect(() => {
-      if (selectedExamName) fetchAnalysisData();
-    }, [selectedExamName, selectedAnalysisGroup]);
-
-    const fetchAnalysisData = async () => {
-      try {
-        let examsQ = query(
-          collection(db, 'exams'),
-          where('teacher_id', '==', teacherId),
-          where('exam_name', '==', selectedExamName)
-        );
-        if (selectedAnalysisGroup && selectedAnalysisGroup !== 'all') {
-          examsQ = query(examsQ, where('group_id', '==', selectedAnalysisGroup));
-        }
-        const examsSnap = await getDocs(examsQ);
-        const examIds = examsSnap.docs.map(d => d.id);
-        const examIdToDate = new Map(examsSnap.docs.map(d => [d.id, d.data().exam_date]));
-
-        if (examIds.length === 0) {
-          setAnalysisData({});
-          return;
-        }
-
-        const resultsQ = query(
-          collection(db, 'exam_results'),
-          where('teacher_id', '==', teacherId),
-          where('exam_id', 'in', examIds)
-        );
-        const resultsSnap = await getDocs(resultsQ);
-
-        const grouped: Record<string, any[]> = {};
-        resultsSnap.docs.forEach(doc => {
-          const data = doc.data();
-          const studentId = data.student_id;
-          if (!grouped[studentId]) grouped[studentId] = [];
-          grouped[studentId].push({
-            studentName: data.student_name,
-            groupName: data.group_name,
-            examDate: examIdToDate.get(data.exam_id),
-            score: data.score,
-          });
-        });
-
-        Object.keys(grouped).forEach(studentId => {
-          grouped[studentId].sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
-        });
-
-        setAnalysisData(grouped);
-      } catch (error) {
-        console.error('Error fetching analysis:', error);
-      }
-    };
-
-    const uniqueExamNames = [...new Set(exams.map(e => e.exam_name))];
-
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <Label>Imtihon turi</Label>
-            <Select value={selectedExamName} onValueChange={setSelectedExamName}>
-              <SelectTrigger>
-                <SelectValue placeholder="Imtihon turini tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                {uniqueExamNames.map((name) => (
-                  <SelectItem key={name} value={name}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1">
-            <Label>Guruh (ixtiyoriy)</Label>
-            <Select value={selectedAnalysisGroup} onValueChange={setSelectedAnalysisGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Barcha guruhlar" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Barcha guruhlar</SelectItem>
-                {groups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {selectedExamName && Object.keys(analysisData).length > 0 && (
-          <Card className="p-6 overflow-x-auto">
-            <h3 className="text-lg font-semibold mb-4">
-              {selectedExamName} - Natijalar tahlili
-            </h3>
-            {(() => {
-              const allDates = Array.from(new Set(Object.values(analysisData).flat().map(r => r.examDate))).sort();
-              return (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[180px]">O'quvchi</TableHead>
-                      <TableHead className="min-w-[120px]">Guruh</TableHead>
-                      {allDates.map((date, idx) => (
-                        <TableHead key={idx} className="text-center min-w-[100px]">
-                          {formatDateUz(date, 'short')}
-                        </TableHead>
-                      ))}
-                      <TableHead className="text-center min-w-[80px]">O'rtacha</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(analysisData)
-                      .sort(([, aRes], [, bRes]) => {
-                        const aAvg = aRes.reduce((sum, r) => sum + r.score, 0) / aRes.length;
-                        const bAvg = bRes.reduce((sum, r) => sum + r.score, 0) / bRes.length;
-                        return bAvg - aAvg;
-                      })
-                      .map(([studentId, results]) => {
-                        const avgScore = (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(1);
-                        const scoresByDate = new Map(results.map(r => [r.examDate, r.score]));
-                        return (
-                          <TableRow key={studentId}>
-                            <TableCell className="font-medium">{results[0]?.studentName}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
-                            {allDates.map((date, idx) => {
-                              const score = scoresByDate.get(date);
-                              return (
-                                <TableCell key={idx} className="text-center">
-                                  {score !== undefined ? (
-                                    <span className={`inline-block px-3 py-1 rounded-md font-semibold ${score >= 90 ? 'bg-green-100 text-green-700' :
-                                      score >= 70 ? 'bg-blue-100 text-blue-700' :
-                                        score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                          'bg-red-100 text-red-700'
-                                      }`}>
-                                      {score}
-                                    </span>
-                                  ) : <span className="text-muted-foreground">-</span>}
-                                </TableCell>
-                              );
-                            })}
-                            <TableCell className="text-center font-bold text-primary">{avgScore}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                  </TableBody>
-                </Table>
-              );
-            })()}
-          </Card>
-        )}
-      </div>
-    );
   };
 
   if (loading) {
@@ -651,7 +1039,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold mb-2">Imtihonlar</h2>
           <p className="text-muted-foreground">O'quvchilar imtihon natijalarini boshqaring va tahlil qiling</p>
@@ -697,7 +1085,13 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 <Label>Imtihon sanasi</Label>
                 <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
               </div>
-              <Button onClick={createExam} className="w-full">Davom etish</Button>
+              <Button
+                onClick={createExam}
+                className="w-full"
+                disabled={creatingExam || !selectedGroup || (!selectedExamType && !customExamName) || !examDate}
+              >
+                {creatingExam ? "Yaratilmoqda..." : "Davom etish"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -743,7 +1137,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       </div>
 
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input placeholder="Imtihon nomini qidiring..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
@@ -759,7 +1153,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
             <SelectTrigger><SelectValue placeholder="Imtihon turi" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Barcha turlar</SelectItem>
-              {Array.from(new Set(exams.map(e => e.exam_name))).map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+              {uniqueExamNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={dateFilter} onValueChange={setDateFilter}>
@@ -771,6 +1165,17 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
               <SelectItem value="month">So'nggi oy</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchQuery('');
+              setFilterGroup('all');
+              setFilterExamType('all');
+              setDateFilter('all');
+            }}
+          >
+            Tozalash
+          </Button>
         </div>
       </Card>
 
@@ -788,13 +1193,24 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.map((student) => (
+                {students.map((student, idx) => (
                   <TableRow key={student.id}>
-                    <TableCell>{student.name}</TableCell>
+                    <TableCell>
+                      <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                        {student.name}
+                      </StudentProfileLink>
+                    </TableCell>
                     <TableCell>
                       <Input
+                        ref={setScoreInputRef(student.id)}
                         type="number"
+                        inputMode="decimal"
+                        enterKeyHint="next"
+                        min={0}
+                        max={100}
+                        step={1}
                         value={examResults[student.id] || ''}
+                        onKeyDown={handleScoreKeyDown(idx)}
                         onChange={(e) => setExamResults({ ...examResults, [student.id]: e.target.value })}
                         placeholder="Ball"
                       />
@@ -803,7 +1219,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 ))}
               </TableBody>
             </Table>
-            <Button onClick={saveExamResults} className="w-full">Saqlash</Button>
+            <Button onClick={saveExamResults} className="w-full" disabled={savingResults}>
+              {savingResults ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -816,101 +1234,171 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
         <TabsContent value="list">
           <div className="space-y-6">
-            {Object.entries(groupedExams).map(([monthKey, monthExams]) => (
-              <div key={monthKey} className="space-y-4">
-                <h3 className="text-lg font-semibold capitalize text-muted-foreground pl-1">
-                  {getMonthName(monthKey)}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {monthExams.map((exam) => (
-                    <Card key={exam.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-base font-semibold truncate pr-2" title={exam.exam_name}>
-                          {exam.exam_name}
-                        </CardTitle>
-                        <Badge variant="secondary" className="shrink-0">
-                          {groups.find(g => g.id === exam.group_id)?.name}
-                        </Badge>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {formatDateUz(exam.exam_date)}
+            {monthKeys.map((monthKey) => {
+              const monthExams = groupedExams[monthKey] || [];
+              return (
+                <div key={monthKey} className="space-y-4">
+                  <h3 className="text-lg font-semibold capitalize text-muted-foreground pl-1">
+                    {getMonthName(monthKey)}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {monthExams.map((exam) => (
+                      <Card key={exam.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-base font-semibold truncate pr-2" title={exam.exam_name}>
+                            {exam.exam_name}
+                          </CardTitle>
+                          <Badge variant="secondary" className="shrink-0">
+                            {groupNameById.get(exam.group_id) || '-'}
+                          </Badge>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {formatDateUz(exam.exam_date)}
+                            </div>
+                            <div className="flex justify-end space-x-2 pt-2">
+                              <Button variant="ghost" size="sm" onClick={() => fetchExamDetails(exam.id)}>
+                                <FileText className="h-4 w-4 mr-1" /> Natijalar
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleAction(exam.id, exam.exam_name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                                <Archive className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex justify-end space-x-2 pt-2">
-                            <Button variant="ghost" size="sm" onClick={() => fetchExamDetails(exam.id)}>
-                              <FileText className="h-4 w-4 mr-1" /> Natijalar
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleAction(exam.id, exam.exam_name)} className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
-                              <Archive className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+
             {filteredExams.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 Imtihonlar topilmadi
+              </div>
+            )}
+
+            {filteredExams.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <div className="text-sm text-muted-foreground">
+                  Ko'rsatilmoqda: {Math.min(visibleExams.length, filteredExams.length)}/{filteredExams.length}
+                </div>
+                {hasMoreExams && (
+                  <div className="text-sm text-muted-foreground">
+                    Pastga tushsangiz avtomatik yuklanadi
+                  </div>
+                )}
+              </div>
+            )}
+
+            {hasMoreExams && (
+              <div ref={loadMoreRef} className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary"></div>
               </div>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="analysis">
-          <ExamAnalysis />
+          <ExamAnalysis teacherId={teacherId} exams={exams} groups={groups} />
         </TabsContent>
       </Tabs>
 
-      <Dialog open={showExamDetailsDialog} onOpenChange={setShowExamDetailsDialog}>
+      <Dialog
+        open={showExamDetailsDialog}
+        onOpenChange={(open) => {
+          setShowExamDetailsDialog(open);
+          if (!open) {
+            setExamDetailsData([]);
+            setExamDetailsExamId('');
+            setLoadingExamDetails(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Imtihon natijalari</DialogTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <DialogTitle>Imtihon natijalari</DialogTitle>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => exportExamDetails('excel')}
+                  disabled={loadingExamDetails || examDetailsData.length === 0}
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => exportExamDetails('pdf')}
+                  disabled={loadingExamDetails || examDetailsData.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" /> PDF
+                </Button>
+              </div>
+            </div>
           </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>O'quvchi</TableHead>
-                <TableHead>Ball</TableHead>
-                <TableHead>Izoh</TableHead>
-                <TableHead className="w-[100px]">Amallar</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {examDetailsData.map((result) => (
-                <TableRow key={result.id}>
-                  <TableCell className="font-medium">{result.student_name}</TableCell>
-                  <TableCell>
-                    <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${result.score >= 90 ? 'bg-green-100 text-green-700' :
-                      result.score >= 70 ? 'bg-blue-100 text-blue-700' :
-                        result.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                      }`}>
-                      {result.score}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{result.notes || '-'}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => {
-                      setEditingResult({
-                        id: result.id,
-                        studentName: result.student_name,
-                        currentScore: result.score
-                      });
-                      setEditScore(result.score.toString());
-                      setEditReason(result.notes || '');
-                    }}>
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+
+          {loadingExamDetails ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : examDetailsData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">Natijalar topilmadi</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>O'quvchi</TableHead>
+                  <TableHead>Ball</TableHead>
+                  <TableHead>Izoh</TableHead>
+                  <TableHead className="w-[100px]">Amallar</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {examDetailsData.map((result) => (
+                  <TableRow key={result.id}>
+                    <TableCell className="font-medium">
+                      {result.student_id ? (
+                        <StudentProfileLink studentId={result.student_id} className="text-inherit hover:text-blue-700">
+                          {result.student_name}
+                        </StudentProfileLink>
+                      ) : (
+                        result.student_name
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${result.score >= 90 ? 'bg-green-100 text-green-700' :
+                        result.score >= 70 ? 'bg-blue-100 text-blue-700' :
+                          result.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                        }`}>
+                        {result.score}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{result.notes || '-'}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setEditingResult({
+                          id: result.id,
+                          studentName: result.student_name,
+                          currentScore: result.score
+                        });
+                        setEditScore(result.score.toString());
+                        setEditReason(result.notes || '');
+                      }}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -923,13 +1411,15 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           <div className="space-y-4">
             <div>
               <Label>Ball</Label>
-              <Input type="number" value={editScore} onChange={(e) => setEditScore(e.target.value)} />
+              <Input type="number" inputMode="decimal" min={0} max={100} step={1} value={editScore} onChange={(e) => setEditScore(e.target.value)} />
             </div>
             <div>
               <Label>Izoh (sabab)</Label>
               <Input value={editReason} onChange={(e) => setEditReason(e.target.value)} placeholder="O'zgartirish sababi..." />
             </div>
-            <Button onClick={updateExamResult} className="w-full">Saqlash</Button>
+            <Button onClick={updateExamResult} className="w-full" disabled={updatingResult}>
+              {updatingResult ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

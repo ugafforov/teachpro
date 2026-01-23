@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, ChevronDown, Edit2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, ChevronDown, Edit2, MoreVertical, StickyNote, X, Lightbulb } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -30,10 +31,11 @@ import {
     updateDoc,
     deleteDoc,
     Timestamp,
-    orderBy
+    orderBy,
+    limit
 } from 'firebase/firestore';
 import StudentImport from './StudentImport';
-import StudentDetailsPopup from './StudentDetailsPopup';
+import StudentProfileLink from './StudentProfileLink';
 import AttendanceJournal from './AttendanceJournal';
 import GroupRankingSidebar from './GroupRankingSidebar';
 import { studentSchema, formatValidationError } from '@/lib/validations';
@@ -119,8 +121,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const [loading, setLoading] = useState(true);
     const [pendingAttendance, setPendingAttendance] = useState<Record<string, boolean>>({});
     const [savedAttendance, setSavedAttendance] = useState<Record<string, boolean>>({});
-    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-    const [isStudentPopupOpen, setIsStudentPopupOpen] = useState(false);
     const [showAbsentDialog, setShowAbsentDialog] = useState<string | null>(null);
     const [showReasonInput, setShowReasonInput] = useState(false);
     const [absentReason, setAbsentReason] = useState('');
@@ -133,6 +133,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     // TODO: Kelajakda bu period ni props orqali Dashboard dan olish kerak
     // Hozircha har bir guruh o'zining alohida period ni saqlaydi
     const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
+    
+    // Keyingi dars uchun eslatmalar (bitta darsda bir nechta bo'lishi mumkin)
+    type LessonNote = { id: string; note: string; created_at: any; created_date: string };
+    const [lessonNotes, setLessonNotes] = useState<LessonNote[]>([]);
+    const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+    const [noteInput, setNoteInput] = useState('');
+    const [isNoteExpanded, setIsNoteExpanded] = useState(false);
+    const [savingNote, setSavingNote] = useState(false);
+    
     const [newStudent, setNewStudent] = useState({
         name: '',
         join_date: getTashkentToday(),
@@ -171,6 +180,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         const loadGroupData = async () => {
             // setLoading(true); // Removed to prevent full page reload on group switch
             await fetchStudents();
+            await fetchLessonNotes();
             setLoading(false);
         };
         loadGroupData();
@@ -214,6 +224,201 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             fetchAttendanceDates();
         }
     }, [students]);
+
+    // Eslatma funksiyalari
+    const normalizeToYMD = (value: any): string => {
+        if (!value) return getTashkentToday();
+
+        if (typeof value === 'string') {
+            // In case it accidentally includes time
+            return value.length >= 10 ? value.slice(0, 10) : value;
+        }
+
+        if (value instanceof Timestamp) {
+            return format(value.toDate(), 'yyyy-MM-dd');
+        }
+
+        if (typeof value === 'object' && typeof value?.seconds === 'number') {
+            return format(new Date(value.seconds * 1000), 'yyyy-MM-dd');
+        }
+
+        if (typeof value?.toDate === 'function') {
+            const d = value.toDate();
+            if (d instanceof Date && !isNaN(d.getTime())) {
+                return format(d, 'yyyy-MM-dd');
+            }
+        }
+
+        try {
+            const d = new Date(value);
+            if (!isNaN(d.getTime())) {
+                return format(d, 'yyyy-MM-dd');
+            }
+        } catch {
+            // ignore
+        }
+
+        return getTashkentToday();
+    };
+
+    const toMillisSafe = (value: any): number => {
+        if (!value) return 0;
+        if (value instanceof Timestamp) return value.toMillis();
+        if (typeof value === 'object' && typeof value?.seconds === 'number') return value.seconds * 1000;
+        if (typeof value?.toMillis === 'function') return value.toMillis();
+        if (typeof value?.toDate === 'function') {
+            const d = value.toDate();
+            if (d instanceof Date && !isNaN(d.getTime())) return d.getTime();
+        }
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+
+    const fetchLessonNotes = async () => {
+        // Primary path: indexed query (fast)
+        try {
+            const q = query(
+                collection(db, 'group_notes'),
+                where('teacher_id', '==', teacherId),
+                where('group_name', '==', groupName),
+                where('is_active', '==', true),
+                orderBy('created_at', 'desc'),
+                limit(50)
+            );
+
+            const snapshot = await getDocs(q);
+            const notes = snapshot.docs.map(d => {
+                const data = d.data() as any;
+                const createdDate = normalizeToYMD(data.created_date ?? data.created_at);
+                return {
+                    id: d.id,
+                    note: data.note,
+                    created_at: data.created_at,
+                    created_date: createdDate
+                } as LessonNote;
+            });
+            setLessonNotes(notes);
+            return;
+        } catch (error) {
+            // Fallback path: avoid relying on a composite index (works even if index isn't deployed)
+            console.error('Error fetching lesson notes (primary query):', error);
+        }
+
+        try {
+            const fallbackQ = query(
+                collection(db, 'group_notes'),
+                where('teacher_id', '==', teacherId)
+            );
+            const snapshot = await getDocs(fallbackQ);
+            const rows = snapshot.docs
+                .map(d => ({ id: d.id, ...d.data() } as any))
+                .filter(r => r.group_name === groupName && r.is_active === true);
+
+            const sorted = [...rows]
+                .sort((a, b) => toMillisSafe(b.created_at) - toMillisSafe(a.created_at))
+                .slice(0, 50);
+
+            const notes = sorted.map(r => {
+                const createdDate = normalizeToYMD(r.created_date ?? r.created_at);
+                return {
+                    id: r.id,
+                    note: r.note,
+                    created_at: r.created_at,
+                    created_date: createdDate
+                } as LessonNote;
+            });
+            setLessonNotes(notes);
+        } catch (fallbackError) {
+            console.error('Error fetching lesson notes (fallback query):', fallbackError);
+            setLessonNotes([]);
+        }
+    };
+
+    const startEditLessonNote = (note: LessonNote) => {
+        setEditingNoteId(note.id);
+        setNoteInput(note.note);
+        setIsNoteExpanded(true);
+    };
+
+    const saveLessonNote = async () => {
+        const trimmed = noteInput.trim();
+        if (!trimmed) return;
+
+        setSavingNote(true);
+        try {
+            // Edit mode
+            if (editingNoteId) {
+                await updateDoc(doc(db, 'group_notes', editingNoteId), {
+                    note: trimmed,
+                    updated_at: serverTimestamp()
+                });
+
+                setLessonNotes(prev => prev.map(n => n.id === editingNoteId ? { ...n, note: trimmed } : n));
+                setEditingNoteId(null);
+                setNoteInput('');
+                toast({ title: "Eslatma yangilandi" });
+                void fetchLessonNotes();
+                return;
+            }
+
+            // Create mode (bitta kunda bir nechta eslatma)
+            const newRef = doc(collection(db, 'group_notes'));
+            const createdDate = selectedDate;
+
+            await setDoc(newRef, {
+                teacher_id: teacherId,
+                group_name: groupName,
+                note: trimmed,
+                is_active: true,
+                created_date: createdDate,
+                created_at: serverTimestamp(),
+                updated_at: serverTimestamp()
+            });
+
+            setLessonNotes(prev => ([
+                {
+                    id: newRef.id,
+                    note: trimmed,
+                    created_at: Timestamp.now(),
+                    created_date: createdDate
+                },
+                ...prev
+            ]));
+
+            setNoteInput('');
+            toast({ title: "Eslatma saqlandi" });
+
+            // Background refresh (serverTimestamp / boshqa tablar uchun)
+            void fetchLessonNotes();
+        } catch (error) {
+            console.error('Error saving note:', error);
+            toast({ title: "Xatolik", description: "Eslatmani saqlashda xatolik", variant: "destructive" });
+        } finally {
+            setSavingNote(false);
+        }
+    };
+
+    const completeLessonNote = async (noteId: string) => {
+        try {
+            await updateDoc(doc(db, 'group_notes', noteId), {
+                is_active: false,
+                completed_at: serverTimestamp(),
+                completed_date: selectedDate,
+                updated_at: serverTimestamp()
+            });
+            setLessonNotes(prev => prev.filter(n => n.id !== noteId));
+            toast({ title: "Bajarildi!", description: "Eslatma yakunlandi" });
+            void fetchLessonNotes();
+        } catch (error) {
+            console.error('Error completing note:', error);
+        }
+    };
+
+    // Tanlangan sana uchun ko'rsatiladigan eslatmalar (yaratilgan sanadan keyingi sanalarda)
+    const notesToShow = lessonNotes.filter(n => selectedDate > n.created_date);
+
+    // Shu kunda yaratilgan eslatmalar (bir nechta bo'lishi mumkin)
+    const notesCreatedOnSelectedDate = lessonNotes.filter(n => selectedDate === n.created_date);
 
     const fetchAttendanceDates = async () => {
         try {
@@ -793,10 +998,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const handleStudentClick = (studentId: string) => {
-        setSelectedStudentId(studentId);
-        setIsStudentPopupOpen(true);
-    };
 
     const handleAction = (studentId: string, studentName: string) => {
         setConfirmDialog({
@@ -1150,39 +1351,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 </div>
                 <div className="flex gap-2">
                     <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} availableGroups={availableGroups} />
-                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                        <DialogTrigger asChild><Button className="apple-button"><Plus className="w-4 h-4 mr-2" />O'quvchi qo'shish</Button></DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader><DialogTitle>Yangi o'quvchi qo'shish</DialogTitle></DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2"><Label>F.I.SH (majburiy)</Label><Input value={newStudent.name} onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })} placeholder="Masalan: Ali Valiyev" /></div>
-                                <div className="space-y-2">
-                                    <Label>Qo'shilgan sana (majburiy)</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !newStudent.join_date && "text-muted-foreground")}>
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {newStudent.join_date ? format(parseISO(newStudent.join_date), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                            <Calendar
-                                                mode="single"
-                                                selected={parseISO(newStudent.join_date)}
-                                                onSelect={(date) => date && setNewStudent({ ...newStudent, join_date: format(date, 'yyyy-MM-dd') })}
-                                                initialFocus
-                                                locale={uz}
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                                <div className="space-y-2"><Label>O'quvchi ID (ixtiyoriy)</Label><Input value={newStudent.student_id} onChange={(e) => setNewStudent({ ...newStudent, student_id: e.target.value })} placeholder="Masalan: 12345" /></div>
-                                <div className="space-y-2"><Label>Email (ixtiyoriy)</Label><Input value={newStudent.email} onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })} placeholder="Masalan: ali@example.com" /></div>
-                                <div className="space-y-2"><Label>Telefon (ixtiyoriy)</Label><Input value={newStudent.phone} onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })} placeholder="Masalan: +998901234567" /></div>
-                                <Button onClick={addStudent} className="w-full apple-button">Qo'shish</Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
 
                     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                         <DialogContent>
@@ -1283,37 +1451,253 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     {activeTab === 'attendance' && (
                         <div className="flex flex-col lg:flex-row gap-6 items-start">
                             <Card className="apple-card overflow-hidden w-full lg:flex-[65_65_0%] min-w-0">
-                                <div className="p-6 border-b border-border/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
-                                    <div className="flex items-center space-x-4">
-                                        <Popover>
+                                {/* Eslatma banner - yaratilgan sanadan keyingi sanalarda ko'rsatiladi (bir nechta bo'lishi mumkin) */}
+                                {notesToShow.length > 0 && (
+                                    <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-300 px-4 py-3 animate-in slide-in-from-top-2 duration-300">
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center animate-pulse mt-0.5">
+                                                <Lightbulb className="w-4 h-4 text-amber-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs text-amber-600 font-medium mb-1">O'zingizga eslatmalar ({notesToShow.length})</p>
+                                                {notesToShow.length === 1 ? (
+                                                    <div className="flex items-start gap-2">
+                                                        <p className="text-sm text-amber-900 font-medium flex-1 break-words">
+                                                            {notesToShow[0].note}
+                                                        </p>
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => startEditLessonNote(notesToShow[0])}
+                                                                className="h-7 w-7 p-0 text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                                                                title="Tahrirlash"
+                                                            >
+                                                                <Edit2 className="w-3.5 h-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => completeLessonNote(notesToShow[0].id)}
+                                                                className="h-7 w-7 p-0 text-green-700 hover:text-green-900 hover:bg-green-100"
+                                                                title="Bajarildi"
+                                                            >
+                                                                <CheckCircle className="w-3.5 h-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1">
+                                                        {notesToShow.map((n) => (
+                                                            <div
+                                                                key={n.id}
+                                                                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 px-2 py-1"
+                                                            >
+                                                                <span
+                                                                    className="text-xs text-amber-900 font-medium truncate max-w-[240px]"
+                                                                    title={n.note}
+                                                                >
+                                                                    {n.note}
+                                                                </span>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => startEditLessonNote(n)}
+                                                                    className="h-5 w-5 p-0 text-amber-700 hover:text-amber-900 hover:bg-amber-200"
+                                                                    title="Tahrirlash"
+                                                                >
+                                                                    <Edit2 className="w-3 h-3" />
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => completeLessonNote(n.id)}
+                                                                    className="h-5 w-5 p-0 text-green-700 hover:text-green-900 hover:bg-green-200"
+                                                                    title="Bajarildi"
+                                                                >
+                                                                    <CheckCircle className="w-3 h-3" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="p-4 border-b border-border/50 flex flex-wrap items-center gap-3 bg-gray-50/50">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={parseISO(selectedDate)}
+                                                onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
+                                                initialFocus
+                                                locale={uz}
+                                                modifiers={{ hasAttendance: attendanceDates }}
+                                                modifiersStyles={{
+                                                    hasAttendance: {
+                                                        backgroundColor: '#22c55e',
+                                                        color: 'white',
+                                                        borderRadius: '50%'
+                                                    }
+                                                }}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
+                                    <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
+                                    
+                                    {/* Eslatmalar - bitta darsda bir nechta */}
+                                    <div className="flex-1 min-w-[200px]">
+                                        <Popover
+                                            open={isNoteExpanded}
+                                            onOpenChange={(open) => {
+                                                setIsNoteExpanded(open);
+                                                if (!open) {
+                                                    setEditingNoteId(null);
+                                                    setNoteInput('');
+                                                }
+                                            }}
+                                        >
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className={cn("w-[240px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {selectedDate ? format(parseISO(selectedDate), "d-MMMM, yyyy", { locale: uz }) : <span>Sana tanlang</span>}
-                                                </Button>
+                                                <button
+                                                    onClick={() => setIsNoteExpanded(true)}
+                                                    className={cn(
+                                                        "flex items-center gap-2 text-sm transition-colors",
+                                                        notesCreatedOnSelectedDate.length > 0
+                                                            ? "text-amber-600 hover:text-amber-700"
+                                                            : "text-gray-400 hover:text-gray-600"
+                                                    )}
+                                                >
+                                                    <StickyNote className="w-4 h-4" />
+                                                    <span className="hidden sm:inline">
+                                                        {notesCreatedOnSelectedDate.length > 0
+                                                            ? `Eslatmalar (${notesCreatedOnSelectedDate.length})`
+                                                            : "Eslatma qo'shish..."}
+                                                    </span>
+                                                    <span className="sm:hidden">Eslatma</span>
+                                                </button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={parseISO(selectedDate)}
-                                                    onSelect={(date) => date && setSelectedDate(format(date, 'yyyy-MM-dd'))}
-                                                    initialFocus
-                                                    locale={uz}
-                                                    modifiers={{ hasAttendance: attendanceDates }}
-                                                    modifiersStyles={{
-                                                        hasAttendance: {
-                                                            backgroundColor: '#22c55e',
-                                                            color: 'white',
-                                                            borderRadius: '50%'
-                                                        }
-                                                    }}
-                                                />
+                                            <PopoverContent className="w-96 p-3" align="end">
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                                            <StickyNote className="w-4 h-4 text-amber-500" />
+                                                            Keyingi dars uchun eslatmalar
+                                                        </div>
+                                                        {editingNoteId && (
+                                                            <span className="text-xs text-amber-700 font-medium">Tahrirlash</span>
+                                                        )}
+                                                    </div>
+
+                                                    {notesCreatedOnSelectedDate.length > 0 && (
+                                                        notesCreatedOnSelectedDate.length === 1 ? (
+                                                            <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                                                                <div className="flex items-start gap-2">
+                                                                    <div className="flex-1 text-sm text-gray-700 break-words">
+                                                                        {notesCreatedOnSelectedDate[0].note}
+                                                                    </div>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => startEditLessonNote(notesCreatedOnSelectedDate[0])}
+                                                                        className="h-7 w-7 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                                                        title="Tahrirlash"
+                                                                    >
+                                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => completeLessonNote(notesCreatedOnSelectedDate[0].id)}
+                                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                        title="O'chirish"
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5" />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1">
+                                                                {notesCreatedOnSelectedDate.map((n) => (
+                                                                    <div
+                                                                        key={n.id}
+                                                                        className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 border border-gray-200 px-2 py-1"
+                                                                    >
+                                                                        <span
+                                                                            className="text-xs text-gray-700 truncate max-w-[240px]"
+                                                                            title={n.note}
+                                                                        >
+                                                                            {n.note}
+                                                                        </span>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            onClick={() => startEditLessonNote(n)}
+                                                                            className="h-5 w-5 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                                                            title="Tahrirlash"
+                                                                        >
+                                                                            <Edit2 className="w-3 h-3" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            onClick={() => completeLessonNote(n.id)}
+                                                                            className="h-5 w-5 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                            title="O'chirish"
+                                                                        >
+                                                                            <X className="w-3 h-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )
+                                                    )}
+
+                                                    <Textarea
+                                                        value={noteInput}
+                                                        onChange={(e) => setNoteInput(e.target.value)}
+                                                        placeholder="Vazifa tekshirish, so'rov olish..."
+                                                        className="min-h-[80px] resize-none text-sm"
+                                                        autoFocus
+                                                    />
+
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                if (editingNoteId) {
+                                                                    setEditingNoteId(null);
+                                                                    setNoteInput('');
+                                                                    return;
+                                                                }
+                                                                setIsNoteExpanded(false);
+                                                                setNoteInput('');
+                                                            }}
+                                                        >
+                                                            Bekor
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={saveLessonNote}
+                                                            disabled={!noteInput.trim() || savingNote}
+                                                            className="bg-amber-500 hover:bg-amber-600 text-white"
+                                                        >
+                                                            {savingNote ? '...' : (editingNoteId ? 'Yangilash' : 'Saqlash')}
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </PopoverContent>
                                         </Popover>
-                                        <div className="flex gap-2">
-                                            <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
-                                            <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -1338,39 +1722,47 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                         const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
                                         const isArchived = !student.is_active;
                                         const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
-                                        return (
-                                            <React.Fragment key={student.id}>
-                                                {isFirstArchived && (
-                                                    <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
-                                                        <TableCell colSpan={6} className="text-center py-2">
-                                                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                                <TableRow className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
-                                                    <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-col cursor-pointer group" onClick={() => handleStudentClick(student.id)}>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{student.name}</span>
-                                                                {getStudentStatusNote(student, selectedDate) && (
-                                                                    <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
-                                                                        {getStudentStatusNote(student, selectedDate)}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
-                                                        </div>
+                                        const rows = [] as React.ReactNode[];
+                                        if (isFirstArchived) {
+                                            rows.push(
+                                                <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
+                                                    <TableCell colSpan={6} className="text-center py-2">
+                                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
                                                     </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-col items-center justify-center gap-1">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className={getToggleButtonStyle(attendance[student.id])}
-                                                                disabled={isOutsidePeriod || isFutureDate}
-                                                                onClick={() => toggleAttendance(student.id)}
-                                                                title={isFutureDate
+                                                </TableRow>
+                                            );
+                                        }
+
+                                        rows.push(
+                                            <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
+                                                <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col group">
+                                                        <div className="flex items-center gap-2">
+                                                            <StudentProfileLink
+                                                                studentId={student.id}
+                                                                className="font-semibold text-gray-900 group-hover:text-primary transition-colors"
+                                                            >
+                                                                {student.name}
+                                                            </StudentProfileLink>
+                                                            {getStudentStatusNote(student, selectedDate) && (
+                                                                <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
+                                                                    {getStudentStatusNote(student, selectedDate)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className={getToggleButtonStyle(attendance[student.id])}
+                                                            disabled={isOutsidePeriod || isFutureDate}
+                                                            onClick={() => toggleAttendance(student.id)}
+                                                            title={isFutureDate
                                                                     ? "Kelajak uchun belgilab bo'lmaydi"
                                                                     : isBeforeJoinDate
                                                                         ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
@@ -1488,9 +1880,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                             )}
                                                         </div>
                                                     </TableCell>
-                                                </TableRow>
-                                            </React.Fragment>
+                                            </TableRow>
                                         );
+
+                                        return rows;
                                     })}
                                         </TableBody>
                                     </Table>
@@ -1546,14 +1939,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 </AlertDialog>
             )}
 
-            {selectedStudentId && (
-                <StudentDetailsPopup
-                    studentId={selectedStudentId}
-                    isOpen={isStudentPopupOpen}
-                    onClose={() => { setIsStudentPopupOpen(false); setSelectedStudentId(null); }}
-                    teacherId={teacherId}
-                />
-            )}
 
             <ConfirmDialog
                 isOpen={confirmDialog.isOpen}

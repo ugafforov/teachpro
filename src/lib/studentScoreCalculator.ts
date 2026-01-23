@@ -34,11 +34,17 @@ export const PRESENT_POINTS = 1;      // Kelgan o'quvchi uchun ball
 export const LATE_POINTS = 0.5;       // Kech kelgan o'quvchi uchun ball
 export const ABSENT_POINTS = 0;       // Kelmagan o'quvchi uchun ball
 
+export interface TopStudentSummary {
+  id: string;
+  name: string;
+  score: number;
+}
+
 export interface StatsData {
   totalStudents: number;
   totalClasses: number;
   averageAttendance: number;
-  topStudent: string;
+  topStudent: TopStudentSummary | null;
 }
 
 export interface MonthlyData {
@@ -391,7 +397,7 @@ export async function calculateDashboardStats(
 
   if (allStudents.length === 0) {
     return {
-      stats: { totalStudents: 0, totalClasses: 0, averageAttendance: 0, topStudent: "Ma'lumot yo'q" },
+      stats: { totalStudents: 0, totalClasses: 0, averageAttendance: 0, topStudent: null },
       monthlyData: []
     };
   }
@@ -401,7 +407,7 @@ export async function calculateDashboardStats(
   let totalLate = 0;
   let totalPossible = 0;
   let maxScore = -Infinity;
-  let topStudent = "Ma'lumot yo'q";
+  let topStudent: TopStudentSummary | null = null;
 
   allStudents.forEach(s => {
     totalPresent += s.score.presentCount;
@@ -410,7 +416,11 @@ export async function calculateDashboardStats(
 
     if (s.score.totalScore > maxScore) {
       maxScore = s.score.totalScore;
-      topStudent = s.name;
+      topStudent = {
+        id: s.id,
+        name: s.name,
+        score: Math.round(s.score.totalScore * 10) / 10,
+      };
     }
   });
 

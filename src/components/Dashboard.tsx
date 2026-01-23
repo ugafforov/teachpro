@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Menu, Database } from 'lucide-react';
@@ -11,6 +12,8 @@ import StudentRankings from './StudentRankings';
 import ArchiveManager from './ArchiveManager';
 import ExamManager from './ExamManager';
 import DataManager from './DataManager';
+import StudentDetailView from './StudentDetailView';
+import StudentProfileLink from './StudentProfileLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStatistics } from '@/components/statistics/hooks/useStatistics';
 import MonthlyAnalysis from './statistics/MonthlyAnalysis';
@@ -24,6 +27,18 @@ interface DashboardProps {
 
 
 const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { studentId: routeStudentId } = useParams<{ studentId?: string }>();
+
+  // When the URL changes (students/:id), we animate between the current view and student profile.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const profileRef = useRef<HTMLDivElement | null>(null);
+  const isAnimatingRef = useRef(false);
+
+  const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
+  const activeStudentIdRef = useRef<string | null>(null);
+
   const activeTabStorageKey = `tp:dashboard:activeTab:${teacherId}`;
   const selectedGroupStorageKey = `tp:groups:selectedGroup:${teacherId}`;
 
@@ -43,6 +58,68 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   const [groups, setGroups] = useState<Array<{ id: string, name: string }>>([]);
 
   const { stats: detailedStats, monthlyData, loading: statsLoading } = useStatistics(teacherId, selectedPeriod, selectedGroup);
+
+  const handleStudentClick = useCallback((studentId: string) => {
+    if (isAnimatingRef.current) return;
+    
+    isAnimatingRef.current = true;
+    setActiveStudentId(studentId);
+    activeStudentIdRef.current = studentId;
+    
+    // Navigate without page refresh - no animations
+    navigate(`/students/${studentId}`, { 
+      replace: false,
+      state: { from: location.pathname + location.search }
+    });
+    
+    // Reset animation flag after transition
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 100);
+  }, [navigate, location]);
+
+  const handleBackClick = useCallback(() => {
+    if (isAnimatingRef.current) return;
+    
+    isAnimatingRef.current = true;
+    
+    // Navigate immediately - no animations
+    navigate(-1);
+    
+    // Clear state immediately to prevent conflicts
+    setActiveStudentId(null);
+    activeStudentIdRef.current = null;
+    
+    // Reset animation flag after a short delay
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 100);
+  }, [navigate]);
+
+  // Enhanced context for student profile components
+  const profileContext = {
+    onBack: handleBackClick,
+    isAnimating: isAnimatingRef.current
+  };
+
+  // Handle route changes for smooth transitions - simplified without animations
+  useEffect(() => {
+    if (routeStudentId && routeStudentId !== activeStudentIdRef.current) {
+      if (isAnimatingRef.current) return;
+      
+      isAnimatingRef.current = true;
+      setActiveStudentId(routeStudentId);
+      activeStudentIdRef.current = routeStudentId;
+      
+      setTimeout(() => {
+        isAnimatingRef.current = false;
+      }, 100);
+    } else if (!routeStudentId && activeStudentIdRef.current && !isAnimatingRef.current) {
+      // Only clear state if not already handled by back click
+      setActiveStudentId(null);
+      activeStudentIdRef.current = null;
+    }
+  }, [routeStudentId]);
 
   useEffect(() => {
     fetchGroups();
@@ -239,7 +316,16 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                         <Trophy className="w-7 h-7 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-lg font-black text-gray-900 leading-tight mb-0.5">{detailedStats.topStudent}</p>
+                        {detailedStats.topStudent ? (
+                          <StudentProfileLink
+                            studentId={detailedStats.topStudent.id}
+                            className="block text-lg font-black text-gray-900 leading-tight mb-0.5 truncate hover:text-purple-700"
+                          >
+                            {detailedStats.topStudent.name}
+                          </StudentProfileLink>
+                        ) : (
+                          <p className="text-lg font-black text-gray-900 leading-tight mb-0.5 truncate">Ma'lumot yo'q</p>
+                        )}
                         <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Eng faol o'quvchi</p>
                       </div>
                     </div>
@@ -258,6 +344,30 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         );
     }
   };
+
+  const closeStudentProfile = () => {
+    if (isAnimatingRef.current) return;
+    
+    isAnimatingRef.current = true;
+    
+    // Simple navigation without animations
+    navigate(-1);
+    
+    setActiveStudentId(null);
+    activeStudentIdRef.current = null;
+    
+    setTimeout(() => {
+      isAnimatingRef.current = false;
+    }, 100);
+  };
+
+  useEffect(() => {
+    activeStudentIdRef.current = activeStudentId;
+  }, [activeStudentId]);
+
+  // useLayoutEffect(() => {
+  //   // Old GSAP animation logic removed
+  // }, [routeStudentId]);
 
   return (
     <main className="h-screen overflow-hidden bg-white flex flex-col">
@@ -350,7 +460,23 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto h-full bg-white">
           <div className="p-4 lg:p-8">
-            {renderContent()}
+            {/* Student Profile (full content) */}
+            {activeStudentId && (
+              <div ref={profileRef}>
+                <StudentDetailView
+                  studentId={activeStudentId}
+                  teacherId={teacherId}
+                  onBack={closeStudentProfile}
+                />
+              </div>
+            )}
+
+            {/* Dashboard content (hidden when profile is open) */}
+            {!activeStudentId && (
+              <div ref={contentRef}>
+                {renderContent()}
+              </div>
+            )}
           </div>
         </div>
       </div>

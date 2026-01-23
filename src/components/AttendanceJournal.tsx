@@ -24,6 +24,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DateRange } from 'react-day-picker';
+import StudentProfileLink from './StudentProfileLink';
 
 interface Student {
   id: string;
@@ -518,7 +519,9 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
                   <tr key={student.id} className="hover:bg-blue-50/30 transition-colors">
                     <td className="sticky left-0 bg-white border border-gray-200 px-3 py-2 font-medium text-sm z-10">
                       <div className="flex items-center justify-between">
-                        <span className="truncate">{student.name}</span>
+                        <StudentProfileLink studentId={student.id} className="truncate text-inherit hover:text-blue-700">
+                          {student.name}
+                        </StudentProfileLink>
                         <span className={cn(
                           "ml-2 inline-block px-2 py-1 rounded text-xs font-semibold",
                           getAttendancePercentage(student.id) >= 75

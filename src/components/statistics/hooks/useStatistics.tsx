@@ -6,7 +6,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
         totalStudents: 0,
         totalClasses: 0,
         averageAttendance: 0,
-        topStudent: ''
+        topStudent: null
     });
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
     const [loading, setLoading] = useState(true);

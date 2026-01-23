@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Medal, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import StudentProfileLink from './StudentProfileLink';
 
 interface Student {
     id: string;
@@ -110,7 +111,11 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                                             {getInitials(student.name)}
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="text-sm font-medium truncate leading-5">{student.name}</p>
+                                            <p className="text-sm font-medium truncate leading-5">
+                                                <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                                                    {student.name}
+                                                </StudentProfileLink>
+                                            </p>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] leading-4">
                                                 <span className="text-blue-600 font-medium">
                                                     {((student.attendancePoints || 0)).toFixed(1)} davomat
