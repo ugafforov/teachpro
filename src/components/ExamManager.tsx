@@ -46,6 +46,8 @@ interface Student {
   name: string;
   group_name?: string;
   group_id?: string;
+  join_date?: string;
+  left_date?: string;
 }
 
 interface ExamType {
@@ -408,6 +410,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [attendanceOnExamDate, setAttendanceOnExamDate] = useState<Map<string, string>>(new Map());
 
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [selectedExamType, setSelectedExamType] = useState<string>('');
@@ -636,16 +639,50 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
-  const fetchStudents = async (groupId: string) => {
+  const fetchAttendanceForExamDate = async (date: string) => {
+    try {
+      const q = query(
+        collection(db, 'attendance_records'),
+        where('teacher_id', '==', teacherId),
+        where('date', '==', date)
+      );
+      const snapshot = await getDocs(q);
+      const attendanceData = new Map<string, string>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        attendanceData.set(data.student_id, data.status);
+      });
+      setAttendanceOnExamDate(attendanceData);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    }
+  };
+
+  const fetchStudents = async (groupId: string, examDate?: string) => {
     try {
       const q = query(
         collection(db, 'students'),
         where('teacher_id', '==', teacherId),
-        where('group_id', '==', groupId),
-        where('is_active', '==', true)
+        where('group_id', '==', groupId)
       );
       const snapshot = await getDocs(q);
-      setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student)));
+      let allStudents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+      
+      // If exam date is provided, filter students who were active on that date
+      if (examDate) {
+        const examDateObj = new Date(examDate);
+        allStudents = allStudents.filter(student => {
+          const joinDate = student.join_date ? new Date(student.join_date) : null;
+          const leftDate = student.left_date ? new Date(student.left_date) : null;
+          
+          if (joinDate && joinDate > examDateObj) return false;
+          if (leftDate && leftDate <= examDateObj) return false;
+          
+          return true;
+        });
+      }
+      
+      setStudents(allStudents);
     } catch (error) {
       console.error('Error fetching students:', error);
     }
@@ -724,7 +761,8 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       setCurrentExamId(examDoc.id);
       setExamResults({});
       setShowCreateDialog(false);
-      await fetchStudents(selectedGroup);
+      await fetchStudents(selectedGroup, examDate);
+      await fetchAttendanceForExamDate(examDate);
       setShowResultsDialog(true);
       await fetchExams();
 
@@ -945,26 +983,54 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     setLoadingExamDetails(true);
 
     try {
+      // Fetch exam data to get exam date and group
+      const examDoc = await getDoc(doc(db, 'exams', examId));
+      if (!examDoc.exists()) {
+        throw new Error('Imtihon topilmadi');
+      }
+      const examData = examDoc.data() as Exam;
+      
+      // Fetch attendance for exam date
+      await fetchAttendanceForExamDate(examData.exam_date);
+      
+      // Fetch students for that group and exam date
+      await fetchStudents(examData.group_id, examData.exam_date);
+      
+      // Fetch existing exam results
       const q = query(
         collection(db, 'exam_results'),
         where('exam_id', '==', examId)
       );
       const snapshot = await getDocs(q);
-      const results = snapshot.docs
-        .map((docSnap) => {
-          const data = docSnap.data() as Partial<ExamResult>;
-          return {
-            id: docSnap.id,
-            exam_id: String(data.exam_id ?? ''),
-            student_id: String(data.student_id ?? ''),
-            score: Number(data.score ?? 0),
-            notes: typeof data.notes === 'string' ? data.notes : undefined,
-            student_name: typeof data.student_name === 'string' ? data.student_name : '',
-            group_name: typeof data.group_name === 'string' ? data.group_name : '',
-          } as ExamResult;
-        })
-        .sort((a, b) => (b.score || 0) - (a.score || 0));
-      setExamDetailsData(results);
+      const existingResults = new Map();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        existingResults.set(data.student_id, {
+          id: doc.id,
+          score: data.score || 0,
+          notes: data.notes || ''
+        });
+      });
+      
+      // Create results for ALL students (including those without results)
+      const allResults: ExamResult[] = students.map(student => {
+        const existing = existingResults.get(student.id);
+        const attendanceStatus = attendanceOnExamDate.get(student.id);
+        const wasAbsent = attendanceStatus === 'absent_with_reason' || 
+                         attendanceStatus === 'absent_without_reason';
+        
+        return {
+          id: existing?.id || `temp_${student.id}`,
+          exam_id: examId,
+          student_id: student.id,
+          score: existing?.score || (wasAbsent ? 0 : 0),
+          notes: existing?.notes || (wasAbsent ? 'Qatnashmadi' : ''),
+          student_name: student.name || '',
+          group_name: student.group_name || ''
+        };
+      }).sort((a, b) => b.score - a.score);
+      
+      setExamDetailsData(allResults);
     } catch (error) {
       console.error('Error fetching exam details:', error);
       toast({
@@ -1193,30 +1259,57 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.map((student, idx) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
-                        {student.name}
-                      </StudentProfileLink>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        ref={setScoreInputRef(student.id)}
-                        type="number"
-                        inputMode="decimal"
-                        enterKeyHint="next"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={examResults[student.id] || ''}
-                        onKeyDown={handleScoreKeyDown(idx)}
-                        onChange={(e) => setExamResults({ ...examResults, [student.id]: e.target.value })}
-                        placeholder="Ball"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {students.map((student, idx) => {
+                  const attendanceStatus = attendanceOnExamDate.get(student.id);
+                  const wasAbsent = attendanceStatus === 'absent_with_reason' || 
+                                   attendanceStatus === 'absent_without_reason';
+                  
+                  return (
+                    <TableRow key={student.id} className={wasAbsent ? 'bg-gray-50' : ''}>
+                      <TableCell>
+                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                          {student.name}
+                          {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                        </StudentProfileLink>
+                      </TableCell>
+                      <TableCell>
+                        {wasAbsent ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500 text-sm">Qatnashmadi</span>
+                            <Input
+                              ref={setScoreInputRef(student.id)}
+                              type="number"
+                              inputMode="decimal"
+                              enterKeyHint="next"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={examResults[student.id] || ''}
+                              onKeyDown={handleScoreKeyDown(idx)}
+                              onChange={(e) => setExamResults({ ...examResults, [student.id]: e.target.value })}
+                              placeholder="Keyinroq baho"
+                              className="w-24"
+                            />
+                          </div>
+                        ) : (
+                          <Input
+                            ref={setScoreInputRef(student.id)}
+                            type="number"
+                            inputMode="decimal"
+                            enterKeyHint="next"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={examResults[student.id] || ''}
+                            onKeyDown={handleScoreKeyDown(idx)}
+                            onChange={(e) => setExamResults({ ...examResults, [student.id]: e.target.value })}
+                            placeholder="Ball"
+                          />
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             <Button onClick={saveExamResults} className="w-full" disabled={savingResults}>
@@ -1360,42 +1453,59 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {examDetailsData.map((result) => (
-                  <TableRow key={result.id}>
-                    <TableCell className="font-medium">
-                      {result.student_id ? (
-                        <StudentProfileLink studentId={result.student_id} className="text-inherit hover:text-blue-700">
-                          {result.student_name}
-                        </StudentProfileLink>
-                      ) : (
-                        result.student_name
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${result.score >= 90 ? 'bg-green-100 text-green-700' :
-                        result.score >= 70 ? 'bg-blue-100 text-blue-700' :
+                {examDetailsData.map((result) => {
+                  const attendanceStatus = attendanceOnExamDate.get(result.student_id);
+                  const wasAbsent = attendanceStatus === 'absent_with_reason' || 
+                                   attendanceStatus === 'absent_without_reason';
+                  const hasNoResult = result.id.toString().startsWith('temp_');
+                  
+                  return (
+                    <TableRow key={result.id} className={wasAbsent || hasNoResult ? 'bg-gray-50' : ''}>
+                      <TableCell className="font-medium">
+                        {result.student_id ? (
+                          <StudentProfileLink studentId={result.student_id} className="text-inherit hover:text-blue-700">
+                            {result.student_name}
+                            {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                            {hasNoResult && !wasAbsent && <span className="ml-2 text-orange-500 text-sm">(Natija yo'q)</span>}
+                          </StudentProfileLink>
+                        ) : (
+                          <>
+                            {result.student_name}
+                            {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                            {hasNoResult && !wasAbsent && <span className="ml-2 text-orange-500 text-sm">(Natija yo'q)</span>}
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${
+                          wasAbsent ? 'bg-red-100 text-red-700' :
+                          result.score >= 90 ? 'bg-green-100 text-green-700' :
+                          result.score >= 70 ? 'bg-blue-100 text-blue-700' :
                           result.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
+                          'bg-gray-100 text-gray-700'
                         }`}>
-                        {result.score}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{result.notes || '-'}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        setEditingResult({
-                          id: result.id,
-                          studentName: result.student_name,
-                          currentScore: result.score
-                        });
-                        setEditScore(result.score.toString());
-                        setEditReason(result.notes || '');
-                      }}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {wasAbsent ? 'Kelmadi' : result.score}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {result.notes || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setEditingResult({
+                            id: result.id,
+                            studentName: result.student_name,
+                            currentScore: result.score
+                          });
+                          setEditScore(result.score.toString());
+                          setEditReason(result.notes || '');
+                        }}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
