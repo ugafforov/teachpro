@@ -60,10 +60,10 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div className="flex items-center gap-2 mb-6">
           <Trophy className="w-5 h-5 text-yellow-500 dark:text-amber-400" />
-          <h3 className="text-lg font-semibold">Guruhlar reytingi</h3>
+          <h3 className="text-lg font-semibold text-foreground">Guruhlar reytingi</h3>
         </div>
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -73,11 +73,11 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 bg-card border-border">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-yellow-500 dark:text-amber-400" />
-          <h3 className="text-lg font-semibold">Guruhlar reytingi</h3>
+          <h3 className="text-lg font-semibold text-foreground">Guruhlar reytingi</h3>
         </div>
 
         {groupRankings.length > 1 && (
@@ -170,21 +170,21 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        <Users className="w-4 h-4 text-blue-500" />
+                        <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                         <span className="text-xs text-muted-foreground">O'quvchilar</span>
                       </div>
                       <p className="font-bold text-lg text-foreground">{group.totalStudents}</p>
                     </div>
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        <BookOpen className="w-4 h-4 text-green-500" />
+                        <BookOpen className="w-4 h-4 text-green-500 dark:text-emerald-400" />
                         <span className="text-xs text-muted-foreground">Darslar</span>
                       </div>
                       <p className="font-bold text-lg text-foreground">{group.totalClasses}</p>
                     </div>
                     <div className="text-center group cursor-default">
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        <Target className="w-4 h-4 text-purple-500 group-hover:rotate-12 transition-transform" />
+                        <Target className="w-4 h-4 text-purple-500 dark:text-purple-400 group-hover:rotate-12 transition-transform" />
                         <span className="text-xs text-muted-foreground">Samaradorlik</span>
                       </div>
                       <div className={`inline-flex flex-col items-center px-3 py-1 rounded-xl ${status.bgColor} border ${status.borderColor} shadow-sm transition-all duration-300 group-hover:scale-105`}>

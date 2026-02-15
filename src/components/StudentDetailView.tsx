@@ -589,7 +589,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
   };
 
   return (
-    <div ref={rootRef} className="space-y-6 max-w-4xl mx-auto">
+    <div ref={rootRef} className="space-y-6 max-w-4xl mx-auto text-foreground">
       {/* Header with back button and export */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={handleBackWithAnimation} className="gap-2 hover:bg-muted transition-colors duration-150">
@@ -619,7 +619,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       </div>
 
       {/* Profile Header Card */}
-      <Card className="apple-card overflow-hidden">
+      <Card className="apple-card overflow-hidden bg-card border-border">
         <div className={cn(
           "h-32 bg-gradient-to-r",
           performanceColors[performanceLevel]
@@ -627,7 +627,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         <div className="px-6 pb-6">
           <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10">
             <div className={cn(
-              "w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold text-white shadow-lg border-4 border-white bg-gradient-to-br",
+              "w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold text-white shadow-lg border-4 border-background dark:border-card bg-gradient-to-br",
               performanceColors[performanceLevel]
             )}>
               {student.name.substring(0, 2).toUpperCase()}
@@ -673,18 +673,18 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         </div>
       </Card>
 
-      {/* Quick Stats Row */}
+      {/* Quick Stats Row — theme-aware cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 text-center bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50">
+        <Card className="p-4 text-center bg-card border border-border dark:bg-blue-950/30 dark:border-blue-500/30">
           <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalScore.toFixed(1)}</div>
           <div className="text-xs text-blue-600/70 dark:text-blue-400/80 font-medium mt-1">Jami ball</div>
         </Card>
         <Card className={cn(
-          "p-4 text-center border-opacity-50",
-          attPct >= 90 ? "bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200/50" :
-          attPct >= 70 ? "bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50" :
-          attPct >= 50 ? "bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200/50" :
-          "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/50"
+          "p-4 text-center border",
+          attPct >= 90 ? "bg-card border-border dark:bg-emerald-950/30 dark:border-emerald-500/30" :
+          attPct >= 70 ? "bg-card border-border dark:bg-blue-950/30 dark:border-blue-500/30" :
+          attPct >= 50 ? "bg-card border-border dark:bg-amber-950/30 dark:border-amber-500/30" :
+          "bg-card border-border dark:bg-red-950/30 dark:border-red-500/30"
         )}>
           <div className={cn(
             "text-3xl font-bold",
@@ -694,15 +694,15 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           )}>{attPct}%</div>
           <div className="text-xs text-muted-foreground font-medium mt-1">Davomat</div>
         </Card>
-        <Card className="p-4 text-center bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200/50">
-          <div className="text-3xl font-bold text-purple-600">#{stats.rank || '-'}</div>
-          <div className="text-xs text-purple-600/70 font-medium mt-1">Reyting</div>
+        <Card className="p-4 text-center bg-card border border-border dark:bg-purple-950/30 dark:border-purple-500/30">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">#{stats.rank || '-'}</div>
+          <div className="text-xs text-purple-600/70 dark:text-purple-400/80 font-medium mt-1">Reyting</div>
         </Card>
         <Card className={cn(
-          "p-4 text-center",
+          "p-4 text-center border",
           stats.rewardPenaltyPoints >= 0 
-            ? "bg-gradient-to-br from-green-50 to-green-100/50 border-green-200/50" 
-            : "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200/50"
+            ? "bg-card border-border dark:bg-emerald-950/30 dark:border-emerald-500/30" 
+            : "bg-card border-border dark:bg-red-950/30 dark:border-red-500/30"
         )}>
           <div className={cn(
             "text-3xl font-bold",
@@ -715,7 +715,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       </div>
 
       {/* Tabs Navigation */}
-      <Card className="apple-card">
+      <Card className="apple-card bg-card border-border">
         <div className="flex border-b border-border/60">
           <button
             className={cn(
@@ -793,7 +793,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             <div className="p-6 space-y-6">
               {/* Attendance Statistics with Visual Progress */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
                   <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat statistikasi
                 </h3>
@@ -867,7 +867,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
               {/* Score Breakdown */}
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
                   <Zap className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                   Ball taqsimoti
                 </h3>
@@ -903,7 +903,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {/* Additional Info */}
               {(student.student_id || student.join_date) && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
                     <User className="w-5 h-5 text-muted-foreground" />
                     Qo'shimcha ma'lumotlar
                   </h3>
@@ -974,8 +974,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                           record.status === 'absent_with_reason' && 'bg-orange-200 dark:bg-orange-500/50',
                           record.status === 'absent_without_reason' && 'bg-red-200 dark:bg-red-500/50'
                         )}>
-                          {record.status === 'present' && <CheckCircle className="w-5 h-5 text-emerald-700" />}
-                          {record.status === 'late' && <Clock className="w-5 h-5 text-amber-700" />}
+                          {record.status === 'present' && <CheckCircle className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />}
+                          {record.status === 'late' && <Clock className="w-5 h-5 text-amber-700 dark:text-amber-400" />}
                           {record.status === 'absent_with_reason' && <MinusCircle className="w-5 h-5 text-orange-700 dark:text-orange-400" />}
                           {record.status === 'absent_without_reason' && <XCircle className="w-5 h-5 text-red-700 dark:text-red-400" />}
                         </div>
@@ -1014,8 +1014,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           {activeTab === 'rewards' && (
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Award className="w-5 h-5 text-purple-500" />
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                  <Award className="w-5 h-5 text-purple-500 dark:text-purple-400" />
                   Mukofot va jarima tarixi
                 </h3>
                 <div className="flex items-center gap-2">
@@ -1094,13 +1094,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {/* Imtihon statistikasi */}
               {examResults.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="text-2xl font-bold text-blue-600">{examStats.total}</div>
-                    <div className="text-xs text-blue-600/70">Jami imtihon</div>
+                  <div className="text-center p-4 rounded-xl border bg-card border-border dark:bg-blue-950/30 dark:border-blue-500/30">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{examStats.total}</div>
+                    <div className="text-xs text-blue-600/70 dark:text-blue-400/80">Jami imtihon</div>
                   </div>
-                  <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-100">
-                    <div className="text-2xl font-bold text-purple-600">{examStats.avg}</div>
-                    <div className="text-xs text-purple-600/70">O'rtacha ball</div>
+                  <div className="text-center p-4 rounded-xl border bg-card border-border dark:bg-purple-950/30 dark:border-purple-500/30">
+                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{examStats.avg}</div>
+                    <div className="text-xs text-purple-600/70 dark:text-purple-400/80">O'rtacha ball</div>
                   </div>
                   <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/20 rounded-xl border border-emerald-100 dark:border-emerald-500/40">
                     <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{examStats.max}</div>
@@ -1116,20 +1116,20 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {/* Imtihon turlariga ko'ra guruhlangan natijalar */}
               {examsByType.length > 0 && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-indigo-500" />
+                  <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                    <BarChart3 className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
                     Imtihon turlari bo'yicha natijalar
                   </h3>
                   
                   {examsByType.map((typeData, typeIndex) => (
                     <div 
                       key={typeData.typeName} 
-                      className="p-4 rounded-xl border bg-gradient-to-r from-gray-50 to-slate-50"
+                      className="p-4 rounded-xl border bg-card border-border dark:bg-muted/30"
                     >
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                            <GraduationCap className="w-5 h-5 text-indigo-600" />
+                          <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-500/30 flex items-center justify-center">
+                            <GraduationCap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                           </div>
                           <div>
                             <h4 className="font-semibold text-foreground">{typeData.typeName}</h4>
@@ -1230,8 +1230,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
               {/* Imtihon natijalari ro'yxati */}
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-indigo-500" />
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                  <GraduationCap className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
                   Barcha imtihon natijalari
                 </h3>
                 {examResults.length > 0 && (
@@ -1266,37 +1266,30 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                         key={result.id}
                         className={cn(
                           "flex items-center justify-between p-4 rounded-xl border transition-colors",
-                          `bg-${scoreColor}-50/50 border-${scoreColor}-200 hover:bg-${scoreColor}-50`
+                          scoreColor === 'emerald' && "bg-emerald-50/50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/40",
+                          scoreColor === 'blue' && "bg-blue-50/50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/40",
+                          scoreColor === 'amber' && "bg-amber-50/50 dark:bg-amber-500/15 border-amber-200 dark:border-amber-500/40",
+                          scoreColor === 'red' && "bg-red-50/50 dark:bg-red-500/15 border-red-200 dark:border-red-500/40"
                         )}
-                        style={{
-                          backgroundColor: scoreColor === 'emerald' ? 'rgb(236 253 245 / 0.5)' :
-                            scoreColor === 'blue' ? 'rgb(239 246 255 / 0.5)' :
-                            scoreColor === 'amber' ? 'rgb(255 251 235 / 0.5)' :
-                            'rgb(254 242 242 / 0.5)',
-                          borderColor: scoreColor === 'emerald' ? 'rgb(167 243 208)' :
-                            scoreColor === 'blue' ? 'rgb(191 219 254)' :
-                            scoreColor === 'amber' ? 'rgb(253 230 138)' :
-                            'rgb(254 202 202)'
-                        }}
                       >
                         <div className="flex items-center gap-3">
-                          <div 
-                            className="w-12 h-12 rounded-xl flex items-center justify-center"
-                            style={{
-                              backgroundColor: scoreColor === 'emerald' ? 'rgb(167 243 208)' :
-                                scoreColor === 'blue' ? 'rgb(191 219 254)' :
-                                scoreColor === 'amber' ? 'rgb(253 230 138)' :
-                                'rgb(254 202 202)'
-                            }}
+                          <div
+                            className={cn(
+                              "w-12 h-12 rounded-xl flex items-center justify-center",
+                              scoreColor === 'emerald' && "bg-emerald-200 dark:bg-emerald-500/40",
+                              scoreColor === 'blue' && "bg-blue-200 dark:bg-blue-500/40",
+                              scoreColor === 'amber' && "bg-amber-200 dark:bg-amber-500/40",
+                              scoreColor === 'red' && "bg-red-200 dark:bg-red-500/40"
+                            )}
                           >
-                            <GraduationCap 
-                              className="w-6 h-6" 
-                              style={{
-                                color: scoreColor === 'emerald' ? 'rgb(4 120 87)' :
-                                  scoreColor === 'blue' ? 'rgb(29 78 216)' :
-                                  scoreColor === 'amber' ? 'rgb(180 83 9)' :
-                                  'rgb(185 28 28)'
-                              }}
+                            <GraduationCap
+                              className={cn(
+                                "w-6 h-6",
+                                scoreColor === 'emerald' && "text-emerald-700 dark:text-emerald-300",
+                                scoreColor === 'blue' && "text-blue-700 dark:text-blue-300",
+                                scoreColor === 'amber' && "text-amber-700 dark:text-amber-300",
+                                scoreColor === 'red' && "text-red-700 dark:text-red-300"
+                              )}
                             />
                           </div>
                           <div>
@@ -1313,18 +1306,14 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                             )}
                           </div>
                         </div>
-                        <div 
-                          className="text-2xl font-bold px-4 py-2 rounded-lg"
-                          style={{
-                            backgroundColor: scoreColor === 'emerald' ? 'rgb(209 250 229)' :
-                              scoreColor === 'blue' ? 'rgb(219 234 254)' :
-                              scoreColor === 'amber' ? 'rgb(254 243 199)' :
-                              'rgb(254 226 226)',
-                            color: scoreColor === 'emerald' ? 'rgb(4 120 87)' :
-                              scoreColor === 'blue' ? 'rgb(29 78 216)' :
-                              scoreColor === 'amber' ? 'rgb(180 83 9)' :
-                              'rgb(185 28 28)'
-                          }}
+                        <div
+                          className={cn(
+                            "text-2xl font-bold px-4 py-2 rounded-lg",
+                            scoreColor === 'emerald' && "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/30 dark:text-emerald-200",
+                            scoreColor === 'blue' && "bg-blue-100 text-blue-800 dark:bg-blue-500/30 dark:text-blue-200",
+                            scoreColor === 'amber' && "bg-amber-100 text-amber-800 dark:bg-amber-500/30 dark:text-amber-200",
+                            scoreColor === 'red' && "bg-red-100 text-red-800 dark:bg-red-500/30 dark:text-red-200"
+                          )}
                         >
                           {result.score}
                         </div>
@@ -1340,9 +1329,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             <div className="p-6 space-y-6">
               {/* Imtihon turlari bo'yicha o'sish/pasayish tahlili */}
               {examsByType.length > 0 && (
-                <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-indigo-500" />
+                <div className="p-4 rounded-xl border bg-card border-border dark:bg-indigo-950/20 dark:border-indigo-500/30">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
+                    <GraduationCap className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
                     Imtihon turlari bo'yicha tahlil
                   </h3>
                   
@@ -1427,8 +1416,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 </div>
               )}
 
-              <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <div className="p-4 rounded-xl border bg-card border-border dark:bg-blue-950/20 dark:border-blue-500/30">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
                   <TrendingUp className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat Dinamikasi
                 </h3>
@@ -1477,8 +1466,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 )}
               </div>
 
-              <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-100">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <div className="p-4 rounded-xl border bg-card border-border dark:bg-emerald-950/20 dark:border-emerald-500/30">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
                   <BarChart3 className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
                   So'nggi Mukofot va Jarimalar
                 </h3>

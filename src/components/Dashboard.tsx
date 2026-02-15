@@ -218,7 +218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h2 className="text-3xl font-black tracking-tight mb-1">Umumiy ko'rinish</h2>
+                <h2 className="text-3xl font-black tracking-tight mb-1 text-foreground">Umumiy ko'rinish</h2>
                 <p className="text-muted-foreground">Sinflaringiz va o'quvchilaringiz statistikasi</p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -328,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                         ) : (
                           <p className="text-lg font-black text-foreground leading-tight mb-0.5 truncate">Ma'lumot yo'q</p>
                         )}
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Eng faol o'quvchi</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70 dark:text-purple-400/80">Eng faol o'quvchi</p>
                       </div>
                     </div>
                   </Card>
@@ -455,13 +455,13 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         {/* Mobile overlay */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black/50 dark:bg-black/60 z-30 lg:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto h-full bg-background">
+        <div className="flex-1 overflow-y-auto h-full bg-background text-foreground">
           <div className="p-4 lg:p-8">
             {/* Student Profile (full content) */}
             {activeStudentId && (

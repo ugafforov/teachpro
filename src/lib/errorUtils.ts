@@ -124,13 +124,10 @@ export function logError(context: string, error: unknown): void {
 }
 
 /**
- * Safe error logger that doesn't expose sensitive data in production
+ * Safe error logger: only in development to avoid console in production
  */
 export function safeLogError(context: string, error: unknown): void {
   if (import.meta.env.DEV) {
     console.error(`[${context}]`, error);
-  } else {
-    // In production, log only a generic message with context
-    console.error(`[${context}] An error occurred`);
   }
 }

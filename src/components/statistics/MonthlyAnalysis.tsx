@@ -13,10 +13,10 @@ const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
 
   if (monthlyData.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
-          <h3 className="text-lg font-semibold">Oylik tahlil</h3>
+          <BarChart3 className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+          <h3 className="text-lg font-semibold text-foreground">Oylik tahlil</h3>
         </div>
         <div className="text-center py-8">
           <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -89,11 +89,11 @@ const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 bg-card border-border">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
-          <h3 className="text-lg font-semibold">Oylik tahlil</h3>
+          <BarChart3 className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+          <h3 className="text-lg font-semibold text-foreground">Oylik tahlil</h3>
         </div>
 
         {monthlyData.length > 1 && (
@@ -177,7 +177,7 @@ const MonthlyAnalysis: React.FC<MonthlyAnalysisProps> = ({ monthlyData }) => {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <Users className="w-4 h-4 text-blue-500" />
+                      <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                       <span className="text-xs text-muted-foreground">O'quvchilar</span>
                     </div>
                     <p className="font-bold text-lg text-foreground">{month.totalStudents}</p>
