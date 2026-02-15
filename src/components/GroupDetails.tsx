@@ -1376,7 +1376,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
                     {activeTab === 'attendance' && (
                         <div className="flex flex-col lg:flex-row gap-6 items-start">
-                            <Card className="apple-card overflow-hidden w-full lg:flex-[65_65_0%] min-w-0">
+                            <Card className="apple-card overflow-hidden w-full lg:flex-[65_65_0%] min-w-0 bg-card border-border">
                                 {/* Eslatma banner - yaratilgan sanadan keyingi sanalarda ko'rsatiladi (bir nechta bo'lishi mumkin) */}
                                 {notesToShow.length > 0 && (
                                     <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/50 dark:via-amber-900/40 dark:to-orange-950/50 border-b-2 border-amber-300 dark:border-amber-600/50 px-4 py-3 animate-in slide-in-from-top-2 duration-300">
@@ -1673,7 +1673,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                             {student.name}
                                                                         </StudentProfileLink>
                                                                         {getStudentStatusNote(student, selectedDate) && (
-                                                                            <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
+                                                                            <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800 dark:bg-amber-500/25 dark:text-amber-200" : "bg-orange-100 text-orange-800 dark:bg-orange-500/25 dark:text-orange-200")}>
                                                                                 {getStudentStatusNote(student, selectedDate)}
                                                                             </span>
                                                                         )}

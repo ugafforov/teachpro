@@ -27,9 +27,9 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
 
     const getRankIcon = (position: number) => {
         switch (position) {
-            case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
+            case 1: return <Trophy className="w-6 h-6 text-yellow-500 dark:text-amber-400" />;
             case 2: return <Medal className="w-6 h-6 text-gray-400 dark:text-muted-foreground" />;
-            case 3: return <Award className="w-6 h-6 text-amber-600" />;
+            case 3: return <Award className="w-6 h-6 text-amber-600 dark:text-amber-400" />;
             default: return <span className="w-6 h-6 flex items-center justify-center text-sm font-bold text-muted-foreground">#{position}</span>;
         }
     };
@@ -55,7 +55,7 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
 
     if (loading) {
         return (
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden bg-card border-border">
                 <div className="p-6 border-b flex items-center justify-between">
                     <div className="h-5 w-36 bg-muted animate-pulse rounded" />
                     <div className="h-4 w-20 bg-muted animate-pulse rounded" />
@@ -79,8 +79,8 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
     }
 
     return (
-        <Card className="overflow-hidden apple-card">
-            <div className="p-6 border-b border-border/50 flex justify-between items-center bg-muted/30">
+        <Card className="overflow-hidden apple-card bg-card border-border">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30 dark:bg-muted/50">
                 <h3 className="text-sm font-semibold text-foreground tracking-tight">Sinf reytingi</h3>
                 <span className="text-xs text-muted-foreground">{rankedStudents.length} o'quvchi</span>
             </div>
@@ -90,7 +90,7 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                     Ma'lumotlar topilmadi
                 </div>
             ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-border">
                     {rankedStudents.map((student, index) => {
                         const position = index + 1;
                         const score = student.rewardPenaltyPoints || 0;
@@ -98,8 +98,8 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                             <div
                                 key={student.id}
                                 className={cn(
-                                    "p-3 flex items-center justify-between hover:bg-muted/50 transition-colors",
-                                    position <= 3 && "bg-gradient-to-r from-white via-white to-gray-50/30"
+                                    "p-3 flex items-center justify-between hover:bg-muted/50 dark:hover:bg-accent/50 transition-colors",
+                                    position <= 3 && "bg-gradient-to-r from-muted/20 via-muted/10 to-muted/30 dark:from-muted/40 dark:via-muted/30 dark:to-muted/50"
                                 )}
                             >
                                 <div className="flex items-center space-x-4 min-w-0">
@@ -111,19 +111,19 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                                             {getInitials(student.name)}
                                         </div>
                                         <div className="min-w-0">
-                                            <p className="text-sm font-medium truncate leading-5">
-                                                <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                                            <p className="text-sm font-medium truncate leading-5 text-foreground">
+                                                <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700 dark:hover:text-blue-400">
                                                     {student.name}
                                                 </StudentProfileLink>
                                             </p>
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] leading-4">
-                                                <span className="text-blue-600 font-medium">
+                                                <span className="text-blue-600 dark:text-blue-400 font-medium">
                                                     {((student.attendancePoints || 0)).toFixed(1)} davomat
                                                 </span>
-                                                <span className="text-green-600 font-medium">
+                                                <span className="text-green-600 dark:text-emerald-400 font-medium">
                                                     +{((student.mukofotScore || 0)).toFixed(1)} mukofot
                                                 </span>
-                                                <span className="text-red-600 font-medium">
+                                                <span className="text-red-600 dark:text-red-400 font-medium">
                                                     -{((student.jarimaScore || 0)).toFixed(1)} jarima
                                                 </span>
                                             </div>
