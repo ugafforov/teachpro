@@ -480,16 +480,16 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     <div className="space-y-6 w-full min-w-0">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Guruhlar boshqaruvi</h2>
-          <p className="text-gray-600">Sinflaringizni yarating va boshqaring</p>
+          <h2 className="text-2xl font-bold text-foreground">Guruhlar boshqaruvi</h2>
+          <p className="text-muted-foreground">Sinflaringizni yarating va boshqaring</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('list')}
-              className={`rounded-l-lg rounded-r-none px-3 ${viewMode === 'list' ? 'bg-gray-100' : ''}`}
+              className={`rounded-l-lg rounded-r-none px-3 ${viewMode === 'list' ? 'bg-muted' : ''}`}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -497,14 +497,14 @@ const GroupManager: React.FC<GroupManagerProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('grid')}
-              className={`rounded-l-none rounded-r-lg px-3 ${viewMode === 'grid' ? 'bg-gray-100' : ''}`}
+              className={`rounded-l-none rounded-r-lg px-3 ${viewMode === 'grid' ? 'bg-muted' : ''}`}
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-black text-white hover:bg-gray-800 rounded-xl px-4 py-2">
+              <Button className="bg-primary text-primary-foreground hover:opacity-90 rounded-xl px-4 py-2">
                 <Plus className="w-4 h-4 mr-2" />
                 Yangi guruh
               </Button>
@@ -527,7 +527,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     className={nameError ? 'border-red-500' : ''}
                   />
                   {nameError && (
-                    <div className="flex items-center gap-2 mt-2 text-sm text-red-600">
+                    <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400">
                       <AlertTriangle className="w-4 h-4" />
                       {nameError}
                     </div>
@@ -546,7 +546,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 <div className="flex space-x-2">
                   <Button
                     onClick={addGroup}
-                    className="bg-black text-white hover:bg-gray-800 flex-1"
+                    className="bg-primary text-primary-foreground hover:opacity-90 flex-1"
                     disabled={!newGroup.name.trim() || !!nameError}
                   >
                     Yaratish
@@ -570,13 +570,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       </div>
 
       {groups.length === 0 ? (
-        <Card className="p-12 text-center bg-white border border-gray-200 rounded-lg">
-          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <Card className="p-12 text-center bg-card border border-border rounded-lg">
+          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Birinchi guruhingizni yarating va o'quvchilar qo'shishni boshlang
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-black text-white hover:bg-gray-800">
+          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-primary text-primary-foreground hover:opacity-90">
             <Plus className="w-4 h-4 mr-2" />
             Birinchi guruhni yaratish
           </Button>
@@ -586,33 +586,33 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           {groups.map(group => (
             <Card
               key={group.id}
-              className="p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-bold text-gray-900">{group.name}</h3>
+                    <h3 className="text-lg font-bold text-foreground">{group.name}</h3>
                   </div>
 
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-blue-500" />
+                      <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                       <div>
-                        <span className="text-gray-600 text-xs">O'quvchilar</span>
+                        <span className="text-muted-foreground text-xs">O'quvchilar</span>
                         <div className="text-sm font-semibold">{group.student_count}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-green-500" />
+                      <Calendar className="w-4 h-4 text-green-500 dark:text-emerald-400" />
                       <div>
-                        <span className="text-gray-600 text-xs">Davomat</span>
-                        <div className="text-sm font-semibold text-green-600">{group.attendance_percentage}%</div>
+                        <span className="text-muted-foreground text-xs">Davomat</span>
+                        <div className="text-sm font-semibold text-green-600 dark:text-emerald-400">{group.attendance_percentage}%</div>
                       </div>
                     </div>
 
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       {formatDateUz(group.created_at)}
                     </div>
                   </div>
@@ -623,7 +623,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     onClick={(e) => handleEditGroup(e, group)}
                     variant="ghost"
                     size="sm"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 p-2"
                     title="Tahrirlash"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -632,7 +632,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
                     variant="ghost"
                     size="sm"
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                    className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-500/20 p-2"
                     title="Arxivlash"
                   >
                     <Archive className="w-4 h-4" />
@@ -647,42 +647,42 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           {groups.map(group => (
             <Card
               key={group.id}
-              className="p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              className="p-6 bg-card border border-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{group.name}</h3>
+                  <h3 className="text-xl font-bold text-foreground mb-2">{group.name}</h3>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
+                    <Users className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                     <div>
-                      <span className="text-gray-600 text-sm">O'quvchilar</span>
+                      <span className="text-muted-foreground text-sm">O'quvchilar</span>
                       <div className="text-lg font-semibold">{group.student_count}</div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-green-500" />
+                    <Calendar className="w-5 h-5 text-green-500 dark:text-emerald-400" />
                     <div>
-                      <span className="text-gray-600 text-sm">Davomat</span>
-                      <div className="text-lg font-semibold text-green-600">{group.attendance_percentage}%</div>
+                      <span className="text-muted-foreground text-sm">Davomat</span>
+                      <div className="text-lg font-semibold text-green-600 dark:text-emerald-400">{group.attendance_percentage}%</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-muted-foreground">
                   {formatDateUz(group.created_at)}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
                   <Button
                     onClick={(e) => handleEditGroup(e, group)}
                     variant="ghost"
                     size="sm"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-2"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 p-2"
                     title="Tahrirlash"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -691,7 +691,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     onClick={(e) => handleArchiveGroup(e, group.id, group.name)}
                     variant="ghost"
                     size="sm"
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 p-2"
+                    className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-500/20 p-2"
                     title="Arxivlash"
                   >
                     <Archive className="w-4 h-4" />
@@ -732,7 +732,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 />
               </div>
               <div className="flex space-x-2">
-                <Button onClick={updateGroup} className="bg-black text-white hover:bg-gray-800 flex-1">
+                <Button onClick={updateGroup} className="bg-primary text-primary-foreground hover:opacity-90 flex-1">
                   Saqlash
                 </Button>
                 <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">

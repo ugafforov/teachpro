@@ -74,7 +74,7 @@ const StudentProfile = () => {
 
   if (!studentId) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center p-6">
+      <main className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="text-center text-muted-foreground">O'quvchi topilmadi</div>
       </main>
     );
@@ -82,7 +82,7 @@ const StudentProfile = () => {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center">
+      <main className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </main>
     );
@@ -98,7 +98,7 @@ const StudentProfile = () => {
 
   if (!teacher) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center">
+      <main className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center text-muted-foreground">Profil topilmadi</div>
       </main>
     );
@@ -111,7 +111,7 @@ const StudentProfile = () => {
 
   if (teacher.verification_status === 'rejected') {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center p-6">
+      <main className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="text-center">
           <div className="text-lg font-semibold mb-2">Ariza rad etilgan</div>
           <div className="text-muted-foreground">Profilga kirish mumkin emas</div>
@@ -121,7 +121,7 @@ const StudentProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto p-4 lg:p-8">
         <StudentDetailView
           studentId={studentId}

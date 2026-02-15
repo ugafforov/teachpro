@@ -592,7 +592,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     <div ref={rootRef} className="space-y-6 max-w-4xl mx-auto">
       {/* Header with back button and export */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={handleBackWithAnimation} className="gap-2 hover:bg-gray-100 transition-colors duration-150">
+        <Button variant="ghost" onClick={handleBackWithAnimation} className="gap-2 hover:bg-muted transition-colors duration-150">
           <ArrowLeft className="w-4 h-4" />
           Orqaga
         </Button>
@@ -634,18 +634,18 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             </div>
             <div className="flex-1 pt-2 sm:pt-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
+                <h1 className="text-2xl font-bold text-foreground">{student.name}</h1>
                 <Badge className={cn(
                   "text-xs font-semibold",
-                  performanceLevel === 'excellent' && 'bg-emerald-100 text-emerald-700',
-                  performanceLevel === 'good' && 'bg-blue-100 text-blue-700',
-                  performanceLevel === 'average' && 'bg-amber-100 text-amber-700',
-                  performanceLevel === 'risk' && 'bg-red-100 text-red-700'
+                  performanceLevel === 'excellent' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300',
+                  performanceLevel === 'good' && 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300',
+                  performanceLevel === 'average' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300',
+                  performanceLevel === 'risk' && 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300'
                 )}>
                   {performanceLabels[performanceLevel]}
                 </Badge>
                 {stats.rank > 0 && stats.rank <= 3 && (
-                  <Badge className="bg-amber-100 text-amber-700">
+                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300">
                     <Trophy className="w-3 h-3 mr-1" />
                     #{stats.rank}
                   </Badge>
@@ -676,8 +676,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4 text-center bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50">
-          <div className="text-3xl font-bold text-blue-600">{stats.totalScore.toFixed(1)}</div>
-          <div className="text-xs text-blue-600/70 font-medium mt-1">Jami ball</div>
+          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalScore.toFixed(1)}</div>
+          <div className="text-xs text-blue-600/70 dark:text-blue-400/80 font-medium mt-1">Jami ball</div>
         </Card>
         <Card className={cn(
           "p-4 text-center border-opacity-50",
@@ -688,9 +688,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         )}>
           <div className={cn(
             "text-3xl font-bold",
-            attPct >= 90 ? "text-emerald-600" :
-            attPct >= 70 ? "text-blue-600" :
-            attPct >= 50 ? "text-amber-600" : "text-red-600"
+            attPct >= 90 ? "text-emerald-600 dark:text-emerald-400" :
+            attPct >= 70 ? "text-blue-600 dark:text-blue-400" :
+            attPct >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
           )}>{attPct}%</div>
           <div className="text-xs text-muted-foreground font-medium mt-1">Davomat</div>
         </Card>
@@ -706,7 +706,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         )}>
           <div className={cn(
             "text-3xl font-bold",
-            stats.rewardPenaltyPoints >= 0 ? "text-green-600" : "text-red-600"
+            stats.rewardPenaltyPoints >= 0 ? "text-green-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
           )}>
             {stats.rewardPenaltyPoints >= 0 ? '+' : ''}{stats.rewardPenaltyPoints}
           </div>
@@ -721,70 +721,70 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             className={cn(
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'overview'
-                ? 'text-blue-600'
-                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
             onClick={() => setActiveTab('overview')}
           >
             Umumiy
             {activeTab === 'overview' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
           <button
             className={cn(
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'attendance'
-                ? 'text-blue-600'
-                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
             onClick={() => setActiveTab('attendance')}
           >
             Davomat
             {activeTab === 'attendance' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
           <button
             className={cn(
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'rewards'
-                ? 'text-blue-600'
-                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
             onClick={() => setActiveTab('rewards')}
           >
             Mukofot/Jarima
             {activeTab === 'rewards' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
           <button
             className={cn(
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'exams'
-                ? 'text-blue-600'
-                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
             onClick={() => setActiveTab('exams')}
           >
             Imtihonlar
             {activeTab === 'exams' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
           <button
             className={cn(
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'analysis'
-                ? 'text-blue-600'
-                : 'text-muted-foreground hover:text-foreground hover:bg-gray-50'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
             onClick={() => setActiveTab('analysis')}
           >
             Tahlil
             {activeTab === 'analysis' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
         </div>
@@ -794,7 +794,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {/* Attendance Statistics with Visual Progress */}
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-500" />
+                  <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat statistikasi
                 </h3>
                 
@@ -825,7 +825,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className={cn(
                         "text-4xl font-bold",
-                        attPct >= 90 ? 'text-emerald-600' : attPct >= 70 ? 'text-blue-600' : attPct >= 50 ? 'text-amber-600' : 'text-red-600'
+                        attPct >= 90 ? 'text-emerald-600' : attPct >= 70 ? 'text-blue-600 dark:text-blue-400' : attPct >= 50 ? 'text-amber-600' : 'text-red-600'
                       )}>{attPct}%</span>
                       <span className="text-xs text-muted-foreground">davomat</span>
                     </div>
@@ -834,33 +834,33 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
                 {/* Detailed Stats Grid */}
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-gray-200 flex items-center justify-center">
-                      <Target className="w-5 h-5 text-gray-600" />
+                  <div className="text-center p-4 bg-muted/50 rounded-xl border border-border">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-muted flex items-center justify-center">
+                      <Target className="w-5 h-5 text-muted-foreground" />
                     </div>
-                    <div className="text-2xl font-bold text-gray-700">{stats.totalClasses}</div>
+                    <div className="text-2xl font-bold text-foreground">{stats.totalClasses}</div>
                     <div className="text-xs text-muted-foreground">Jami dars</div>
                   </div>
-                  <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-emerald-200 flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                  <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/20 rounded-xl border border-emerald-100 dark:border-emerald-500/40">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-emerald-200 dark:bg-emerald-500/40 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <div className="text-2xl font-bold text-emerald-600">{stats.presentCount}</div>
-                    <div className="text-xs text-emerald-600/70">Kelgan</div>
+                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.presentCount}</div>
+                    <div className="text-xs text-emerald-600/70 dark:text-emerald-400/80">Kelgan</div>
                   </div>
-                  <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-100">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-amber-200 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-amber-600" />
+                  <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/20 rounded-xl border border-amber-100 dark:border-amber-500/40">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-amber-200 dark:bg-amber-500/40 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                     </div>
-                    <div className="text-2xl font-bold text-amber-600">{stats.lateCount}</div>
-                    <div className="text-xs text-amber-600/70">Kechikkan</div>
+                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.lateCount}</div>
+                    <div className="text-xs text-amber-600/70 dark:text-amber-400/80">Kechikkan</div>
                   </div>
-                  <div className="text-center p-4 bg-red-50 rounded-xl border border-red-100">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-red-200 flex items-center justify-center">
-                      <XCircle className="w-5 h-5 text-red-600" />
+                  <div className="text-center p-4 bg-red-50 dark:bg-red-500/20 rounded-xl border border-red-100 dark:border-red-500/40">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-red-200 dark:bg-red-500/40 flex items-center justify-center">
+                      <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
                     </div>
-                    <div className="text-2xl font-bold text-red-600">{stats.absentCount}</div>
-                    <div className="text-xs text-red-600/70">Kelmagan</div>
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.absentCount}</div>
+                    <div className="text-xs text-red-600/70 dark:text-red-400/80">Kelmagan</div>
                   </div>
                 </div>
               </div>
@@ -868,32 +868,32 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {/* Score Breakdown */}
               <div>
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-amber-500" />
+                  <Zap className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                   Ball taqsimoti
                 </h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-500/20 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       <span className="text-sm font-medium">Davomat ballari</span>
                     </div>
-                    <span className="font-bold text-blue-600">+{stats.attendancePoints.toFixed(1)}</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400">+{stats.attendancePoints.toFixed(1)}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-500/20 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <Gift className="w-4 h-4 text-emerald-600" />
+                      <Gift className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <span className="text-sm font-medium">Mukofot ballari</span>
                     </div>
-                    <span className="font-bold text-emerald-600">+{stats.mukofotPoints}</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">+{stats.mukofotPoints}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-500/20 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                      <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
                       <span className="text-sm font-medium">Jarima ballari</span>
                     </div>
-                    <span className="font-bold text-red-600">-{stats.jarimaPoints}</span>
+                    <span className="font-bold text-red-600 dark:text-red-400">-{stats.jarimaPoints}</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-gray-900 rounded-lg text-white">
+                  <div className="flex items-center justify-between p-4 bg-primary rounded-lg text-primary-foreground">
                     <span className="font-semibold">Jami ball</span>
                     <span className="text-xl font-bold">{stats.totalScore.toFixed(1)}</span>
                   </div>
@@ -904,13 +904,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               {(student.student_id || student.join_date) && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5 text-gray-500" />
+                    <User className="w-5 h-5 text-muted-foreground" />
                     Qo'shimcha ma'lumotlar
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     {student.student_id && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <Hash className="w-4 h-4 text-gray-500" />
+                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                        <Hash className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <div className="text-xs text-muted-foreground">O'quvchi ID</div>
                           <div className="font-medium">{student.student_id}</div>
@@ -918,8 +918,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                       </div>
                     )}
                     {student.join_date && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <Calendar className="w-4 h-4 text-gray-500" />
+                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <div className="text-xs text-muted-foreground">A'zo bo'lgan sana</div>
                           <div className="font-medium">{formatDateUz(student.join_date)}</div>
@@ -936,7 +936,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-500" />
+                  <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat tarixi
                 </h3>
                 <Badge variant="outline">
@@ -945,7 +945,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               </div>
               {attendanceHistory.length === 0 ? (
                 <div className="text-center py-12">
-                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium mb-2">
                     Davomat ma'lumotlari topilmadi
                   </p>
@@ -960,24 +960,24 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                       key={`${record.date}_${index}`}
                       className={cn(
                         "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                        record.status === 'present' && 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50',
-                        record.status === 'late' && 'bg-amber-50/50 border-amber-200 hover:bg-amber-50',
-                        record.status === 'absent_with_reason' && 'bg-orange-50/50 border-orange-200 hover:bg-orange-50',
-                        record.status === 'absent_without_reason' && 'bg-red-50/50 border-red-200 hover:bg-red-50'
+                        record.status === 'present' && 'bg-emerald-50/50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-500/30',
+                        record.status === 'late' && 'bg-amber-50/50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-500/40 hover:bg-amber-50 dark:hover:bg-amber-500/30',
+                        record.status === 'absent_with_reason' && 'bg-orange-50/50 dark:bg-orange-500/20 border-orange-200 dark:border-orange-500/40 hover:bg-orange-50 dark:hover:bg-orange-500/30',
+                        record.status === 'absent_without_reason' && 'bg-red-50/50 dark:bg-red-500/20 border-red-200 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/30'
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center",
-                          record.status === 'present' && 'bg-emerald-200',
-                          record.status === 'late' && 'bg-amber-200',
-                          record.status === 'absent_with_reason' && 'bg-orange-200',
-                          record.status === 'absent_without_reason' && 'bg-red-200'
+                          record.status === 'present' && 'bg-emerald-200 dark:bg-emerald-500/50',
+                          record.status === 'late' && 'bg-amber-200 dark:bg-amber-500/50',
+                          record.status === 'absent_with_reason' && 'bg-orange-200 dark:bg-orange-500/50',
+                          record.status === 'absent_without_reason' && 'bg-red-200 dark:bg-red-500/50'
                         )}>
                           {record.status === 'present' && <CheckCircle className="w-5 h-5 text-emerald-700" />}
                           {record.status === 'late' && <Clock className="w-5 h-5 text-amber-700" />}
-                          {record.status === 'absent_with_reason' && <MinusCircle className="w-5 h-5 text-orange-700" />}
-                          {record.status === 'absent_without_reason' && <XCircle className="w-5 h-5 text-red-700" />}
+                          {record.status === 'absent_with_reason' && <MinusCircle className="w-5 h-5 text-orange-700 dark:text-orange-400" />}
+                          {record.status === 'absent_without_reason' && <XCircle className="w-5 h-5 text-red-700 dark:text-red-400" />}
                         </div>
                         <div>
                           <div className="font-medium">
@@ -993,10 +993,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                       <Badge
                         className={cn(
                           'font-semibold',
-                          record.status === 'present' && 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200',
-                          record.status === 'late' && 'bg-amber-100 text-amber-700 hover:bg-amber-200',
-                          record.status === 'absent_with_reason' && 'bg-orange-100 text-orange-700 hover:bg-orange-200',
-                          record.status === 'absent_without_reason' && 'bg-red-100 text-red-700 hover:bg-red-200'
+                          record.status === 'present' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/40',
+                          record.status === 'late' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/40',
+                          record.status === 'absent_with_reason' && 'bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-500/40',
+                          record.status === 'absent_without_reason' && 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/40'
                         )}
                       >
                         {record.status === 'present' && "Kelgan"}
@@ -1019,17 +1019,17 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                   Mukofot va jarima tarixi
                 </h3>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-emerald-100 text-emerald-700">
+                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300">
                     +{stats.mukofotPoints} mukofot
                   </Badge>
-                  <Badge className="bg-red-100 text-red-700">
+                  <Badge className="bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300">
                     -{stats.jarimaPoints} jarima
                   </Badge>
                 </div>
               </div>
               {stats.recentRewards.length === 0 ? (
                 <div className="text-center py-12">
-                  <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <Award className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium mb-2">
                     Mukofot yoki jarima ma'lumotlari topilmadi
                   </p>
@@ -1041,23 +1041,23 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
                   {stats.recentRewards.map((reward, index) => (
                     <div
-                      key={index}
+                      key={`reward-${index}-${reward.reason}-${reward.created_at instanceof Timestamp ? reward.created_at.toMillis() : reward.created_at}`}
                       className={cn(
                         "flex items-center justify-between p-3 rounded-xl border transition-colors",
                         reward.type === 'Mukofot' 
-                          ? 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50' 
-                          : 'bg-red-50/50 border-red-200 hover:bg-red-50'
+                          ? 'bg-emerald-50/50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-500/30' 
+                          : 'bg-red-50/50 dark:bg-red-500/20 border-red-200 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/30'
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center",
-                          reward.type === 'Mukofot' ? 'bg-emerald-200' : 'bg-red-200'
+                          reward.type === 'Mukofot' ? 'bg-emerald-200 dark:bg-emerald-500/50' : 'bg-red-200 dark:bg-red-500/50'
                         )}>
                           {reward.type === 'Mukofot' ? (
-                            <Gift className="w-5 h-5 text-emerald-700" />
+                            <Gift className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                           ) : (
-                            <AlertTriangle className="w-5 h-5 text-red-700" />
+                            <AlertTriangle className="w-5 h-5 text-red-700 dark:text-red-400" />
                           )}
                         </div>
                         <div>
@@ -1075,8 +1075,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                         className={cn(
                           'font-bold text-base px-3 py-1',
                           reward.type === 'Mukofot' 
-                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' 
-                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/40' 
+                          : 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/40'
                         )}
                       >
                         {reward.type === 'Mukofot' ? '+' : '-'}
@@ -1102,13 +1102,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                     <div className="text-2xl font-bold text-purple-600">{examStats.avg}</div>
                     <div className="text-xs text-purple-600/70">O'rtacha ball</div>
                   </div>
-                  <div className="text-center p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="text-2xl font-bold text-emerald-600">{examStats.max}</div>
-                    <div className="text-xs text-emerald-600/70">Eng yuqori</div>
+                  <div className="text-center p-4 bg-emerald-50 dark:bg-emerald-500/20 rounded-xl border border-emerald-100 dark:border-emerald-500/40">
+                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{examStats.max}</div>
+                    <div className="text-xs text-emerald-600/70 dark:text-emerald-400/80">Eng yuqori</div>
                   </div>
-                  <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-100">
-                    <div className="text-2xl font-bold text-amber-600">{examStats.min}</div>
-                    <div className="text-xs text-amber-600/70">Eng past</div>
+                  <div className="text-center p-4 bg-amber-50 dark:bg-amber-500/20 rounded-xl border border-amber-100 dark:border-amber-500/40">
+                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{examStats.min}</div>
+                    <div className="text-xs text-amber-600/70 dark:text-amber-400/80">Eng past</div>
                   </div>
                 </div>
               )}
@@ -1132,20 +1132,20 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                             <GraduationCap className="w-5 h-5 text-indigo-600" />
                           </div>
                           <div>
-                            <h4 className="font-semibold text-gray-900">{typeData.typeName}</h4>
+                            <h4 className="font-semibold text-foreground">{typeData.typeName}</h4>
                             <p className="text-xs text-muted-foreground">{typeData.results.length} ta imtihon</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-center">
-                            <div className="text-lg font-bold text-gray-700">{typeData.avg}</div>
+                            <div className="text-lg font-bold text-foreground">{typeData.avg}</div>
                             <div className="text-xs text-muted-foreground">O'rtacha</div>
                           </div>
                           <div className={cn(
                             "flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium",
-                            typeData.trend === 'up' && "bg-emerald-100 text-emerald-700",
-                            typeData.trend === 'down' && "bg-red-100 text-red-700",
-                            typeData.trend === 'stable' && "bg-gray-100 text-gray-600"
+                            typeData.trend === 'up' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300",
+                            typeData.trend === 'down' && "bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300",
+                            typeData.trend === 'stable' && "bg-gray-100 text-gray-600 dark:bg-muted dark:text-muted-foreground"
                           )}>
                             {typeData.trend === 'up' && <TrendingUp className="w-4 h-4" />}
                             {typeData.trend === 'down' && <TrendingDown className="w-4 h-4" />}
@@ -1200,7 +1200,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                           return (
                             <div 
                               key={result.id} 
-                              className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100"
+                              className="flex items-center justify-between p-2 bg-card rounded-lg border border-border"
                             >
                               <div className="flex items-center gap-2">
                                 <div className="text-sm text-muted-foreground">
@@ -1211,10 +1211,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                               <Badge 
                                 className={cn(
                                   "font-bold",
-                                  scoreColor === 'emerald' && 'bg-emerald-100 text-emerald-700',
-                                  scoreColor === 'blue' && 'bg-blue-100 text-blue-700',
-                                  scoreColor === 'amber' && 'bg-amber-100 text-amber-700',
-                                  scoreColor === 'red' && 'bg-red-100 text-red-700'
+                                  scoreColor === 'emerald' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300',
+                                  scoreColor === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300',
+                                  scoreColor === 'amber' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300',
+                                  scoreColor === 'red' && 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300'
                                 )}
                               >
                                 {result.score}
@@ -1243,7 +1243,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
               
               {examResults.length === 0 ? (
                 <div className="text-center py-12">
-                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium mb-2">
                     Imtihon natijalari topilmadi
                   </p>
@@ -1300,7 +1300,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                             />
                           </div>
                           <div>
-                            <div className="font-semibold text-gray-900">
+                            <div className="font-semibold text-foreground">
                               {result.exam_name}
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -1352,21 +1352,21 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                         key={typeData.typeName}
                         className={cn(
                           "p-4 rounded-xl border",
-                          typeData.trend === 'up' && "bg-emerald-50/50 border-emerald-200",
-                          typeData.trend === 'down' && "bg-red-50/50 border-red-200",
-                          typeData.trend === 'stable' && "bg-gray-50 border-gray-200"
+                          typeData.trend === 'up' && "bg-emerald-50/50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-500/40",
+                          typeData.trend === 'down' && "bg-red-50/50 dark:bg-red-500/20 border-red-200 dark:border-red-500/40",
+                          typeData.trend === 'stable' && "bg-gray-50 dark:bg-muted border-gray-200 dark:border-border"
                         )}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{typeData.typeName}</h4>
+                            <h4 className="font-semibold text-foreground">{typeData.typeName}</h4>
                             <p className="text-xs text-muted-foreground">{typeData.results.length} ta natija</p>
                           </div>
                           <div className={cn(
                             "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold",
-                            typeData.trend === 'up' && "bg-emerald-200 text-emerald-800",
-                            typeData.trend === 'down' && "bg-red-200 text-red-800",
-                            typeData.trend === 'stable' && "bg-gray-200 text-gray-700"
+                            typeData.trend === 'up' && "bg-emerald-200 dark:bg-emerald-500/50 text-emerald-800 dark:text-emerald-300",
+                            typeData.trend === 'down' && "bg-red-200 dark:bg-red-500/50 text-red-800 dark:text-red-300",
+                            typeData.trend === 'stable' && "bg-gray-200 dark:bg-muted text-gray-700 dark:text-muted-foreground"
                           )}>
                             {typeData.trend === 'up' && <TrendingUp className="w-4 h-4" />}
                             {typeData.trend === 'down' && <TrendingDown className="w-4 h-4" />}
@@ -1379,13 +1379,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                         
                         <div className="flex items-center gap-4 mb-3">
                           <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-700">{typeData.avg}</div>
+                            <div className="text-2xl font-bold text-foreground">{typeData.avg}</div>
                             <div className="text-xs text-muted-foreground">O'rtacha</div>
                           </div>
                           {typeData.results.length >= 2 && (
                             <>
                               <div className="text-center">
-                                <div className="text-lg font-semibold text-gray-600">
+                                <div className="text-lg font-semibold text-muted-foreground">
                                   {typeData.results[typeData.results.length - 2].score}
                                 </div>
                                 <div className="text-xs text-muted-foreground">Oldingi</div>
@@ -1393,9 +1393,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                               <div className="text-center">
                                 <div className={cn(
                                   "text-lg font-bold",
-                                  typeData.trend === 'up' && "text-emerald-600",
-                                  typeData.trend === 'down' && "text-red-600",
-                                  typeData.trend === 'stable' && "text-gray-600"
+                                  typeData.trend === 'up' && "text-emerald-600 dark:text-emerald-400",
+                                  typeData.trend === 'down' && "text-red-600 dark:text-red-400",
+                                  typeData.trend === 'stable' && "text-gray-600 dark:text-muted-foreground"
                                 )}>
                                   {typeData.results[typeData.results.length - 1].score}
                                 </div>
@@ -1429,12 +1429,12 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
               <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  <TrendingUp className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat Dinamikasi
                 </h3>
                 {attendanceChartData.length === 0 ? (
                   <div className="text-center py-8">
-                    <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <BarChart3 className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
                     <p className="text-muted-foreground font-medium">
                       Davomat dinamikasi uchun ma'lumot yo'q
                     </p>
@@ -1479,12 +1479,12 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
               <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-100">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-emerald-500" />
+                  <BarChart3 className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
                   So'nggi Mukofot va Jarimalar
                 </h3>
                 {rewardsChartData.length === 0 ? (
                   <div className="text-center py-8">
-                    <Award className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <Award className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
                     <p className="text-muted-foreground font-medium">
                       Mukofot/Jarima tarixi mavjud emas
                     </p>

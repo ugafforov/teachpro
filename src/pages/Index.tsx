@@ -110,7 +110,7 @@ const Index = () => {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <main className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </main>
     );
@@ -122,13 +122,13 @@ const Index = () => {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md w-full">
-          <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-            <XCircle className="w-8 h-8 text-red-600" />
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center p-8 bg-card border border-border rounded-2xl shadow-lg max-w-md w-full">
+          <div className="mx-auto w-16 h-16 bg-destructive/20 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="w-8 h-8 text-destructive" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">Xatolik yuz berdi</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">Xatolik yuz berdi</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
           <div className="flex gap-3">
             <Button onClick={() => fetchProfile(user)} variant="outline" className="flex-1">
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -150,13 +150,13 @@ const Index = () => {
 
   if (!teacher) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md w-full">
-          <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-            <XCircle className="w-8 h-8 text-red-600" />
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center p-8 bg-card border border-border rounded-2xl shadow-lg max-w-md w-full">
+          <div className="mx-auto w-16 h-16 bg-destructive/20 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="w-8 h-8 text-destructive" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">Profil topilmadi</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Profil topilmadi</h2>
+          <p className="text-muted-foreground mb-6">
             Sizning hisobingiz bilan bog'liq o'qituvchi profili topilmadi yoki unga kirish huquqi yo'q.
           </p>
           <div className="flex gap-3">
@@ -181,19 +181,19 @@ const Index = () => {
   // Show rejection message if teacher was rejected
   if (teacher.verification_status === 'rejected') {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-            <XCircle className="w-8 h-8 text-red-600" />
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-card border border-border rounded-2xl shadow-lg p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-destructive/20 rounded-full flex items-center justify-center mb-4">
+            <XCircle className="w-8 h-8 text-destructive" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Ariza rad etildi</h2>
-          <p className="text-gray-600 mb-4">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Ariza rad etildi</h2>
+          <p className="text-muted-foreground mb-4">
             Afsusiki, sizning arizangiz qabul qilinmadi.
           </p>
           {teacher.rejection_reason && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 text-left">
-              <p className="text-sm font-semibold text-red-800 mb-1">Sabab:</p>
-              <p className="text-sm text-red-700">{teacher.rejection_reason}</p>
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-4 text-left">
+              <p className="text-sm font-semibold text-destructive mb-1">Sabab:</p>
+              <p className="text-sm text-foreground">{teacher.rejection_reason}</p>
             </div>
           )}
           <Button onClick={handleLogout} variant="outline">

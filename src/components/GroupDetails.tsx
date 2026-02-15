@@ -1103,7 +1103,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             case 'late': return `${baseStyle} border-orange-500 bg-orange-500 hover:bg-orange-600 text-white`;
             case 'absent_without_reason': return `${baseStyle} border-red-500 bg-red-500 hover:bg-red-600 text-white`;
             case 'absent_with_reason': return `${baseStyle} border-yellow-500 bg-yellow-500 hover:bg-yellow-600 text-white`;
-            default: return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
+            default: return `${baseStyle} border-border bg-background hover:bg-muted text-muted-foreground`;
         }
     };
 
@@ -1223,12 +1223,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             return `${baseStyle} bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100`;
         }
         if (type === 'mukofot') {
-            return `${baseStyle} bg-green-50 text-green-700 border-green-200 hover:bg-green-100`;
+            return `${baseStyle} bg-green-50 dark:bg-emerald-500/20 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-500/40 hover:bg-green-100 dark:hover:bg-emerald-500/30`;
         }
         if (type === 'jarima') {
-            return `${baseStyle} bg-red-50 text-red-700 border-red-200 hover:bg-red-100`;
+            return `${baseStyle} bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/40 hover:bg-red-100 dark:hover:bg-red-500/30`;
         }
-        return `${baseStyle} bg-gray-50 text-gray-400 border-gray-200`;
+        return `${baseStyle} bg-muted text-muted-foreground border-border`;
     };
 
     if (loading) {
@@ -1247,7 +1247,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     <div className="flex items-center gap-4">
                         {availableGroups && availableGroups.length > 1 && onGroupChange ? (
                             <Select value={groupName} onValueChange={onGroupChange}>
-                                <SelectTrigger className="w-[200px] border-0 hover:bg-gray-50 p-0 h-auto">
+                                <SelectTrigger className="w-[200px] border-0 hover:bg-muted p-0 h-auto">
                                     <SelectValue><h2 className="text-2xl font-bold">{groupName}</h2></SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1272,7 +1272,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                 <SelectItem value="all">Barchasi</SelectItem>
                             </SelectContent>
                         </Select>
-                        <div className="text-sm text-gray-600">{students.length} o'quvchi</div>
+                        <div className="text-sm text-muted-foreground">{students.length} o'quvchi</div>
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -1344,14 +1344,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             </div>
 
             <div className="flex flex-col">
-                <div className="flex gap-2 border-b border-gray-200">
+                <div className="flex gap-2 border-b border-border">
                     <button
                         onClick={() => setActiveTab('attendance')}
                         className={cn(
                             'px-4 py-2 font-medium text-sm transition-all border-b-2',
                             activeTab === 'attendance'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         )}
                     >
                         Kunlik Jurnal
@@ -1361,8 +1361,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                         className={cn(
                             'px-4 py-2 font-medium text-sm transition-all border-b-2',
                             activeTab === 'journal'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'border-blue-500 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         )}
                     >
                         Davomat Jurnali
@@ -1379,16 +1379,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                             <Card className="apple-card overflow-hidden w-full lg:flex-[65_65_0%] min-w-0">
                                 {/* Eslatma banner - yaratilgan sanadan keyingi sanalarda ko'rsatiladi (bir nechta bo'lishi mumkin) */}
                                 {notesToShow.length > 0 && (
-                                    <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-300 px-4 py-3 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/50 dark:via-amber-900/40 dark:to-orange-950/50 border-b-2 border-amber-300 dark:border-amber-600/50 px-4 py-3 animate-in slide-in-from-top-2 duration-300">
                                         <div className="flex items-start gap-3">
-                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center animate-pulse mt-0.5">
-                                                <Lightbulb className="w-4 h-4 text-amber-600" />
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-500/30 flex items-center justify-center animate-pulse mt-0.5">
+                                                <Lightbulb className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-amber-600 font-medium mb-1">O'zingizga eslatmalar ({notesToShow.length})</p>
+                                                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">O'zingizga eslatmalar ({notesToShow.length})</p>
                                                 {notesToShow.length === 1 ? (
                                                     <div className="flex items-start gap-2">
-                                                        <p className="text-sm text-amber-900 font-medium flex-1 break-words">
+                                                        <p className="text-sm text-amber-900 dark:text-amber-100 font-medium flex-1 break-words">
                                                             {notesToShow[0].note}
                                                         </p>
                                                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -1396,7 +1396,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                 size="sm"
                                                                 variant="ghost"
                                                                 onClick={() => startEditLessonNote(notesToShow[0])}
-                                                                className="h-7 w-7 p-0 text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                                                                className="h-7 w-7 p-0 text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/30"
                                                                 title="Tahrirlash"
                                                             >
                                                                 <Edit2 className="w-3.5 h-3.5" />
@@ -1405,7 +1405,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                 size="sm"
                                                                 variant="ghost"
                                                                 onClick={() => completeLessonNote(notesToShow[0].id)}
-                                                                className="h-7 w-7 p-0 text-green-700 hover:text-green-900 hover:bg-green-100"
+                                                                className="h-7 w-7 p-0 text-green-700 dark:text-emerald-400 hover:text-green-900 dark:hover:text-emerald-200 hover:bg-green-100 dark:hover:bg-emerald-500/30"
                                                                 title="Bajarildi"
                                                             >
                                                                 <CheckCircle className="w-3.5 h-3.5" />
@@ -1417,10 +1417,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                         {notesToShow.map((n) => (
                                                             <div
                                                                 key={n.id}
-                                                                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-200 px-2 py-1"
+                                                                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-500/25 border border-amber-200 dark:border-amber-500/40 px-2 py-1"
                                                             >
                                                                 <span
-                                                                    className="text-xs text-amber-900 font-medium truncate max-w-[240px]"
+                                                                    className="text-xs text-amber-900 dark:text-amber-100 font-medium truncate max-w-[240px]"
                                                                     title={n.note}
                                                                 >
                                                                     {n.note}
@@ -1429,7 +1429,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                     size="sm"
                                                                     variant="ghost"
                                                                     onClick={() => startEditLessonNote(n)}
-                                                                    className="h-5 w-5 p-0 text-amber-700 hover:text-amber-900 hover:bg-amber-200"
+                                                                    className="h-5 w-5 p-0 text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-500/40"
                                                                     title="Tahrirlash"
                                                                 >
                                                                     <Edit2 className="w-3 h-3" />
@@ -1438,7 +1438,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                     size="sm"
                                                                     variant="ghost"
                                                                     onClick={() => completeLessonNote(n.id)}
-                                                                    className="h-5 w-5 p-0 text-green-700 hover:text-green-900 hover:bg-green-200"
+                                                                    className="h-5 w-5 p-0 text-green-700 dark:text-emerald-400 hover:text-green-900 dark:hover:text-emerald-200 hover:bg-green-200 dark:hover:bg-emerald-500/40"
                                                                     title="Bajarildi"
                                                                 >
                                                                     <CheckCircle className="w-3 h-3" />
@@ -1452,7 +1452,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                     </div>
                                 )}
 
-                                <div className="p-4 border-b border-border/50 flex flex-wrap items-center gap-3 bg-gray-50/50">
+                                <div className="p-4 border-b border-border/50 flex flex-wrap items-center gap-3 bg-muted/30">
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal apple-button-secondary", !selectedDate && "text-muted-foreground")}>
@@ -1478,8 +1478,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                             />
                                         </PopoverContent>
                                     </Popover>
-                                    <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Barchasi kelgan</Button>
-                                    <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 hover:text-red-700"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
+                                    <Button onClick={markAllAsPresent} variant="outline" size="sm" className="apple-button-secondary"><CheckCircle className="w-4 h-4 mr-2 text-green-600 dark:text-emerald-400" />Barchasi kelgan</Button>
+                                    <Button onClick={clearAllAttendance} variant="outline" size="sm" className="apple-button-secondary text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"><RotateCcw className="w-4 h-4 mr-2" />Tozalash</Button>
                                     
                                     {/* Eslatmalar - bitta darsda bir nechta */}
                                     <div className="flex-1 min-w-[200px]">
@@ -1500,12 +1500,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                         "flex items-center gap-2 text-sm font-medium rounded-full border px-3 py-1.5 transition-all",
                                                         "shadow-sm hover:shadow-md",
                                                         notesCreatedOnSelectedDate.length > 0
-                                                            ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
-                                                            : "bg-orange-50/50 text-orange-700 border-orange-100 hover:bg-orange-100/70",
-                                                        "focus:outline-none focus:ring-2 focus:ring-orange-200"
+                                                            ? "bg-orange-50 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/40 hover:bg-orange-100 dark:hover:bg-orange-500/30"
+                                                            : "bg-orange-50/50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-100 dark:border-orange-500/30 hover:bg-orange-100/70 dark:hover:bg-orange-500/20",
+                                                        "focus:outline-none focus:ring-2 focus:ring-orange-200 dark:focus:ring-orange-500/50"
                                                     )}
                                                 >
-                                                    <StickyNote className="w-4 h-4 text-orange-500" />
+                                                    <StickyNote className="w-4 h-4 text-orange-500 dark:text-orange-400" />
                                                     <span className="hidden sm:inline">
                                                         {notesCreatedOnSelectedDate.length > 0
                                                             ? `Eslatmalar (${notesCreatedOnSelectedDate.length})`
@@ -1517,12 +1517,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                             <PopoverContent className="w-96 p-3" align="end">
                                                 <div className="space-y-3">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                                             <StickyNote className="w-4 h-4 text-amber-500" />
                                                             Keyingi dars uchun eslatmalar
                                                         </div>
                                                         {editingNoteId && (
-                                                            <span className="text-xs text-amber-700 font-medium">Tahrirlash</span>
+                                                            <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Tahrirlash</span>
                                                         )}
                                                     </div>
 
@@ -1530,14 +1530,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                         notesCreatedOnSelectedDate.length === 1 ? (
                                                             <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                                                                 <div className="flex items-start gap-2">
-                                                                    <div className="flex-1 text-sm text-gray-700 break-words">
+                                                                    <div className="flex-1 text-sm text-foreground break-words">
                                                                         {notesCreatedOnSelectedDate[0].note}
                                                                     </div>
                                                                     <Button
                                                                         size="sm"
                                                                         variant="ghost"
                                                                         onClick={() => startEditLessonNote(notesCreatedOnSelectedDate[0])}
-                                                                        className="h-7 w-7 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
                                                                         title="Tahrirlash"
                                                                     >
                                                                         <Edit2 className="w-3.5 h-3.5" />
@@ -1546,7 +1546,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                         size="sm"
                                                                         variant="ghost"
                                                                         onClick={() => completeLessonNote(notesCreatedOnSelectedDate[0].id)}
-                                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                        className="h-7 w-7 p-0 text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/20"
                                                                         title="O'chirish"
                                                                     >
                                                                         <X className="w-3.5 h-3.5" />
@@ -1558,10 +1558,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                 {notesCreatedOnSelectedDate.map((n) => (
                                                                     <div
                                                                         key={n.id}
-                                                                        className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 border border-gray-200 px-2 py-1"
+                                                                        className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border px-2 py-1"
                                                                     >
                                                                         <span
-                                                                            className="text-xs text-gray-700 truncate max-w-[240px]"
+                                                                            className="text-xs text-foreground truncate max-w-[240px]"
                                                                             title={n.note}
                                                                         >
                                                                             {n.note}
@@ -1570,7 +1570,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                             size="sm"
                                                                             variant="ghost"
                                                                             onClick={() => startEditLessonNote(n)}
-                                                                            className="h-5 w-5 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
                                                                             title="Tahrirlash"
                                                                         >
                                                                             <Edit2 className="w-3 h-3" />
@@ -1579,7 +1579,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                             size="sm"
                                                                             variant="ghost"
                                                                             onClick={() => completeLessonNote(n.id)}
-                                                                            className="h-5 w-5 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                            className="h-5 w-5 p-0 text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/20"
                                                                             title="O'chirish"
                                                                         >
                                                                             <X className="w-3 h-3" />
@@ -1618,7 +1618,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                             size="sm"
                                                             onClick={saveLessonNote}
                                                             disabled={!noteInput.trim() || savingNote}
-                                                            className="bg-amber-500 hover:bg-amber-600 text-white"
+                                                            className="bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500 text-white"
                                                         >
                                                             {savingNote ? '...' : (editingNoteId ? 'Yangilash' : 'Saqlash')}
                                                         </Button>
@@ -1632,7 +1632,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
-                                            <TableRow className="bg-gray-50/50">
+                                            <TableRow className="bg-muted/30">
                                                 <TableHead className="w-[50px] text-center">#</TableHead>
                                                 <TableHead>O'quvchi</TableHead>
                                                 <TableHead className="text-center">Davomat</TableHead>
@@ -1654,21 +1654,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                 return (
                                                     <React.Fragment key={student.id}>
                                                         {isFirstArchived && (
-                                                            <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
+                                                            <TableRow key={`${student.id}-separator`} className="bg-muted hover:bg-muted">
                                                                 <TableCell colSpan={6} className="text-center py-2">
-                                                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
+                                                                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
                                                                 </TableCell>
                                                             </TableRow>
                                                         )}
 
-                                                        <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
-                                                            <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
+                                                        <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-muted/30 hover:bg-muted/50" : "hover:bg-muted/30")}>
+                                                            <TableCell className="text-center text-muted-foreground font-medium">{index + 1}</TableCell>
                                                             <TableCell>
                                                                 <div className="flex flex-col group">
                                                                     <div className="flex items-center gap-2">
                                                                         <StudentProfileLink
                                                                             studentId={student.id}
-                                                                            className="font-semibold text-gray-900 group-hover:text-primary transition-colors"
+                                                                            className="font-semibold text-foreground group-hover:text-primary transition-colors"
                                                                         >
                                                                             {student.name}
                                                                         </StudentProfileLink>
@@ -1678,7 +1678,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
+                                                                    <span className="text-xs text-muted-foreground">{student.student_id || 'ID yo\'q'}</span>
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell>
@@ -1716,13 +1716,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                     </Button>
                                                                     <span className={cn(
                                                                         "text-[10px] font-medium leading-none",
-                                                                        pendingAttendance[student.id] ? "text-gray-500" :
-                                                                            savedAttendance[student.id] ? "text-emerald-600" :
-                                                                                attendance[student.id] === 'present' ? "text-emerald-600" :
-                                                                                    attendance[student.id] === 'late' ? "text-orange-600" :
-                                                                                        attendance[student.id] === 'absent_with_reason' ? "text-yellow-700" :
-                                                                                            attendance[student.id] === 'absent_without_reason' ? "text-red-600" :
-                                                                                                "text-gray-500"
+                                                                        pendingAttendance[student.id] ? "text-muted-foreground" :
+                                                                            savedAttendance[student.id] ? "text-emerald-600 dark:text-emerald-400" :
+                                                                                attendance[student.id] === 'present' ? "text-emerald-600 dark:text-emerald-400" :
+                                                                                    attendance[student.id] === 'late' ? "text-orange-600 dark:text-orange-400" :
+                                                                                        attendance[student.id] === 'absent_with_reason' ? "text-yellow-700 dark:text-yellow-400" :
+                                                                                            attendance[student.id] === 'absent_without_reason' ? "text-red-600 dark:text-red-400" :
+                                                                                                "text-muted-foreground"
                                                                     )}>
                                                                         {pendingAttendance[student.id] ? "Saqlanmoqda..." :
                                                                             savedAttendance[student.id] ? "Saqlandi" :
@@ -1745,7 +1745,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                                 />
                                                                             ) : (
                                                                                 <div
-                                                                                    className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isOutsidePeriod || isFutureDate) ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type))}
+                                                                                    className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isOutsidePeriod || isFutureDate) ? "opacity-40 cursor-not-allowed bg-muted" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type))}
                                                                                     onClick={() => !isOutsidePeriod && !isFutureDate && handleScoreCellClick(student.id, type)}
                                                                                     title={isFutureDate
                                                                                         ? "Kelajak uchun belgilab bo'lmaydi"
@@ -1763,7 +1763,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                                                                <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 dark:bg-emerald-500/25 text-green-700 dark:text-emerald-300">
                                                                     {student.rewardPenaltyPoints?.toFixed(1) || 0}
                                                                 </div>
                                                             </TableCell>
@@ -1772,7 +1772,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                     {!isArchived ? (
                                                                         <DropdownMenu>
                                                                             <DropdownMenuTrigger asChild>
-                                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-50">
+                                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted">
                                                                                     <MoreVertical className="w-4 h-4" />
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
@@ -1788,20 +1788,20 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                                                                     }}
                                                                                     className="gap-2"
                                                                                 >
-                                                                                    <Edit2 className="w-4 h-4 text-blue-600" />
+                                                                                    <Edit2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                                                                     Tahrirlash
                                                                                 </DropdownMenuItem>
                                                                                 <DropdownMenuItem
                                                                                     onSelect={() => handleAction(student.id, student.name)}
                                                                                     className="gap-2"
                                                                                 >
-                                                                                    <Archive className="w-4 h-4 text-orange-600" />
+                                                                                    <Archive className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                                                                     Arxivlash
                                                                                 </DropdownMenuItem>
                                                                             </DropdownMenuContent>
                                                                         </DropdownMenu>
                                                                     ) : (
-                                                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
+                                                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 dark:text-emerald-400 hover:text-green-700 dark:hover:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-500/20" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
                                                                             Tiklash
                                                                         </Button>
                                                                     )}
@@ -1826,7 +1826,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             {/* Dialogs */}
             {showAbsentDialog && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 border border-border">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold">{students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi</h3>
                             <Button variant="ghost" size="sm" onClick={() => setShowAbsentDialog(null)} className="h-8 w-8 p-0"><XCircle className="w-4 h-4" /></Button>

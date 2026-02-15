@@ -233,7 +233,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
               className={cn(
                 'flex-1 px-3 py-2 text-sm font-medium transition-colors',
                 activeTab === 'overview'
-                  ? 'text-blue-600 border-b-2 border-blue-500'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400'
                   : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => setActiveTab('overview')}
@@ -244,7 +244,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
               className={cn(
                 'flex-1 px-3 py-2 text-sm font-medium transition-colors',
                 activeTab === 'attendance'
-                  ? 'text-blue-600 border-b-2 border-blue-500'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400'
                   : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => setActiveTab('attendance')}
@@ -255,7 +255,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
               className={cn(
                 'flex-1 px-3 py-2 text-sm font-medium transition-colors',
                 activeTab === 'rewards'
-                  ? 'text-blue-600 border-b-2 border-blue-500'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 dark:border-blue-400'
                   : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => setActiveTab('rewards')}
@@ -268,21 +268,21 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <Card className="p-4 text-center">
-                  <Trophy className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-blue-600">{stats.totalScore.toFixed(1)}</div>
+                  <Trophy className="w-8 h-8 text-yellow-500 dark:text-amber-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalScore.toFixed(1)}</div>
                   <div className="text-sm text-muted-foreground">Jami ball</div>
                 </Card>
                 <Card className="p-4 text-center">
-                  <BarChart3 className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-green-600">{stats.attendancePercentage}%</div>
+                  <BarChart3 className="w-8 h-8 text-green-500 dark:text-emerald-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-green-600 dark:text-emerald-400">{stats.attendancePercentage}%</div>
                   <div className="text-sm text-muted-foreground">Davomat</div>
                 </Card>
               </div>
 
               {stats.rank > 0 && (
                 <Card className="p-4 text-center">
-                  <Award className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-                  <div className="text-2xl font-bold text-purple-600">{stats.rank}</div>
+                  <Award className="w-8 h-8 text-purple-500 dark:text-purple-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.rank}</div>
                   <div className="text-sm text-muted-foreground">Reyting pozitsiyasi</div>
                 </Card>
               )}
@@ -291,14 +291,14 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                 <Card className="p-4">
                   <div className="flex items-center justify-center gap-2">
                     {stats.rewardPenaltyPoints > 0 ? (
-                      <Gift className="w-5 h-5 text-green-500" />
+                      <Gift className="w-5 h-5 text-green-500 dark:text-emerald-400" />
                     ) : (
-                      <AlertTriangle className="w-5 h-5 text-red-500" />
+                      <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400" />
                     )}
                     <span
                       className={cn(
                         'text-lg font-bold',
-                        stats.rewardPenaltyPoints > 0 ? 'text-green-600' : 'text-red-600'
+                        stats.rewardPenaltyPoints > 0 ? 'text-green-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                       )}
                     >
                       {stats.rewardPenaltyPoints > 0 ? '+' : ''}
@@ -313,24 +313,24 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
 
               <Card className="p-4">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-500" />
+                  <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                   Davomat statistikasi
                 </h3>
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-center p-3 bg-muted/50 rounded-lg">
                     <div className="text-xl font-bold">{stats.totalClasses}</div>
                     <div className="text-xs text-muted-foreground">Jami</div>
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded-lg">
-                    <div className="text-xl font-bold text-green-600">{stats.presentCount}</div>
+                  <div className="text-center p-3 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-lg">
+                    <div className="text-xl font-bold text-green-600 dark:text-emerald-400">{stats.presentCount}</div>
                     <div className="text-xs text-muted-foreground">Kelgan</div>
                   </div>
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="text-xl font-bold text-yellow-600">{stats.lateCount}</div>
+                  <div className="text-center p-3 bg-amber-500/10 dark:bg-amber-500/20 rounded-lg">
+                    <div className="text-xl font-bold text-yellow-600 dark:text-amber-400">{stats.lateCount}</div>
                     <div className="text-xs text-muted-foreground">Kech</div>
                   </div>
-                  <div className="text-center p-3 bg-red-50 rounded-lg">
-                    <div className="text-xl font-bold text-red-600">{stats.absentCount}</div>
+                  <div className="text-center p-3 bg-red-500/10 dark:bg-red-500/20 rounded-lg">
+                    <div className="text-xl font-bold text-red-600 dark:text-red-400">{stats.absentCount}</div>
                     <div className="text-xs text-muted-foreground">Yo'q</div>
                   </div>
                 </div>
@@ -367,7 +367,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
           {activeTab === 'attendance' && (
             <Card className="p-4 space-y-3">
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-500" />
+                <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
                 Davomat tarixi
               </h3>
               {attendanceHistory.length === 0 ? (
@@ -379,7 +379,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                   {attendanceHistory.map((record, index) => (
                     <div
                       key={`${record.date}_${index}`}
-                      className="flex items-center justify-between p-2 rounded-lg bg-gray-50"
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
                     >
                       <div>
                         <div className="text-sm font-medium">
@@ -394,10 +394,10 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                       <span
                         className={cn(
                           'text-xs font-semibold px-2 py-1 rounded-full',
-                          record.status === 'present' && 'bg-green-100 text-green-700',
-                          record.status === 'late' && 'bg-yellow-100 text-yellow-700',
-                          record.status === 'absent_with_reason' && 'bg-orange-100 text-orange-700',
-                          record.status === 'absent_without_reason' && 'bg-red-100 text-red-700'
+                          record.status === 'present' && 'bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300',
+                          record.status === 'late' && 'bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300',
+                          record.status === 'absent_with_reason' && 'bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300',
+                          record.status === 'absent_without_reason' && 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300'
                         )}
                       >
                         {record.status === 'present' && "Kelgan"}
@@ -415,7 +415,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
           {activeTab === 'rewards' && (
             <Card className="p-4 space-y-3">
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                <Award className="w-5 h-5 text-purple-500" />
+                <Award className="w-5 h-5 text-purple-500 dark:text-purple-400" />
                 Mukofot va jarima tarixi
               </h3>
               {stats.recentRewards.length === 0 ? (
@@ -426,17 +426,17 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                   {stats.recentRewards.map((reward, index) => (
                     <div
-                      key={index}
-                      className="flex items-center justify-between p-2 rounded-lg bg-gray-50"
+                      key={`reward-${index}-${reward.reason}-${reward.created_at instanceof Timestamp ? reward.created_at.toMillis() : reward.created_at}`}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
                     >
                       <div className="flex items-center gap-2">
                         {reward.type === 'Mukofot' ? (
-                          <Gift className="w-4 h-4 text-green-500" />
+                          <Gift className="w-4 h-4 text-green-500 dark:text-emerald-400" />
                         ) : (
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
+                          <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />
                         )}
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium">
+                          <span className="text-sm font-medium text-foreground">
                             {reward.reason}
                           </span>
                           <span className="text-xs text-muted-foreground">
@@ -449,7 +449,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
                       <span
                         className={cn(
                           'text-sm font-semibold',
-                          reward.type === 'Mukofot' ? 'text-green-600' : 'text-red-600'
+                          reward.type === 'Mukofot' ? 'text-green-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                         )}
                       >
                         {reward.type === 'Mukofot' ? '+' : '-'}

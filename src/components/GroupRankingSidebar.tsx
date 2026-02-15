@@ -28,7 +28,7 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
     const getRankIcon = (position: number) => {
         switch (position) {
             case 1: return <Trophy className="w-6 h-6 text-yellow-500" />;
-            case 2: return <Medal className="w-6 h-6 text-gray-400" />;
+            case 2: return <Medal className="w-6 h-6 text-gray-400 dark:text-muted-foreground" />;
             case 3: return <Award className="w-6 h-6 text-amber-600" />;
             default: return <span className="w-6 h-6 flex items-center justify-center text-sm font-bold text-muted-foreground">#{position}</span>;
         }
@@ -57,20 +57,20 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
         return (
             <Card className="overflow-hidden">
                 <div className="p-6 border-b flex items-center justify-between">
-                    <div className="h-5 w-36 bg-gray-100 animate-pulse rounded" />
-                    <div className="h-4 w-20 bg-gray-100 animate-pulse rounded" />
+                    <div className="h-5 w-36 bg-muted animate-pulse rounded" />
+                    <div className="h-4 w-20 bg-muted animate-pulse rounded" />
                 </div>
                 <div className="divide-y">
                     {[1, 2, 3, 4, 5].map(i => (
                         <div key={i} className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className="h-6 w-6 bg-gray-100 animate-pulse rounded" />
+                                <div className="h-6 w-6 bg-muted animate-pulse rounded" />
                                 <div className="flex items-center gap-3">
-                                    <div className="h-8 w-8 bg-gray-100 animate-pulse rounded-full" />
-                                    <div className="h-4 w-32 bg-gray-100 animate-pulse rounded" />
+                                    <div className="h-8 w-8 bg-muted animate-pulse rounded-full" />
+                                    <div className="h-4 w-32 bg-muted animate-pulse rounded" />
                                 </div>
                             </div>
-                            <div className="h-6 w-14 bg-gray-100 animate-pulse rounded" />
+                            <div className="h-6 w-14 bg-muted animate-pulse rounded" />
                         </div>
                     ))}
                 </div>
@@ -80,9 +80,9 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
 
     return (
         <Card className="overflow-hidden apple-card">
-            <div className="p-6 border-b border-border/50 flex justify-between items-center bg-gray-50/50">
-                <h3 className="text-sm font-semibold text-gray-900 tracking-tight">Sinf reytingi</h3>
-                <span className="text-xs text-gray-500">{rankedStudents.length} o'quvchi</span>
+            <div className="p-6 border-b border-border/50 flex justify-between items-center bg-muted/30">
+                <h3 className="text-sm font-semibold text-foreground tracking-tight">Sinf reytingi</h3>
+                <span className="text-xs text-muted-foreground">{rankedStudents.length} o'quvchi</span>
             </div>
 
             {rankedStudents.length === 0 ? (
@@ -98,7 +98,7 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                             <div
                                 key={student.id}
                                 className={cn(
-                                    "p-3 flex items-center justify-between hover:bg-gray-50 transition-colors",
+                                    "p-3 flex items-center justify-between hover:bg-muted/50 transition-colors",
                                     position <= 3 && "bg-gradient-to-r from-white via-white to-gray-50/30"
                                 )}
                             >
@@ -107,7 +107,7 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({ students, loa
                                         {getRankIcon(position)}
                                     </div>
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
+                                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
                                             {getInitials(student.name)}
                                         </div>
                                         <div className="min-w-0">

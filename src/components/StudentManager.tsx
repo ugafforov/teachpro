@@ -670,7 +670,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4 apple-card">
           <div className="flex items-center space-x-4">
-            <div className="p-3 bg-blue-100 rounded-full text-blue-600">
+            <div className="p-3 bg-blue-100 dark:bg-blue-500/25 rounded-full text-blue-600 dark:text-blue-400">
               <Users className="w-6 h-6" />
             </div>
             <div>
@@ -681,7 +681,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         </Card>
         <Card className="p-4 apple-card">
           <div className="flex items-center space-x-4">
-            <div className="p-3 bg-green-100 rounded-full text-green-600">
+            <div className="p-3 bg-green-100 dark:bg-emerald-500/25 rounded-full text-green-600 dark:text-emerald-400">
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
@@ -775,14 +775,14 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                   <div key={student.id} className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-medium">
-                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-primary">
                           {student.name}
                         </StudentProfileLink>
                       </div>
                       <div className="text-xs text-muted-foreground">{student.group_name}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-red-600">{student.stats.attendancePercentage}%</div>
+                      <div className="text-sm font-semibold text-red-600 dark:text-red-400">{student.stats.attendancePercentage}%</div>
                       <div className="text-xs text-muted-foreground">{student.stats.totalScore.toFixed(1)} ball</div>
                     </div>
                   </div>
@@ -974,17 +974,17 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                     className={cn(
                       "group transition-all duration-200",
                       "hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/50",
-                      isRiskStudent && "bg-red-50/30",
-                      isTopStudent && "bg-emerald-50/30",
-                      selectedStudentIds.has(student.id) && "bg-blue-50"
+                      isRiskStudent && "bg-red-50/30 dark:bg-red-500/10",
+                      isTopStudent && "bg-emerald-50/30 dark:bg-emerald-500/10",
+                      selectedStudentIds.has(student.id) && "bg-blue-50 dark:bg-blue-500/15"
                     )}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div onClick={() => toggleStudentSelection(student.id)} className="cursor-pointer p-1 rounded hover:bg-gray-100 transition-colors">
+                      <div onClick={() => toggleStudentSelection(student.id)} className="cursor-pointer p-1 rounded hover:bg-muted transition-colors">
                         {selectedStudentIds.has(student.id) ? (
-                          <CheckSquare className="w-5 h-5 text-blue-600" />
+                          <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         ) : (
-                          <Square className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+                          <Square className="w-5 h-5 text-muted-foreground group-hover:text-foreground" />
                         )}
                       </div>
                     </TableCell>
@@ -1000,7 +1000,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           <div className="flex items-center gap-2">
                             <StudentProfileLink
                               studentId={student.id}
-                              className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors truncate"
+                              className="font-semibold text-foreground group-hover:text-primary transition-colors truncate"
                             >
                               {student.name}
                             </StudentProfileLink>
@@ -1008,7 +1008,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                               <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0" />
                             )}
                             {isRiskStudent && (
-                              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                              <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" />
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
@@ -1018,7 +1018,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-medium bg-gray-50">
+                      <Badge variant="outline" className="font-medium bg-muted">
                         {student.group_name}
                       </Badge>
                     </TableCell>
@@ -1028,8 +1028,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           <span className={cn(
                             "font-bold text-sm",
                             attPct >= 90 ? "text-emerald-600" :
-                            attPct >= 70 ? "text-blue-600" :
-                            attPct >= 50 ? "text-amber-600" : "text-red-600"
+                            attPct >= 70 ? "text-blue-600 dark:text-blue-400" :
+                            attPct >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
                           )}>
                             {attPct}%
                           </span>
@@ -1037,7 +1037,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                             {student.stats.presentCount + student.stats.lateCount}/{student.stats.totalClasses}
                           </span>
                         </div>
-                        <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="relative h-2 bg-muted rounded-full overflow-hidden">
                           <div 
                             className={cn(
                               "absolute inset-y-0 left-0 rounded-full transition-all duration-500",
@@ -1050,9 +1050,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           />
                         </div>
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                          <span className="text-green-600">✓{student.stats.presentCount}</span>
+                          <span className="text-green-600 dark:text-emerald-400">✓{student.stats.presentCount}</span>
                           <span className="text-amber-600">⏱{student.stats.lateCount}</span>
-                          <span className="text-red-600">✗{student.stats.absentCount}</span>
+                          <span className="text-red-600 dark:text-red-400">✗{student.stats.absentCount}</span>
                         </div>
                       </div>
                     </TableCell>
@@ -1063,8 +1063,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           className={cn(
                             "font-bold px-3 py-1",
                             student.stats.totalScore >= 10 && "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
-                            student.stats.totalScore >= 0 && student.stats.totalScore < 10 && "bg-blue-100 text-blue-700 hover:bg-blue-200",
-                            student.stats.totalScore < 0 && "bg-red-100 text-red-700 hover:bg-red-200"
+                            student.stats.totalScore >= 0 && student.stats.totalScore < 10 && "bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-500/40",
+                            student.stats.totalScore < 0 && "bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/40"
                           )}
                         >
                           {student.stats.totalScore >= 0 ? '+' : ''}{student.stats.totalScore.toFixed(1)}
@@ -1072,10 +1072,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                         {(student.stats.mukofotPoints > 0 || student.stats.jarimaPoints > 0) && (
                           <div className="flex gap-2 text-[10px]">
                             {student.stats.mukofotPoints > 0 && (
-                              <span className="text-green-600">+{student.stats.mukofotPoints}</span>
+                              <span className="text-green-600 dark:text-emerald-400">+{student.stats.mukofotPoints}</span>
                             )}
                             {student.stats.jarimaPoints > 0 && (
-                              <span className="text-red-600">-{student.stats.jarimaPoints}</span>
+                              <span className="text-red-600 dark:text-red-400">-{student.stats.jarimaPoints}</span>
                             )}
                           </div>
                         )}
@@ -1089,7 +1089,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={() => { setEditingStudent(student); setIsEditDialogOpen(true); }}
                         >
-                          <Edit2 className="w-4 h-4 text-gray-500" />
+                          <Edit2 className="w-4 h-4 text-muted-foreground" />
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1108,7 +1108,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                               <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600" onClick={() => archiveStudent(student.id, student.name)}>
+                            <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={() => archiveStudent(student.id, student.name)}>
                               <Trash2 className="w-4 h-4 mr-2" /> Arxivlash
                             </DropdownMenuItem>
                           </DropdownMenuContent>

@@ -214,14 +214,14 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'present':
-        return 'bg-green-100 text-green-800 border-green-300';
+        return 'bg-green-100 text-green-800 border-green-300 dark:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/40';
       case 'late':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40';
       case 'absent_with_reason':
       case 'absent_without_reason':
-        return 'bg-red-100 text-red-800 border-red-300';
+        return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-500/25 dark:text-red-300 dark:border-red-500/40';
       default:
-        return 'bg-gray-50 text-gray-600 border-gray-300';
+        return 'bg-gray-50 text-gray-600 border-gray-300 dark:bg-muted dark:text-muted-foreground dark:border-border';
     }
   };
 
@@ -375,7 +375,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="text-center text-gray-500">Davomat ma'lumotlari yuklanmoqda...</div>
+        <div className="text-center text-muted-foreground">Davomat ma'lumotlari yuklanmoqda...</div>
       </Card>
     );
   }
@@ -464,7 +464,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
               </Popover>
             )}
 
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               {displayedLessonDays.length} dars kuni
             </div>
           </div>
@@ -485,18 +485,18 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="sticky left-0 bg-gray-50 border border-gray-200 px-3 py-2 text-left text-sm font-semibold w-48 z-10">
+                <th className="sticky left-0 bg-muted/80 dark:bg-muted border border-border px-3 py-2 text-left text-sm font-semibold w-48 z-10 text-foreground">
                   O'quvchi (Foiz)
                 </th>
-                {displayedLessonDays.map((dateStr, idx) => {
+                {displayedLessonDays.map((dateStr) => {
                   const day = parseISO(dateStr);
                   return (
                   <th
-                    key={idx}
-                    className="border border-gray-200 px-2 py-2 text-center text-xs font-medium bg-gray-50 min-w-12"
+                    key={dateStr}
+                    className="border border-border px-2 py-2 text-center text-xs font-medium bg-muted/80 dark:bg-muted min-w-12 text-foreground"
                   >
-                    <div className="text-gray-600">{format(day, 'd')}</div>
-                    <div className="text-gray-400">{format(day, 'EEE', { locale: uz }).substring(0, 2)}</div>
+                    <div className="text-foreground">{format(day, 'd')}</div>
+                    <div className="text-muted-foreground">{format(day, 'EEE', { locale: uz }).substring(0, 2)}</div>
                   </th>
                   );
                 })}
@@ -505,31 +505,31 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
             <tbody>
               {displayedLessonDays.length === 0 ? (
                 <tr>
-                  <td colSpan={1} className="text-center py-8 text-gray-500">
+                  <td colSpan={1} className="text-center py-8 text-muted-foreground">
                     Tanlangan davrda dars o'tilmagan (davomat belgilanmagan)
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={displayedLessonDays.length + 1} className="text-center py-8 text-gray-500">
+                  <td colSpan={displayedLessonDays.length + 1} className="text-center py-8 text-muted-foreground">
                     O'quvchilar topilmadi
                   </td>
                 </tr>
               ) : (
                 students.map((student) => (
-                  <tr key={student.id} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="sticky left-0 bg-white border border-gray-200 px-3 py-2 font-medium text-sm z-10">
+                  <tr key={student.id} className="hover:bg-muted/50 transition-colors">
+                    <td className="sticky left-0 bg-background dark:bg-card border border-border px-3 py-2 font-medium text-sm z-10">
                       <div className="flex items-center justify-between">
-                        <StudentProfileLink studentId={student.id} className="truncate text-inherit hover:text-blue-700">
+                        <StudentProfileLink studentId={student.id} className="truncate text-inherit hover:text-primary">
                           {student.name}
                         </StudentProfileLink>
                         <span className={cn(
                           "ml-2 inline-block px-2 py-1 rounded text-xs font-semibold",
                           getAttendancePercentage(student.id) >= 75
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300'
                             : getAttendancePercentage(student.id) >= 50
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300'
+                            : 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300'
                         )}>
                           {getAttendancePercentage(student.id)}%
                         </span>
@@ -558,8 +558,8 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
 
                       return (
                         <td
-                          key={idx}
-                          className="border border-gray-200 p-1 text-center min-w-12"
+                          key={key}
+                          className="border border-border p-1 text-center min-w-12"
                         >
                           <button
                             onClick={() => !isDisabled && toggleAttendance(student.id, dateStr)}
@@ -586,21 +586,21 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
         </div>
 
         {/* Legendasi */}
-        <div className="mt-4 flex gap-6 text-sm border-t pt-4">
+        <div className="mt-4 flex gap-6 text-sm border-t border-border pt-4 text-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-green-100 text-green-800 border border-green-300 rounded flex items-center justify-center text-xs font-bold">✓</div>
+            <div className="w-6 h-6 bg-green-100 text-green-800 border border-green-300 dark:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/40 rounded flex items-center justify-center text-xs font-bold">✓</div>
             <span>Kelgan</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded flex items-center justify-center text-xs font-bold">○</div>
+            <div className="w-6 h-6 bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/40 rounded flex items-center justify-center text-xs font-bold">○</div>
             <span>Kech kelgan</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-red-100 text-red-800 border border-red-300 rounded flex items-center justify-center text-xs font-bold">−</div>
+            <div className="w-6 h-6 bg-red-100 text-red-800 border border-red-300 dark:bg-red-500/25 dark:text-red-300 dark:border-red-500/40 rounded flex items-center justify-center text-xs font-bold">−</div>
             <span>Kelmadi</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gray-50 text-gray-600 border border-gray-300 rounded flex items-center justify-center text-xs font-bold">−</div>
+            <div className="w-6 h-6 bg-gray-50 text-gray-600 border border-gray-300 dark:bg-muted dark:text-muted-foreground dark:border-border rounded flex items-center justify-center text-xs font-bold">−</div>
             <span>Ma'lumot yo'q</span>
           </div>
         </div>

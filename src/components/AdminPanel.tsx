@@ -122,8 +122,8 @@ const AdminPanel: React.FC = () => {
   return (
     <main className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
-        <p className="text-gray-600">O'qituvchilarni tasdiqlash va boshqarish</p>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Admin Panel</h1>
+        <p className="text-muted-foreground">O'qituvchilarni tasdiqlash va boshqarish</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -149,19 +149,19 @@ const AdminPanel: React.FC = () => {
 
       {pendingTeachers.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Kutilayotgan arizalar</h2>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Kutilayotgan arizalar</h2>
           <div className="space-y-4">
             {pendingTeachers.map((teacher) => (
               <Card key={teacher.id} className="p-6 border-amber-200 bg-amber-50/30">
                 <div className="flex justify-between items-start mb-4">
-                  <div><h3 className="text-lg font-semibold text-gray-900">{teacher.name}</h3>{getStatusBadge(teacher.verification_status)}</div>
-                  <div className="text-sm text-gray-500"><Calendar className="w-4 h-4 inline mr-1" />{teacher.requested_at instanceof Timestamp ? formatDateUz(teacher.requested_at.toDate().toISOString()) : formatDateUz(teacher.requested_at)}</div>
+                  <div><h3 className="text-lg font-semibold text-foreground">{teacher.name}</h3>{getStatusBadge(teacher.verification_status)}</div>
+                  <div className="text-sm text-muted-foreground"><Calendar className="w-4 h-4 inline mr-1" />{teacher.requested_at instanceof Timestamp ? formatDateUz(teacher.requested_at.toDate().toISOString()) : formatDateUz(teacher.requested_at)}</div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                  <div className="flex items-center space-x-2 text-sm"><Mail className="w-4 h-4 text-gray-500" /><span className="text-gray-700">{teacher.email}</span></div>
-                  {teacher.phone && <div className="flex items-center space-x-2 text-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-gray-700">{teacher.phone}</span></div>}
-                  {teacher.school && <div className="flex items-center space-x-2 text-sm"><School className="w-4 h-4 text-gray-500" /><span className="text-gray-700">{teacher.school}</span></div>}
-                  {teacher.institution_name && <div className="flex items-center space-x-2 text-sm"><Building2 className="w-4 h-4 text-gray-500" /><span className="text-gray-700">{teacher.institution_name}</span></div>}
+                  <div className="flex items-center space-x-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /><span className="text-foreground">{teacher.email}</span></div>
+                  {teacher.phone && <div className="flex items-center space-x-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground" /><span className="text-foreground">{teacher.phone}</span></div>}
+                  {teacher.school && <div className="flex items-center space-x-2 text-sm"><School className="w-4 h-4 text-muted-foreground" /><span className="text-foreground">{teacher.school}</span></div>}
+                  {teacher.institution_name && <div className="flex items-center space-x-2 text-sm"><Building2 className="w-4 h-4 text-muted-foreground" /><span className="text-foreground">{teacher.institution_name}</span></div>}
                 </div>
                 <div className="flex flex-col space-y-3">
                   <Textarea placeholder="Rad etish sababi (majburiy)" value={rejectionReason[teacher.id] || ''} onChange={(e) => setRejectionReason({ ...rejectionReason, [teacher.id]: e.target.value })} className="min-h-[80px]" />
@@ -179,12 +179,12 @@ const AdminPanel: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {approvedTeachers.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Tasdiqlangan o'qituvchilar</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Tasdiqlangan o'qituvchilar</h2>
             <div className="space-y-3">
               {approvedTeachers.map((teacher) => (
                 <Card key={teacher.id} className="p-4 border-green-200 bg-green-50/30">
                   <div className="flex justify-between items-start">
-                    <div><h3 className="font-semibold text-gray-900">{teacher.name}</h3><p className="text-sm text-gray-600">{teacher.email}</p></div>
+                    <div><h3 className="font-semibold text-foreground">{teacher.name}</h3><p className="text-sm text-muted-foreground">{teacher.email}</p></div>
                     {getStatusBadge(teacher.verification_status)}
                   </div>
                 </Card>
@@ -194,12 +194,12 @@ const AdminPanel: React.FC = () => {
         )}
         {rejectedTeachers.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Rad etilgan arizalar</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">Rad etilgan arizalar</h2>
             <div className="space-y-3">
               {rejectedTeachers.map((teacher) => (
                 <Card key={teacher.id} className="p-4 border-red-200 bg-red-50/30">
                   <div className="flex justify-between items-start mb-2">
-                    <div><h3 className="font-semibold text-gray-900">{teacher.name}</h3><p className="text-sm text-gray-600">{teacher.email}</p></div>
+                    <div><h3 className="font-semibold text-foreground">{teacher.name}</h3><p className="text-sm text-muted-foreground">{teacher.email}</p></div>
                     {getStatusBadge(teacher.verification_status)}
                   </div>
                   {teacher.rejection_reason && <p className="text-xs text-red-600 mt-2"><strong>Sabab:</strong> {teacher.rejection_reason}</p>}

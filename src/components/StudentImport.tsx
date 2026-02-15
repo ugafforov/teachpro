@@ -114,13 +114,13 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
       <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>O'quvchi qo'shish</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <Card className="p-4 bg-blue-50 border-blue-200">
+          <Card className="p-4 bg-blue-50 dark:bg-blue-500/20 border-blue-200 dark:border-blue-500/40">
             <div className="flex items-start gap-3">
-              <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
+              <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-blue-900 mb-2">Format:</p>
-                <code className="block bg-white p-2 rounded text-xs border">Ali Valiyev<br />Olima Karimova<br />Sardor Usmonov</code>
-                <p className="text-blue-700 mt-2">Har bir qatorda bitta o'quvchi nomi</p>
+                <p className="font-medium text-blue-900 dark:text-blue-100 mb-2">Format:</p>
+                <code className="block bg-background dark:bg-muted p-2 rounded text-xs border border-border text-foreground">Ali Valiyev<br />Olima Karimova<br />Sardor Usmonov</code>
+                <p className="text-blue-700 dark:text-blue-300 mt-2">Har bir qatorda bitta o'quvchi nomi</p>
               </div>
             </div>
           </Card>

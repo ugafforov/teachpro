@@ -351,8 +351,8 @@ const ExamAnalysis: React.FC<ExamAnalysisProps> = ({ teacherId, exams, groups })
               <TableRow>
                 <TableHead className="min-w-[180px]">O'quvchi</TableHead>
                 <TableHead className="min-w-[120px]">Guruh</TableHead>
-                {allDates.map((date, idx) => (
-                  <TableHead key={idx} className="text-center min-w-[100px]">
+                {allDates.map((date) => (
+                  <TableHead key={date} className="text-center min-w-[100px]">
                     {formatDateUz(date, 'short')}
                   </TableHead>
                 ))}
@@ -372,20 +372,20 @@ const ExamAnalysis: React.FC<ExamAnalysisProps> = ({ teacherId, exams, groups })
                   return (
                     <TableRow key={studentId}>
                       <TableCell className="font-medium">
-                        <StudentProfileLink studentId={studentId} className="text-inherit hover:text-blue-700">
+                        <StudentProfileLink studentId={studentId} className="text-inherit hover:text-primary">
                           {results[0]?.studentName}
                         </StudentProfileLink>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{results[0]?.groupName}</TableCell>
-                      {allDates.map((date, idx) => {
+                      {allDates.map((date) => {
                         const score = scoresByDate.get(date);
                         return (
-                          <TableCell key={idx} className="text-center">
+                          <TableCell key={`${studentId}-${date}`} className="text-center">
                             {score !== undefined ? (
-                              <span className={`inline-block px-3 py-1 rounded-md font-semibold ${score >= 90 ? 'bg-green-100 text-green-700' :
-                                score >= 70 ? 'bg-blue-100 text-blue-700' :
-                                  score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-red-100 text-red-700'
+                              <span className={`inline-block px-3 py-1 rounded-md font-semibold ${score >= 90 ? 'bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300' :
+                                score >= 70 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300' :
+                                  score >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300' :
+                                    'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300'
                                 }`}>
                                 {score}
                               </span>
@@ -1266,17 +1266,17 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                                    attendanceStatus === 'absent_without_reason';
                   
                   return (
-                    <TableRow key={student.id} className={wasAbsent ? 'bg-gray-50' : ''}>
+                    <TableRow key={student.id} className={wasAbsent ? 'bg-muted/50' : ''}>
                       <TableCell>
-                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-blue-700">
+                        <StudentProfileLink studentId={student.id} className="text-inherit hover:text-primary">
                           {student.name}
-                          {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                          {wasAbsent && <span className="ml-2 text-destructive text-sm">(Kelmagan)</span>}
                         </StudentProfileLink>
                       </TableCell>
                       <TableCell>
                         {wasAbsent ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-500 text-sm">Qatnashmadi</span>
+                            <span className="text-muted-foreground text-sm">Qatnashmadi</span>
                             <Input
                               ref={setScoreInputRef(student.id)}
                               type="number"
@@ -1461,29 +1461,29 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
                   const hasNoResult = result.id.toString().startsWith('temp_');
                   
                   return (
-                    <TableRow key={result.id} className={wasAbsent || hasNoResult ? 'bg-gray-50' : ''}>
+                    <TableRow key={result.id} className={wasAbsent || hasNoResult ? 'bg-muted/50' : ''}>
                       <TableCell className="font-medium">
                         {result.student_id ? (
-                          <StudentProfileLink studentId={result.student_id} className="text-inherit hover:text-blue-700">
+                          <StudentProfileLink studentId={result.student_id} className="text-inherit hover:text-primary">
                             {result.student_name}
-                            {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                            {wasAbsent && <span className="ml-2 text-destructive text-sm">(Kelmagan)</span>}
                             {hasNoResult && !wasAbsent && <span className="ml-2 text-orange-500 text-sm">(Natija yo'q)</span>}
                           </StudentProfileLink>
                         ) : (
                           <>
                             {result.student_name}
-                            {wasAbsent && <span className="ml-2 text-red-500 text-sm">(Kelmagan)</span>}
+                            {wasAbsent && <span className="ml-2 text-destructive text-sm">(Kelmagan)</span>}
                             {hasNoResult && !wasAbsent && <span className="ml-2 text-orange-500 text-sm">(Natija yo'q)</span>}
                           </>
                         )}
                       </TableCell>
                       <TableCell>
                         <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${
-                          wasAbsent ? 'bg-red-100 text-red-700' :
-                          result.score >= 90 ? 'bg-green-100 text-green-700' :
-                          result.score >= 70 ? 'bg-blue-100 text-blue-700' :
-                          result.score >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-700'
+                          wasAbsent ? 'bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300' :
+                          result.score >= 90 ? 'bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300' :
+                          result.score >= 70 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300' :
+                          result.score >= 50 ? 'bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300' :
+                          'bg-gray-100 text-gray-700 dark:bg-muted dark:text-muted-foreground'
                         }`}>
                           {wasAbsent ? 'Kelmadi' : result.score}
                         </span>

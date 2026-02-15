@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useStatistics } from '@/components/statistics/hooks/useStatistics';
 import MonthlyAnalysis from './statistics/MonthlyAnalysis';
 import GroupRankings from './statistics/GroupRankings';
+import ThemeToggle from './ThemeToggle';
 
 interface DashboardProps {
   teacherId: string;
@@ -222,14 +223,14 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
               </div>
               <div className="flex flex-wrap gap-3">
                 <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger className="w-48 apple-button-secondary bg-white"><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
+                  <SelectTrigger className="w-48 apple-button-secondary bg-card"><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Barcha guruhlar</SelectItem>
                     {groups.map((group) => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-40 apple-button-secondary bg-white"><SelectValue placeholder="Muddatni tanlang" /></SelectTrigger>
+                  <SelectTrigger className="w-40 apple-button-secondary bg-card"><SelectValue placeholder="Muddatni tanlang" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1_day">1 kun</SelectItem>
                     <SelectItem value="1_week">1 hafta</SelectItem>
@@ -252,80 +253,80 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
               <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Students Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-blue-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Users className="w-16 h-16 text-blue-600" />
+                      <Users className="w-16 h-16 text-blue-500 dark:text-blue-400" />
                     </div>
                     <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 group-hover:rotate-6 transition-transform duration-500">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
                         <Users className="w-7 h-7 text-white" />
                       </div>
                       <div>
-                        <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.totalStudents}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70">Faol o'quvchilar</p>
+                        <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.totalStudents}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70 dark:text-blue-400/80">Faol o'quvchilar</p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Classes Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-emerald-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <BookOpen className="w-16 h-16 text-emerald-600" />
+                      <BookOpen className="w-16 h-16 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200 group-hover:rotate-6 transition-transform duration-500">
+                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
                         <BookOpen className="w-7 h-7 text-white" />
                       </div>
                       <div>
-                        <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.totalClasses}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70">O'tilgan darslar</p>
+                        <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.totalClasses}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/80">O'tilgan darslar</p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Attendance Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-amber-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <TrendingUp className="w-16 h-16 text-amber-600" />
+                      <TrendingUp className="w-16 h-16 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-200 group-hover:rotate-6 transition-transform duration-500">
+                      <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
                         <TrendingUp className="w-7 h-7 text-white" />
                       </div>
                       <div>
                         <div className="flex items-baseline gap-1">
-                          <p className="text-3xl font-black text-gray-900 tracking-tight">{detailedStats.averageAttendance.toFixed(1)}%</p>
-                          <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 border-none ${detailedStats.averageAttendance >= 90 ? 'bg-emerald-100 text-emerald-700' :
-                            detailedStats.averageAttendance >= 75 ? 'bg-blue-100 text-blue-700' :
-                              'bg-amber-100 text-amber-700'
+                          <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.averageAttendance.toFixed(1)}%</p>
+                          <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 border-none ${detailedStats.averageAttendance >= 90 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300' :
+                            detailedStats.averageAttendance >= 75 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300' :
+                              'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300'
                             }`}>
                             {detailedStats.averageAttendance >= 90 ? 'A\'lo' : detailedStats.averageAttendance >= 75 ? 'Yaxshi' : 'O\'rtacha'}
                           </Badge>
                         </div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600/70">O'rtacha davomat</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600/70 dark:text-amber-400/80">O'rtacha davomat</p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Top Student Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-white/50 backdrop-blur-md border-purple-100/50 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
                     <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Trophy className="w-16 h-16 text-purple-600" />
+                      <Trophy className="w-16 h-16 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-200 group-hover:rotate-6 transition-transform duration-500">
+                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
                         <Trophy className="w-7 h-7 text-white" />
                       </div>
                       <div className="min-w-0">
                         {detailedStats.topStudent ? (
                           <StudentProfileLink
                             studentId={detailedStats.topStudent.id}
-                            className="block text-lg font-black text-gray-900 leading-tight mb-0.5 truncate hover:text-purple-700"
+                            className="block text-lg font-black text-foreground leading-tight mb-0.5 truncate hover:text-purple-600 dark:hover:text-purple-400"
                           >
                             {detailedStats.topStudent.name}
                           </StudentProfileLink>
                         ) : (
-                          <p className="text-lg font-black text-gray-900 leading-tight mb-0.5 truncate">Ma'lumot yo'q</p>
+                          <p className="text-lg font-black text-foreground leading-tight mb-0.5 truncate">Ma'lumot yo'q</p>
                         )}
                         <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70">Eng faol o'quvchi</p>
                       </div>
@@ -371,9 +372,9 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   // }, [routeStudentId]);
 
   return (
-    <main className="h-screen overflow-hidden bg-white flex flex-col">
+    <main className="h-screen overflow-hidden bg-background flex flex-col">
       {/* Top Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
+      <div className="bg-background border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
@@ -392,17 +393,18 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             <Menu className="w-5 h-5" />
           </Button>
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">T</span>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">T</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">TeachPro</h1>
+              <h1 className="text-xl font-bold text-foreground">TeachPro</h1>
               {teacherName && (
-                <p className="text-sm text-gray-600">Xush kelibsiz, {teacherName}</p>
+                <p className="text-sm text-muted-foreground">Xush kelibsiz, {teacherName}</p>
               )}
             </div>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -410,7 +412,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         <div className={`
           ${sidebarCollapsed ? 'w-16' : 'w-56'} 
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          bg-white shadow-lg lg:h-full fixed lg:relative z-40 transition-all duration-300 ease-in-out
+          bg-card border-r border-border shadow-lg lg:h-full fixed lg:relative z-40 transition-all duration-300 ease-in-out
           ${mobileMenuOpen ? 'top-0 h-screen' : ''}
         `}>
           <nav className="flex flex-col h-full">
@@ -425,8 +427,8 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                       setMobileMenuOpen(false);
                     }}
                     className={`w-full flex items-center px-6 py-3 text-left transition-colors ${activeTab === item.id
-                      ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
-                      : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-primary/10 text-primary border-r-2 border-primary dark:bg-primary/20'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                       } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
                     title={sidebarCollapsed ? item.label : ''}
                   >
@@ -437,10 +439,10 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
               })}
             </div>
 
-            <div className="mt-auto border-t border-gray-100 p-2">
+            <div className="mt-auto border-t border-border p-2">
               <button
                 onClick={onLogout}
-                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-red-600 hover:bg-red-50 rounded-lg ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
+                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
                 title={sidebarCollapsed ? "Chiqish" : ''}
               >
                 <LogOut className="w-5 h-5 flex-shrink-0" />
@@ -459,7 +461,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
         )}
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto h-full bg-white">
+        <div className="flex-1 overflow-y-auto h-full bg-background">
           <div className="p-4 lg:p-8">
             {/* Student Profile (full content) */}
             {activeStudentId && (

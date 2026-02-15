@@ -330,7 +330,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       case 'absent_without_reason': return 'text-red-600 bg-red-50';
       case 'absent_with_reason': return 'text-yellow-600 bg-yellow-50';
       case 'late': return 'text-orange-600 bg-orange-50';
-      default: return 'text-gray-600 bg-gray-50';
+      default: return 'text-muted-foreground bg-muted';
     }
   };
 
@@ -480,7 +480,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       {showAbsentDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 border border-border">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">{students.find(s => s.id === showAbsentDialog)?.name} - Kelmadi</h3>
               <Button variant="ghost" size="sm" onClick={closeAbsentDialog} className="h-8 w-8 p-0"><X className="w-4 h-4" /></Button>
@@ -505,7 +505,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
 
       {showRewardDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 border border-border">
             <h3 className="text-lg font-semibold mb-4">Mukofot/Jarima berish</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
