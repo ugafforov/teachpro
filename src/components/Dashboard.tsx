@@ -6,6 +6,7 @@ import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Menu, Database } 
 import { Badge } from '@/components/ui/badge';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { logError } from '@/lib/errorUtils';
 import GroupManager from './GroupManager';
 import StudentManager from './StudentManager';
 import StudentRankings from './StudentRankings';
@@ -121,9 +122,24 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     }
   }, [routeStudentId]);
 
+  const fetchGroups = useCallback(async () => {
+    try {
+      const q = query(
+        collection(db, 'groups'),
+        where('teacher_id', '==', teacherId),
+        where('is_active', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      const groupsData = snapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
+      setGroups(groupsData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })));
+    } catch (error) {
+      logError('Dashboard:fetchGroups', error);
+    }
+  }, [teacherId]);
+
   useEffect(() => {
     fetchGroups();
-  }, [teacherId]);
+  }, [fetchGroups]);
 
   useEffect(() => {
     const validTabIds = new Set([
@@ -167,24 +183,9 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     }
   }, [activeTab, activeTabStorageKey, selectedGroupStorageKey]);
 
-  const fetchGroups = async () => {
-    try {
-      const q = query(
-        collection(db, 'groups'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
-      );
-      const snapshot = await getDocs(q);
-      const groupsData = snapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
-      setGroups(groupsData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })));
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-    }
-  };
-
 
   const handleGroupSelect = (groupName: string) => {
-    console.log('Selected group:', groupName);
+    // Group selected
   };
 
   const menuItems = [

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,7 +84,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       const snapshot = await getDocs(q);
       setStudents(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Student)));
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('AttendanceTracker:fetchStudents', error);
     }
   };
 
@@ -97,7 +98,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       const snapshot = await getDocs(q);
       setAttendanceRecords(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
     } catch (error) {
-      console.error('Error fetching attendance records:', error);
+      logError('AttendanceTracker:fetchAttendanceRecords', error);
     }
   };
 
@@ -112,7 +113,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
       const uniqueDates = [...new Set(records.map(r => r.date))];
       setAttendanceDates(uniqueDates.map(date => parseISO(date)));
     } catch (error) {
-      console.error('Error fetching attendance dates:', error);
+      logError('AttendanceTracker:fetchAttendanceDates', error);
     }
   };
 
@@ -152,7 +153,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `O'quvchi ${statusText} deb belgilandi`,
       });
     } catch (error) {
-      console.error('Error marking attendance:', error);
+      logError('AttendanceTracker:markAttendance', error);
       toast({
         title: "Xatolik",
         description: "Davomatni yangilashda xatolik yuz berdi",
@@ -212,7 +213,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `Barcha ${filteredStudents.length} o'quvchi kelgan deb belgilandi`,
       });
     } catch (error) {
-      console.error('Error marking all present:', error);
+      logError('AttendanceTracker:markAllPresent', error);
       toast({
         title: "Xatolik",
         description: "Davomatni yangilashda xatolik yuz berdi",
@@ -264,7 +265,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: `${studentName}ga ${Math.abs(points)} ball ${rewardType === 'reward' ? 'qo\'shildi' : 'ayrildi'}`,
       });
     } catch (error) {
-      console.error('Error adding reward/penalty:', error);
+      logError('AttendanceTracker:handleAddReward', error);
       toast({
         title: "Xatolik",
         description: "Ball qo'shishda xatolik yuz berdi",
@@ -314,7 +315,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({ teacherId, onStat
         description: "Davomat ma'lumotlari yuklab olindi",
       });
     } catch (error) {
-      console.error('Error exporting CSV:', error);
+      logError('AttendanceTracker:handleExportCSV', error);
     }
   };
 

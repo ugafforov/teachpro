@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { logError } from '@/lib/errorUtils';
 import { Plus, Users, Calendar, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
@@ -74,32 +75,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   });
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchGroups();
-  }, [teacherId]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(groupViewModeStorageKey);
-      if (saved === 'list' || saved === 'grid') {
-        setViewMode(saved);
-      } else {
-        setViewMode('grid');
-      }
-    } catch {
-      setViewMode('grid');
-    }
-  }, [groupViewModeStorageKey]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(groupViewModeStorageKey, viewMode);
-    } catch {
-      // ignore
-    }
-  }, [groupViewModeStorageKey, viewMode]);
-
-  const fetchGroups = async () => {
+  const fetchGroups = useCallback(async () => {
     try {
       setLoading(true);
       // 1. Fetch all active groups
@@ -191,7 +167,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error fetching groups:', error);
+      logError('GroupManager:fetchGroups', error);
       toast({
         title: "Xatolik",
         description: "Guruhlarni yuklashda xatolik yuz berdi",
@@ -200,7 +176,32 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [teacherId, selectedGroup, selectedGroupStorageKey, toast]);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(groupViewModeStorageKey);
+      if (saved === 'list' || saved === 'grid') {
+        setViewMode(saved);
+      } else {
+        setViewMode('grid');
+      }
+    } catch {
+      setViewMode('grid');
+    }
+  }, [groupViewModeStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(groupViewModeStorageKey, viewMode);
+    } catch {
+      // ignore
+    }
+  }, [groupViewModeStorageKey, viewMode]);
 
   const checkGroupNameExists = async (name: string): Promise<boolean> => {
     try {
@@ -225,7 +226,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       return activeExists || archivedExists;
     } catch (error) {
-      console.error('Error checking group name:', error);
+      logError('GroupManager:checkGroupName', error);
       return false;
     }
   };
@@ -289,7 +290,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh muvaffaqiyatli qo'shildi",
       });
     } catch (error) {
-      console.error('Error adding group:', error);
+      logError('GroupManager:handleAddGroup', error);
       toast({
         title: "Xatolik",
         description: "Guruh qo'shishda xatolik yuz berdi",
@@ -368,7 +369,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
       });
     } catch (error) {
-      console.error('Error updating group:', error);
+      logError('GroupManager:handleUpdateGroup', error);
       toast({
         title: "Xatolik",
         description: "Guruhni yangilashda xatolik yuz berdi",
@@ -443,7 +444,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh muvaffaqiyatli arxivlandi",
       });
     } catch (error) {
-      console.error('Error archiving group:', error);
+      logError('GroupManager:handleArchiveGroup', error);
       toast({
         title: "Xatolik",
         description: "Guruhni arxivlashda xatolik yuz berdi",

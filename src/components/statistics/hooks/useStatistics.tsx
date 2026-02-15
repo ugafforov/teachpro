@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { calculateDashboardStats, StatsData, MonthlyData } from '@/lib/studentScoreCalculator';
 
 export const useStatistics = (teacherId: string, selectedPeriod: string, selectedGroup: string = 'all') => {
@@ -11,22 +12,22 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetchStatistics();
-    }, [teacherId, selectedPeriod, selectedGroup]);
-
-    const fetchStatistics = async () => {
+    const fetchStatistics = useCallback(async () => {
         try {
             setLoading(true);
             const data = await calculateDashboardStats(teacherId, selectedPeriod, selectedGroup);
             setStats(data.stats);
             setMonthlyData(data.monthlyData);
         } catch (error) {
-            console.error('Error fetching statistics:', error);
+            logError('useStatistics:fetchStatistics', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [teacherId, selectedPeriod, selectedGroup]);
+
+    useEffect(() => {
+        fetchStatistics();
+    }, [fetchStatistics]);
 
     return {
         stats,

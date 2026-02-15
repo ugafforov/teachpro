@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -126,7 +127,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       setAttendanceHistory(attendance);
 
     } catch (error) {
-      console.error('Error fetching student details:', error);
+      logError('StudentDetailsPopup:fetchStudentDetails', error);
     } finally {
       setLoading(false);
     }
@@ -156,7 +157,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       });
       return sorted;
     } catch (error) {
-      console.error('Error fetching rewards:', error);
+      logError('StudentDetailsPopup:fetchRecentRewards', error);
       return [];
     }
   };
@@ -182,7 +183,7 @@ const StudentDetailsPopup: React.FC<StudentDetailsPopupProps> = ({
       });
       return sorted.slice(0, 100);
     } catch (error) {
-      console.error('Error fetching attendance history:', error);
+      logError('StudentDetailsPopup:fetchAttendanceHistory', error);
       return [];
     }
   };

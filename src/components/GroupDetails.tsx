@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plus, Users, CheckCircle, Clock, XCircle, Gift, Calendar as CalendarIcon, RotateCcw, Star, AlertTriangle, Archive, ChevronDown, Edit2, MoreVertical, StickyNote, X, Lightbulb } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ArrowLeft, CheckCircle, Clock, XCircle, Calendar as CalendarIcon, RotateCcw, AlertTriangle, Archive, Edit2, MoreVertical, StickyNote, X, Lightbulb } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,11 +38,9 @@ import StudentImport from './StudentImport';
 import StudentProfileLink from './StudentProfileLink';
 import AttendanceJournal from './AttendanceJournal';
 import GroupRankingSidebar from './GroupRankingSidebar';
-import { studentSchema, formatValidationError } from '@/lib/validations';
-import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { uz } from 'date-fns/locale';
-import { cn, getTashkentToday } from '@/lib/utils';
+import { cn, getTashkentToday, getTashkentDate } from '@/lib/utils';
 import { fetchAllRecords } from '@/lib/firebaseHelpers';
 import { PRESENT_POINTS, LATE_POINTS } from '@/lib/studentScoreCalculator';
 
@@ -72,16 +70,6 @@ interface Student {
 
 type AttendanceStatus = 'present' | 'late' | 'absent_with_reason' | 'absent_without_reason' | 'absent';
 type ScoreType = 'mukofot' | 'jarima';
-
-interface AttendanceRecord {
-    id: string;
-    student_id: string;
-    teacher_id: string;
-    date: string;
-    status: AttendanceStatus;
-    created_at: any;
-    updated_at: any;
-}
 
 interface GroupDetailsProps {
     groupName: string;
@@ -114,10 +102,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             return 'attendance';
         }
     });
-    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-    const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
-    const [rewardPoints, setRewardPoints] = useState('');
-    const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
     const [loading, setLoading] = useState(true);
     const [pendingAttendance, setPendingAttendance] = useState<Record<string, boolean>>({});
     const [savedAttendance, setSavedAttendance] = useState<Record<string, boolean>>({});
@@ -142,13 +126,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const [isNoteExpanded, setIsNoteExpanded] = useState(false);
     const [savingNote, setSavingNote] = useState(false);
     
-    const [newStudent, setNewStudent] = useState({
-        name: '',
-        join_date: getTashkentToday(),
-        student_id: '',
-        email: '',
-        phone: ''
-    });
     const { toast } = useToast();
     const [confirmDialog, setConfirmDialog] = useState<{
         isOpen: boolean;
@@ -299,9 +276,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             });
             setLessonNotes(notes);
             return;
-        } catch (error) {
+        } catch (error: any) {
             // Fallback path: avoid relying on a composite index (works even if index isn't deployed)
-            console.error('Error fetching lesson notes (primary query):', error);
+            if (error?.code !== 'failed-precondition' && error?.code !== 'permission-denied' && !error?.message?.includes('index')) {
+
+            }
         }
 
         try {
@@ -328,8 +307,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 } as LessonNote;
             });
             setLessonNotes(notes);
-        } catch (fallbackError) {
-            console.error('Error fetching lesson notes (fallback query):', fallbackError);
+        } catch (fallbackError: any) {
+            if (fallbackError?.code !== 'permission-denied') {
+
+            }
             setLessonNotes([]);
         }
     };
@@ -391,7 +372,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             // Background refresh (serverTimestamp / boshqa tablar uchun)
             void fetchLessonNotes();
         } catch (error) {
-            console.error('Error saving note:', error);
+            logError('GroupDetails:handleSaveNote', error);
             toast({ title: "Xatolik", description: "Eslatmani saqlashda xatolik", variant: "destructive" });
         } finally {
             setSavingNote(false);
@@ -410,7 +391,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             toast({ title: "Bajarildi!", description: "Eslatma yakunlandi" });
             void fetchLessonNotes();
         } catch (error) {
-            console.error('Error completing note:', error);
+            logError('GroupDetails:handleCompleteNote', error);
         }
     };
 
@@ -434,11 +415,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             const uniqueDates = [...new Set(records.filter(r => groupStudentIds.has(r.student_id)).map(r => r.date))];
             setAttendanceDates(uniqueDates.map(date => parseISO(date)));
         } catch (error) {
-            console.error('Error fetching attendance dates:', error);
+            logError('GroupDetails:fetchAttendanceDates', error);
         }
     };
 
     const fetchStudents = async () => {
+        if (!teacherId || !groupName) return;
+        setLoading(true);
         try {
             // Fetch active students
             const q = query(
@@ -447,10 +430,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 where('group_name', '==', groupName),
                 where('is_active', '==', true)
             );
-            const snapshot = await getDocs(q);
-            const studentsData = snapshot.docs
-                .map(d => ({ id: d.id, ...d.data() } as Student))
-                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            let studentsData: Student[] = [];
+            try {
+                const snapshot = await getDocs(q);
+                studentsData = snapshot.docs
+                    .map(d => ({ id: d.id, ...d.data(), is_active: true } as Student));
+            } catch (err) {
+                // Silently handle
+            }
 
             // Fetch archived students
             const archivedQ = query(
@@ -458,35 +446,48 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 where('teacher_id', '==', teacherId),
                 where('group_name', '==', groupName)
             );
-            const archivedSnapshot = await getDocs(archivedQ);
-            const archivedData = archivedSnapshot.docs
-                .map(d => {
-                    const data = d.data();
-                    return {
-                        id: data.original_student_id || d.id,
-                        name: data.name,
-                        student_id: data.student_id,
-                        email: data.email,
-                        phone: data.phone,
-                        group_name: data.group_name,
-                        teacher_id: data.teacher_id,
-                        created_at: data.created_at,
-                        join_date: data.join_date,
-                        left_date: data.left_date,
-                        archived_at: data.archived_at,
-                        is_active: false,
-                        archiveDocId: d.id
-                    } as Student;
-                })
-                .sort((a, b) => a.name.localeCompare(b.name));
+            
+            let archivedData: Student[] = [];
+            try {
+                const archivedSnapshot = await getDocs(archivedQ);
+                archivedData = archivedSnapshot.docs
+                    .map(d => {
+                        const data = d.data();
+                        return {
+                            id: data.original_student_id || data.student_id || d.id,
+                            name: data.name,
+                            phone: data.phone,
+                            group_name: data.group_name,
+                            teacher_id: data.teacher_id,
+                            created_at: data.created_at,
+                            join_date: data.join_date,
+                            left_date: data.left_date,
+                            archived_at: data.archived_at,
+                            is_active: false,
+                            archiveDocId: d.id
+                        } as Student;
+                    });
+            } catch (err) {
+                // Silently handle
+            }
 
-            const allStudentsData = [...studentsData, ...archivedData];
+            const allStudentsData = [...studentsData, ...archivedData].sort((a, b) => 
+                a.name.localeCompare(b.name)
+            );
+
             const studentIds = Array.from(new Set(allStudentsData.map(s => s.id)));
             if (studentIds.length > 0) {
-                const [historyData, attendanceData] = await Promise.all([
-                    fetchAllRecords<{ student_id: string; points: number; type: string; date: string }>('reward_penalty_history', teacherId, undefined, studentIds),
-                    fetchAllRecords<{ student_id: string; status: string; date: string }>('attendance_records', teacherId, undefined, studentIds)
-                ]);
+                let historyData: any[] = [];
+                let attendanceData: any[] = [];
+                
+                try {
+                    [historyData, attendanceData] = await Promise.all([
+                        fetchAllRecords<{ student_id: string; points: number; type: string; date: string }>('reward_penalty_history', teacherId, undefined, studentIds),
+                        fetchAllRecords<{ student_id: string; status: string; date: string }>('attendance_records', teacherId, undefined, studentIds)
+                    ]);
+                } catch (err) {
+                    // Silently handle
+                }
 
                 // Calculate start date for filtering
                 let startDate: string | null = null;
@@ -558,7 +559,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 setStudents([]);
             }
         } catch (error) {
-            console.error('Error fetching students:', error);
+            logError('GroupDetails:fetchStudents', error);
         } finally {
             setLoading(false);
         }
@@ -582,7 +583,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             });
             setAttendance(attendanceMap);
         } catch (error) {
-            console.error('Error fetching attendance:', error);
+            logError('GroupDetails:fetchAttendance', error);
         }
     };
 
@@ -614,46 +615,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
             setDailyScores(scoresMap);
         } catch (error) {
-            console.error('Error fetching daily scores:', error);
-        }
-    };
-
-    const addStudent = async () => {
-        try {
-            studentSchema.parse({
-                name: newStudent.name,
-                join_date: newStudent.join_date,
-                student_id: newStudent.student_id || '',
-                email: newStudent.email || '',
-                phone: newStudent.phone || ''
-            });
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                toast({ title: "Validatsiya xatosi", description: formatValidationError(error), variant: "destructive" });
-            }
-            return;
-        }
-
-        try {
-            await addDoc(collection(db, 'students'), {
-                teacher_id: teacherId,
-                name: newStudent.name.trim(),
-                join_date: newStudent.join_date,
-                student_id: newStudent.student_id.trim() || null,
-                email: newStudent.email.trim() || null,
-                phone: newStudent.phone.trim() || null,
-                group_name: groupName,
-                is_active: true,
-                created_at: serverTimestamp()
-            });
-            await fetchStudents();
-            await onStatsUpdate();
-            setNewStudent({ name: '', join_date: getTashkentToday(), student_id: '', email: '', phone: '' });
-            setIsAddDialogOpen(false);
-            toast({ title: "Muvaffaqiyatli", description: "O'quvchi qo'shildi" });
-        } catch (error) {
-            console.error('Error adding student:', error);
-            toast({ title: "Xatolik", description: "O'quvchini qo'shishda xatolik yuz berdi", variant: "destructive" });
+            logError('GroupDetails:fetchDailyScores', error);
         }
     };
 
@@ -684,7 +646,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             setEditingStudent(null);
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi ma'lumotlari yangilandi" });
         } catch (error) {
-            console.error('Error updating student:', error);
+            logError('GroupDetails:handleUpdateStudent', error);
             toast({ title: "Xatolik", description: "Tahrirlashda xatolik yuz berdi", variant: "destructive" });
         }
     };
@@ -759,7 +721,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             fetchStudents();
             onStatsUpdate?.();
         } catch (error) {
-            console.error('Error marking attendance:', error);
+            logError('GroupDetails:handleQuickAttendance', error);
             fetchAttendanceForDate(selectedDate);
         }
     };
@@ -791,7 +753,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             fetchAttendanceForDate(selectedDate);
             onStatsUpdate?.();
         } catch (error) {
-            console.error('Error marking all as present:', error);
+            logError('GroupDetails:handleMarkAllPresent', error);
         }
     };
 
@@ -804,38 +766,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             );
             const snapshot = await getDocs(q);
             const batch = writeBatch(db);
-            snapshot.docs.forEach(d => batch.delete(d.ref));
+
+            const groupStudentIds = new Set(students.map(s => s.id));
+            snapshot.docs.forEach(d => {
+                const data = d.data() as any;
+                if (groupStudentIds.has(data.student_id)) {
+                    batch.delete(d.ref);
+                }
+            });
+
             await batch.commit();
+
             setAttendance({});
+            setPendingAttendance({});
+            setSavedAttendance({});
+
+            await fetchAttendanceForDate(selectedDate);
+            await fetchAttendanceDates();
             fetchStudents();
             onStatsUpdate?.();
         } catch (error) {
-            console.error('Error clearing attendance:', error);
-        }
-    };
-
-    const addReward = async (studentId: string) => {
-        if (!rewardPoints) return;
-        const points = parseFloat(rewardPoints);
-        if (isNaN(points)) return;
-
-        try {
-            const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
-            await addDoc(collection(db, 'reward_penalty_history'), {
-                student_id: studentId,
-                teacher_id: teacherId,
-                points: Math.abs(points),
-                type,
-                reason: type,
-                date: getTashkentToday(),
-                created_at: serverTimestamp()
-            });
-            setShowRewardDialog(null);
-            setRewardPoints('');
-            await fetchStudents();
-            onStatsUpdate?.();
-        } catch (error) {
-            console.error('Error adding reward/penalty:', error);
+            logError('GroupDetails:handleClearAttendance', error);
         }
     };
 
@@ -946,7 +897,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             onStatsUpdate?.();
             toast({ title: "Muvaffaqiyatli", description: `${typeLabel} saqlandi` });
         } catch (error) {
-            console.error('Error submitting score:', error);
+            logError('GroupDetails:handleScoreSubmit', error);
         } finally {
             setShowScoreChangeDialog(null);
             setScoreChangeReason('');
@@ -1035,7 +986,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             onStatsUpdate?.();
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi arxivlandi" });
         } catch (error) {
-            console.error('Error archiving student:', error);
+            logError('GroupDetails:handleArchiveStudent', error);
         }
     };
 
@@ -1080,7 +1031,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             onStatsUpdate?.();
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi tiklandi" });
         } catch (error) {
-            console.error('Error restoring student:', error);
+            logError('GroupDetails:handleRestoreStudent', error);
             toast({ title: "Xatolik", description: "Tiklashda xatolik yuz berdi", variant: "destructive" });
         }
     };
@@ -1145,33 +1096,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         return null;
     };
 
-    const getButtonStyle = (studentId: string, targetStatus: AttendanceStatus) => {
-        const currentStatus = attendance[studentId];
-        const normalized = (currentStatus === 'absent' ? 'absent_without_reason' : currentStatus) as AttendanceStatus | undefined;
-        const student = students.find(s => s.id === studentId);
-        const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
-        const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
-        const effectiveLeaveDate = student ? getEffectiveLeaveDate(student) : null;
-        const isAfterLeaveDate = effectiveLeaveDate && selectedDate > effectiveLeaveDate;
-        const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
-        const baseStyle = `w-10 h-10 p-0 border ${isOutsidePeriod ? 'opacity-40 cursor-not-allowed' : ''}`;
-
-        if (targetStatus !== 'absent') {
-            const isActive = normalized === targetStatus;
-            if (!isActive) return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
-            switch (targetStatus) {
-                case 'present': return `${baseStyle} border-green-500 bg-green-500 hover:bg-green-600 text-white`;
-                case 'late': return `${baseStyle} border-orange-500 bg-orange-500 hover:bg-orange-600 text-white`;
-                default: return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
-            }
-        }
-        if (normalized === 'absent_with_reason') return `${baseStyle} border-yellow-500 bg-yellow-500 hover:bg-yellow-600 text-white`;
-        if (normalized === 'absent_without_reason') return `${baseStyle} border-red-500 bg-red-500 hover:bg-red-600 text-white`;
-        return `${baseStyle} border-gray-300 bg-white hover:bg-gray-50 text-gray-600`;
-    };
-
     const getToggleButtonStyle = (status?: AttendanceStatus) => {
-        const baseStyle = "w-10 h-10 p-0 border";
+        const baseStyle = "w-10 h-10 p-0 border rounded-md";
         switch (status) {
             case 'present': return `${baseStyle} border-green-500 bg-green-500 hover:bg-green-600 text-white`;
             case 'late': return `${baseStyle} border-orange-500 bg-orange-500 hover:bg-orange-600 text-white`;
@@ -1243,7 +1169,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
             scheduleAttendanceRefresh();
         } catch (error) {
-            console.error('Error marking attendance:', error);
+            logError('GroupDetails:handleMarkAttendance', error);
             if (attendanceWriteSeqRef.current[studentId] !== seq) return;
             setPendingAttendance(prev => {
                 const nextPending = { ...prev };
@@ -1291,7 +1217,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         void persistAttendance(studentId, next, notes, nextSeq);
     };
 
-    const getScoreCellStyle = (type: string, points: number) => {
+    const getScoreCellStyle = (type: string) => {
         const baseStyle = "border";
         if (type === 'baho') {
             return `${baseStyle} bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100`;
@@ -1717,176 +1643,174 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                                         </TableHeader>
                                         <TableBody>
                                             {students.map((student, index) => {
-                                        const effectiveJoinDate = getEffectiveJoinDate(student);
-                                        const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
-                                        const effectiveLeaveDate = getEffectiveLeaveDate(student);
-                                        const isAfterLeaveDate = effectiveLeaveDate && selectedDate > effectiveLeaveDate;
-                                        const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
-                                        const isArchived = !student.is_active;
-                                        const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
-                                        const rows = [] as React.ReactNode[];
-                                        if (isFirstArchived) {
-                                            rows.push(
-                                                <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
-                                                    <TableCell colSpan={6} className="text-center py-2">
-                                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        }
+                                                const effectiveJoinDate = getEffectiveJoinDate(student);
+                                                const isBeforeJoinDate = effectiveJoinDate && selectedDate < effectiveJoinDate;
+                                                const effectiveLeaveDate = getEffectiveLeaveDate(student);
+                                                const isAfterLeaveDate = effectiveLeaveDate && selectedDate > effectiveLeaveDate;
+                                                const isOutsidePeriod = isBeforeJoinDate || isAfterLeaveDate;
+                                                const isArchived = !student.is_active;
+                                                const isFirstArchived = isArchived && (index === 0 || students[index - 1].is_active);
 
-                                        rows.push(
-                                            <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
-                                                <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col group">
-                                                        <div className="flex items-center gap-2">
-                                                            <StudentProfileLink
-                                                                studentId={student.id}
-                                                                className="font-semibold text-gray-900 group-hover:text-primary transition-colors"
-                                                            >
-                                                                {student.name}
-                                                            </StudentProfileLink>
-                                                            {getStudentStatusNote(student, selectedDate) && (
-                                                                <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
-                                                                    {getStudentStatusNote(student, selectedDate)}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col items-center justify-center gap-1">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className={getToggleButtonStyle(attendance[student.id])}
-                                                            disabled={isOutsidePeriod || isFutureDate}
-                                                            onClick={() => toggleAttendance(student.id)}
-                                                            title={isFutureDate
-                                                                    ? "Kelajak uchun belgilab bo'lmaydi"
-                                                                    : isBeforeJoinDate
-                                                                        ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
-                                                                        : isAfterLeaveDate
-                                                                            ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
-                                                                            : getAttendanceLabel(attendance[student.id])}
-                                                            >
-                                                                <span className="relative inline-flex items-center justify-center">
-                                                                    {attendance[student.id] === 'present' ? (
-                                                                    <CheckCircle className="w-4 h-4" />
-                                                                ) : attendance[student.id] === 'late' ? (
-                                                                    <Clock className="w-4 h-4" />
-                                                                ) : attendance[student.id] === 'absent_with_reason' ? (
-                                                                    <AlertTriangle className="w-4 h-4" />
-                                                                ) : attendance[student.id] === 'absent_without_reason' ? (
-                                                                    <XCircle className="w-4 h-4" />
-                                                                ) : (
-                                                                    <CheckCircle className="w-4 h-4" />
-                                                                )}
-                                                                    {pendingAttendance[student.id] && (
-                                                                        <span className="absolute -right-2 -top-2 inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current opacity-80" />
-                                                                    )}
-                                                                </span>
-                                                            </Button>
-                                                            <span className={cn(
-                                                                "text-[10px] font-medium leading-none",
-                                                                pendingAttendance[student.id] ? "text-gray-500" :
-                                                                savedAttendance[student.id] ? "text-emerald-600" :
-                                                                attendance[student.id] === 'present' ? "text-emerald-600" :
-                                                                attendance[student.id] === 'late' ? "text-orange-600" :
-                                                                attendance[student.id] === 'absent_with_reason' ? "text-yellow-700" :
-                                                                attendance[student.id] === 'absent_without_reason' ? "text-red-600" :
-                                                                "text-gray-500"
-                                                            )}>
-                                                                {pendingAttendance[student.id] ? "Saqlanmoqda..." :
-                                                                    savedAttendance[student.id] ? "Saqlandi" :
-                                                                        getAttendanceLabel(attendance[student.id])}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <div className="flex justify-center gap-1">
-                                                            {(['mukofot', 'jarima'] as const).map((type) => (
-                                                                <div key={type}>
-                                                                    {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isOutsidePeriod && !isFutureDate ? (
-                                                                        <Input
-                                                                            className="w-10 h-10 mx-auto text-center p-0"
-                                                                            value={scoreInputValue}
-                                                                            onChange={handleScoreInputChange}
-                                                                            onBlur={() => handleScoreBlur(student.id, type)}
-                                                                            onKeyDown={(e) => handleScoreKeyDown(e, index, type)}
-                                                                            autoFocus
-                                                                        />
-                                                                    ) : (
-                                                                        <div
-                                                                            className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isOutsidePeriod || isFutureDate) ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type, dailyScores[student.id]?.[type]?.points || 0))}
-                                                                            onClick={() => !isOutsidePeriod && !isFutureDate && handleScoreCellClick(student.id, type)}
-                                                                            title={isFutureDate
-                                                                                ? "Kelajak uchun belgilab bo'lmaydi"
-                                                                                : isBeforeJoinDate
-                                                                                    ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
-                                                                                    : isAfterLeaveDate
-                                                                                        ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
-                                                                                        : (type === 'mukofot' ? 'Mukofot' : 'Jarima')}
+                                                return (
+                                                    <React.Fragment key={student.id}>
+                                                        {isFirstArchived && (
+                                                            <TableRow key={`${student.id}-separator`} className="bg-gray-100 hover:bg-gray-100">
+                                                                <TableCell colSpan={6} className="text-center py-2">
+                                                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chiqib ketgan o'quvchilar</span>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+
+                                                        <TableRow key={student.id} className={cn("transition-colors", isArchived ? "bg-gray-50 hover:bg-gray-100" : "hover:bg-gray-50/50")}>
+                                                            <TableCell className="text-center text-gray-500 font-medium">{index + 1}</TableCell>
+                                                            <TableCell>
+                                                                <div className="flex flex-col group">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <StudentProfileLink
+                                                                            studentId={student.id}
+                                                                            className="font-semibold text-gray-900 group-hover:text-primary transition-colors"
                                                                         >
-                                                                            {dailyScores[student.id]?.[type]?.points || 0}
+                                                                            {student.name}
+                                                                        </StudentProfileLink>
+                                                                        {getStudentStatusNote(student, selectedDate) && (
+                                                                            <span className={cn("text-xs px-2 py-0.5 rounded font-medium", isBeforeJoinDate ? "bg-yellow-100 text-yellow-800" : "bg-orange-100 text-orange-800")}>
+                                                                                {getStudentStatusNote(student, selectedDate)}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="text-xs text-gray-500">{student.student_id || 'ID yo\'q'}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className={getToggleButtonStyle(attendance[student.id])}
+                                                                        disabled={isOutsidePeriod || isFutureDate}
+                                                                        onClick={() => toggleAttendance(student.id)}
+                                                                        title={isFutureDate
+                                                                            ? "Kelajak uchun belgilab bo'lmaydi"
+                                                                            : isBeforeJoinDate
+                                                                                ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
+                                                                                : isAfterLeaveDate
+                                                                                    ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
+                                                                                    : getAttendanceLabel(attendance[student.id])}
+                                                                    >
+                                                                        <span className="relative inline-flex items-center justify-center">
+                                                                            {attendance[student.id] === 'present' ? (
+                                                                                <CheckCircle className="w-4 h-4" />
+                                                                            ) : attendance[student.id] === 'late' ? (
+                                                                                <Clock className="w-4 h-4" />
+                                                                            ) : attendance[student.id] === 'absent_with_reason' ? (
+                                                                                <AlertTriangle className="w-4 h-4" />
+                                                                            ) : attendance[student.id] === 'absent_without_reason' ? (
+                                                                                <XCircle className="w-4 h-4" />
+                                                                            ) : (
+                                                                                <CheckCircle className="w-4 h-4" />
+                                                                            )}
+                                                                            {pendingAttendance[student.id] && (
+                                                                                <span className="absolute -right-2 -top-2 inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current opacity-80" />
+                                                                            )}
+                                                                        </span>
+                                                                    </Button>
+                                                                    <span className={cn(
+                                                                        "text-[10px] font-medium leading-none",
+                                                                        pendingAttendance[student.id] ? "text-gray-500" :
+                                                                            savedAttendance[student.id] ? "text-emerald-600" :
+                                                                                attendance[student.id] === 'present' ? "text-emerald-600" :
+                                                                                    attendance[student.id] === 'late' ? "text-orange-600" :
+                                                                                        attendance[student.id] === 'absent_with_reason' ? "text-yellow-700" :
+                                                                                            attendance[student.id] === 'absent_without_reason' ? "text-red-600" :
+                                                                                                "text-gray-500"
+                                                                    )}>
+                                                                        {pendingAttendance[student.id] ? "Saqlanmoqda..." :
+                                                                            savedAttendance[student.id] ? "Saqlandi" :
+                                                                                getAttendanceLabel(attendance[student.id])}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <div className="flex justify-center gap-1">
+                                                                    {(['mukofot', 'jarima'] as const).map((type) => (
+                                                                        <div key={type}>
+                                                                            {editingScoreCell?.studentId === student.id && editingScoreCell?.type === type && !isOutsidePeriod && !isFutureDate ? (
+                                                                                <Input
+                                                                                    className="w-10 h-10 mx-auto text-center p-0"
+                                                                                    value={scoreInputValue}
+                                                                                    onChange={handleScoreInputChange}
+                                                                                    onBlur={() => handleScoreBlur(student.id, type)}
+                                                                                    onKeyDown={(e) => handleScoreKeyDown(e, index, type)}
+                                                                                    autoFocus
+                                                                                />
+                                                                            ) : (
+                                                                                <div
+                                                                                    className={cn("w-10 h-10 mx-auto flex items-center justify-center rounded-md transition-all font-medium", (isOutsidePeriod || isFutureDate) ? "opacity-40 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:ring-2 hover:ring-primary/20", getScoreCellStyle(type))}
+                                                                                    onClick={() => !isOutsidePeriod && !isFutureDate && handleScoreCellClick(student.id, type)}
+                                                                                    title={isFutureDate
+                                                                                        ? "Kelajak uchun belgilab bo'lmaydi"
+                                                                                        : isBeforeJoinDate
+                                                                                            ? `${student.name} ${effectiveJoinDate} sanasida qo'shilgan`
+                                                                                            : isAfterLeaveDate
+                                                                                                ? `${student.name} ${effectiveLeaveDate} sanasida chiqib ketgan`
+                                                                                                : (type === 'mukofot' ? 'Mukofot' : 'Jarima')}
+                                                                                >
+                                                                                    {dailyScores[student.id]?.[type]?.points || 0}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
+                                                                    ))}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
+                                                                    {student.rewardPenaltyPoints?.toFixed(1) || 0}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className="flex justify-end gap-1">
+                                                                    {!isArchived ? (
+                                                                        <DropdownMenu>
+                                                                            <DropdownMenuTrigger asChild>
+                                                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-50">
+                                                                                    <MoreVertical className="w-4 h-4" />
+                                                                                </Button>
+                                                                            </DropdownMenuTrigger>
+                                                                            <DropdownMenuContent align="end" className="w-44">
+                                                                                <DropdownMenuItem
+                                                                                    onSelect={() => {
+                                                                                        const studentWithJoinDate = {
+                                                                                            ...student,
+                                                                                            join_date: student.join_date || getEffectiveJoinDate(student) || getTashkentToday()
+                                                                                        };
+                                                                                        setEditingStudent(studentWithJoinDate);
+                                                                                        setIsEditDialogOpen(true);
+                                                                                    }}
+                                                                                    className="gap-2"
+                                                                                >
+                                                                                    <Edit2 className="w-4 h-4 text-blue-600" />
+                                                                                    Tahrirlash
+                                                                                </DropdownMenuItem>
+                                                                                <DropdownMenuItem
+                                                                                    onSelect={() => handleAction(student.id, student.name)}
+                                                                                    className="gap-2"
+                                                                                >
+                                                                                    <Archive className="w-4 h-4 text-orange-600" />
+                                                                                    Arxivlash
+                                                                                </DropdownMenuItem>
+                                                                            </DropdownMenuContent>
+                                                                        </DropdownMenu>
+                                                                    ) : (
+                                                                        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
+                                                                            Tiklash
+                                                                        </Button>
                                                                     )}
                                                                 </div>
-                                                            ))}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
-                                                            {student.rewardPenaltyPoints?.toFixed(1) || 0}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex justify-end gap-1">
-                                                            {!isArchived ? (
-                                                                <DropdownMenu>
-                                                                    <DropdownMenuTrigger asChild>
-                                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-50">
-                                                                            <MoreVertical className="w-4 h-4" />
-                                                                        </Button>
-                                                                    </DropdownMenuTrigger>
-                                                                    <DropdownMenuContent align="end" className="w-44">
-                                                                        <DropdownMenuItem
-                                                                            onSelect={() => {
-                                                                                const studentWithJoinDate = {
-                                                                                    ...student,
-                                                                                    join_date: student.join_date || getEffectiveJoinDate(student) || getTashkentToday()
-                                                                                };
-                                                                                setEditingStudent(studentWithJoinDate);
-                                                                                setIsEditDialogOpen(true);
-                                                                            }}
-                                                                            className="gap-2"
-                                                                        >
-                                                                            <Edit2 className="w-4 h-4 text-blue-600" />
-                                                                            Tahrirlash
-                                                                        </DropdownMenuItem>
-                                                                        <DropdownMenuItem
-                                                                            onSelect={() => handleAction(student.id, student.name)}
-                                                                            className="gap-2"
-                                                                        >
-                                                                            <Archive className="w-4 h-4 text-orange-600" />
-                                                                            Arxivlash
-                                                                        </DropdownMenuItem>
-                                                                    </DropdownMenuContent>
-                                                                </DropdownMenu>
-                                                            ) : (
-                                                                <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleRestoreClick(student.id, student.name, student.archiveDocId)}>
-                                                                    Tiklash
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                            </TableRow>
-                                        );
-
-                                        return rows;
-                                    })}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    </React.Fragment>
+                                                );
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </div>

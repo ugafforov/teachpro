@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,62 +103,78 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
   }, [teacherId]);
 
   const fetchArchivedData = async () => {
+    if (!teacherId) return;
     try {
       setLoading(true);
 
-      const studentsQ = query(
-        collection(db, 'archived_students'),
-        where('teacher_id', '==', teacherId)
-      );
-      const studentsSnap = await getDocs(studentsQ);
-      setArchivedStudents(
-        studentsSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as ArchivedStudent))
-          .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
-            return dateB - dateA;
-          })
-      );
+      // Helper function to get time from various date formats
+      const getTime = (val: any) => {
+        if (!val) return 0;
+        if (typeof val.getTime === 'function') return val.getTime() / 1000;
+        if (val.seconds !== undefined) return val.seconds;
+        if (typeof val === 'number') return val > 1e11 ? val / 1000 : val;
+        try {
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? 0 : d.getTime() / 1000;
+        } catch (e) {
+          return 0;
+        }
+      };
 
-      const groupsQ = query(
-        collection(db, 'archived_groups'),
-        where('teacher_id', '==', teacherId)
-      );
-      const groupsSnap = await getDocs(groupsQ);
-      setArchivedGroups(
-        groupsSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as ArchivedGroup))
-          .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
-            return dateB - dateA;
-          })
-      );
+      // Fetch students
+      try {
+        const studentsQ = query(
+          collection(db, 'archived_students'),
+          where('teacher_id', '==', teacherId)
+        );
+        const studentsSnap = await getDocs(studentsQ);
+        const studentsData = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchivedStudent));
+        setArchivedStudents(
+          studentsData.sort((a, b) => getTime(b.archived_at) - getTime(a.archived_at))
+        );
+      } catch (err) {
+        // Silently handle or log only in production if needed
+      }
 
-      const examsQ = query(
-        collection(db, 'archived_exams'),
-        where('teacher_id', '==', teacherId)
-      );
-      const examsSnap = await getDocs(examsQ);
-      setArchivedExams(
-        examsSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as ArchivedExam))
-          .sort((a, b) => {
-            const dateA = a.archived_at?.seconds ? a.archived_at.seconds : getTashkentDate(new Date(a.archived_at)).getTime() / 1000;
-            const dateB = b.archived_at?.seconds ? b.archived_at.seconds : getTashkentDate(new Date(b.archived_at)).getTime() / 1000;
-            return dateB - dateA;
-          })
-      );
+      // Fetch groups
+      try {
+        const groupsQ = query(
+          collection(db, 'archived_groups'),
+          where('teacher_id', '==', teacherId)
+        );
+        const groupsSnap = await getDocs(groupsQ);
+        const groupsData = groupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchivedGroup));
+        setArchivedGroups(
+          groupsData.sort((a, b) => getTime(b.archived_at) - getTime(a.archived_at))
+        );
+      } catch (err) {
+        // Silently handle
+      }
+
+      // Fetch exams
+      try {
+        const examsQ = query(
+          collection(db, 'archived_exams'),
+          where('teacher_id', '==', teacherId)
+        );
+        const examsSnap = await getDocs(examsQ);
+        const examsData = examsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchivedExam));
+        setArchivedExams(
+          examsData.sort((a, b) => getTime(b.archived_at) - getTime(a.archived_at))
+        );
+      } catch (err) {
+        // Silently handle
+      }
 
     } catch (error) {
-      console.error('Error fetching archived data:', error);
+      // General error
     } finally {
       setLoading(false);
     }
   };
 
   const filterData = (data: any[]) => {
+    if (!searchTerm) return data;
     const term = searchTerm.toLowerCase();
     return data.filter(item =>
       (item.name?.toLowerCase().includes(term)) ||
@@ -218,7 +235,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
         toast({ title: "O'chirildi", description: `"${itemName}" arxivdan o'chirildi` });
       }
     } catch (error) {
-      console.error('Error executing archive action:', error);
+      logError('ArchiveManager:handleAction', error);
       toast({ title: "Xatolik", description: "Amal bajarilmadi", variant: "destructive" });
     } finally {
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -252,7 +269,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring student:', error);
+      logError('ArchiveManager:handleRestoreStudent', error);
     }
   };
 
@@ -274,7 +291,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring group:', error);
+      logError('ArchiveManager:handleRestoreGroup', error);
     }
   };
 
@@ -314,7 +331,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       await fetchArchivedData();
       if (onStatsUpdate) await onStatsUpdate();
     } catch (error) {
-      console.error('Error restoring exam:', error);
+      logError('ArchiveManager:handleRestoreExam', error);
     }
   };
 
@@ -352,12 +369,12 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-                      <span className="text-lg font-medium">{student.name[0]}</span>
+                      <span className="text-lg font-medium">{(student.name || '?')[0]}</span>
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold">
                         <StudentProfileLink studentId={student.original_student_id} className="text-inherit hover:text-blue-700">
-                          {student.name}
+                          {student.name || 'Ismsiz o\'quvchi'}
                         </StudentProfileLink>
                       </h3>
                       <Badge variant="secondary" className="text-xs">{student.group_name}</Badge>
@@ -365,7 +382,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {student.archived_at?.seconds ? formatDateUz(student.archived_at) : ''}
+                      {student.archived_at ? `Arxivlangan: ${formatDateUz(student.archived_at)}` : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('student', student.id, student.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
@@ -401,7 +418,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {group.archived_at?.seconds ? formatDateUz(group.archived_at) : ''}
+                      {group.archived_at ? `Arxivlangan: ${formatDateUz(group.archived_at)}` : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('group', group.id, group.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
@@ -441,7 +458,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
                     <span className="text-xs text-muted-foreground">
-                      {exam.archived_at?.seconds ? formatDateUz(exam.archived_at) : ''}
+                      {exam.archived_at ? `Arxivlangan: ${formatDateUz(exam.archived_at)}` : ''}
                     </span>
                     <div className="flex space-x-2">
                       <Button size="sm" variant="ghost" onClick={() => handleRestore('exam', exam.id, exam.exam_name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>

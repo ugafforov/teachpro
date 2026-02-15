@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,9 +169,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [showRewardDialog, setShowRewardDialog] = useState<string | null>(null);
-  const [rewardPoints, setRewardPoints] = useState('');
-  const [rewardType, setRewardType] = useState<'reward' | 'penalty'>('reward');
   const [loading, setLoading] = useState(true);
   
   // Advanced Filters & Sort
@@ -215,7 +213,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           fetchRewards()
         ]);
       } catch (error) {
-        console.error('Error loading data:', error);
+        logError('StudentManager:loadData', error);
       } finally {
         setLoading(false);
       }
@@ -496,7 +494,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       setIsAddDialogOpen(false);
       toast({ title: "O'quvchi qo'shildi", description: `"${newStudent.name}" muvaffaqiyatli qo'shildi` });
     } catch (error) {
-      console.error(error);
+      logError('StudentManager:handleCreateStudent', error);
       toast({ title: "Xatolik", description: "Xatolik yuz berdi", variant: "destructive" });
     }
   };
@@ -517,7 +515,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       setEditingStudent(null);
       toast({ title: "Yangilandi", description: "O'quvchi ma'lumotlari yangilandi" });
     } catch (error) {
-      console.error(error);
+      logError('StudentManager:handleEditStudent', error);
       toast({ title: "Xatolik", description: "Xatolik yuz berdi", variant: "destructive" });
     }
   };
@@ -556,7 +554,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       if (onStatsUpdate) await onStatsUpdate();
       toast({ title: "Arxivlandi", description: `"${studentName}" arxivlandi` });
     } catch (error) {
-      console.error(error);
+      logError('StudentManager:handleArchiveStudent', error);
       toast({ title: "Xatolik", description: "Xatolik yuz berdi", variant: "destructive" });
     } finally {
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -586,35 +584,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({
       if (onStatsUpdate) await onStatsUpdate();
       toast({ title: "Muvaffaqiyat", description: "O'quvchilar arxivlandi" });
     } catch (error) {
-      console.error(error);
+      logError('StudentManager:handleDeleteStudent', error);
       toast({ title: "Xatolik", description: "Xatolik yuz berdi", variant: "destructive" });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const addReward = async (studentId: string) => {
-    if (!rewardPoints) return;
-    try {
-      const points = parseFloat(rewardPoints);
-      const type = rewardType === 'reward' ? 'Mukofot' : 'Jarima';
-      await addDoc(collection(db, 'reward_penalty_history'), {
-        student_id: studentId,
-        teacher_id: teacherId,
-        points: Math.abs(points),
-        type,
-        reason: type,
-        date: getTashkentToday(),
-        created_at: getTashkentDate().toISOString()
-      });
-      await fetchRewards(); // Refresh rewards to update stats
-      setShowRewardDialog(null);
-      setRewardPoints('');
-      if (onStatsUpdate) await onStatsUpdate();
-      toast({ title: "Saqlandi", description: "Ball saqlandi" });
-    } catch (error) {
-      console.error(error);
-      toast({ title: "Xatolik", description: "Xatolik yuz berdi", variant: "destructive" });
     }
   };
 
@@ -1131,9 +1104,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                             >
                               <UserIcon className="w-4 h-4 mr-2" /> Profilni ko'rish
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setShowRewardDialog(student.id)}>
-                              <Gift className="w-4 h-4 mr-2" /> Mukofot/Jarima
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setEditingStudent(student); setIsEditDialogOpen(true); }}>
                               <Edit2 className="w-4 h-4 mr-2" /> Tahrirlash
                             </DropdownMenuItem>
@@ -1193,47 +1163,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         </DialogContent>
       </Dialog>
       
-      {/* Reward Dialog */}
-      {showRewardDialog && (
-        <Dialog open={!!showRewardDialog} onOpenChange={(open) => !open && setShowRewardDialog(null)}>
-           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Mukofot yoki Jarima</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Button 
-                  className="flex-1" 
-                  variant={rewardType === 'reward' ? 'default' : 'outline'}
-                  onClick={() => setRewardType('reward')}
-                >
-                  <Gift className="mr-2 h-4 w-4" /> Mukofot
-                </Button>
-                <Button 
-                  className="flex-1"
-                  variant={rewardType === 'penalty' ? 'destructive' : 'outline'}
-                  onClick={() => setRewardType('penalty')}
-                >
-                  <AlertTriangle className="mr-2 h-4 w-4" /> Jarima
-                </Button>
-              </div>
-              <div className="space-y-2">
-                <Label>Ball miqdori</Label>
-                <Input 
-                  type="number" 
-                  value={rewardPoints} 
-                  onChange={(e) => setRewardPoints(e.target.value)}
-                  placeholder="Masalan: 5"
-                />
-              </div>
-              <Button className="w-full" onClick={() => addReward(showRewardDialog)}>
-                Saqlash
-              </Button>
-            </div>
-           </DialogContent>
-        </Dialog>
-      )}
-
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Tahrirlash</DialogTitle></DialogHeader>

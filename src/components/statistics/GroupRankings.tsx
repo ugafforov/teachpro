@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { logError } from '@/lib/errorUtils';
+import { Card } from "@/components/ui/card";
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Users, TrendingUp, Medal, Award, Target, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { calculateGroupRankings, GroupRanking } from '@/lib/studentScoreCalculator';
@@ -15,20 +16,19 @@ const GroupRankings: React.FC<GroupRankingsProps> = ({ teacherId, selectedPeriod
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
+    const fetchGroupRankings = async () => {
+      try {
+        setLoading(true);
+        const rankings = await calculateGroupRankings(teacherId, selectedPeriod);
+        setGroupRankings(rankings);
+      } catch (error) {
+        logError('GroupRankings:fetchGroupRankings', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchGroupRankings();
   }, [teacherId, selectedPeriod]);
-
-  const fetchGroupRankings = async () => {
-    try {
-      setLoading(true);
-      const rankings = await calculateGroupRankings(teacherId, selectedPeriod);
-      setGroupRankings(rankings);
-    } catch (error) {
-      console.error('Error fetching group rankings:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getAttendanceIcon = (rank: number) => {
     if (rank === 1) return '🏆';

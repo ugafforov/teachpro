@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -265,7 +266,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       
       return sorted.slice(0, 20);
     } catch (error) {
-      console.error('Error fetching rewards:', error);
+      logError('StudentDetailView:fetchRecentRewards', error);
       return [];
     }
   };
@@ -291,7 +292,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       });
       return sorted.slice(0, 100);
     } catch (error) {
-      console.error('Error fetching attendance history:', error);
+      logError('StudentDetailView:fetchAttendanceHistory', error);
       return [];
     }
   };
@@ -346,7 +347,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       
       return combined;
     } catch (error) {
-      console.error('Error fetching exam results:', error);
+      logError('StudentDetailView:fetchExamResults', error);
       return [];
     }
   };
@@ -406,7 +407,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       setAttendanceHistory(attendance);
       setExamResults(exams);
     } catch (error) {
-      console.error('Error fetching student details:', error);
+      logError('StudentDetailView:fetchStudentDetails', error);
     } finally {
       setLoading(false);
     }

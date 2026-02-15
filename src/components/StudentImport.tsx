@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -95,7 +96,7 @@ const StudentImport: React.FC<StudentImportProps> = ({ teacherId, groupName, onI
       setIsOpen(false);
       onImportComplete();
     } catch (error) {
-      console.error('Error importing students:', error);
+      logError('StudentImport:handleImport', error);
       toast({ title: "Import xatoligi", description: "O'quvchilarni import qilishda xatolik yuz berdi", variant: "destructive" });
     } finally {
       setLoading(false);

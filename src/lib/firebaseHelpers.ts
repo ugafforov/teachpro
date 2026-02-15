@@ -1,4 +1,5 @@
 import { db } from './firebase';
+import { logError } from './errorUtils';
 import {
   collection,
   query,
@@ -258,7 +259,7 @@ export async function logAuditEntry(entry: AuditLogEntry): Promise<void> {
     });
   } catch (error) {
     // Silently fail - don't block export/import if audit logging fails
-    console.error('Audit logging failed:', error);
+    logError('firebaseHelpers:logAuditEntry', error);
   }
 }
 

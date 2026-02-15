@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
+import { logError } from '@/lib/errorUtils';
+import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -105,7 +106,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
 
       setScoreRankings(scoreStats);
     } catch (error) {
-      console.error('Error fetching rankings:', error);
+      logError('StudentRankings:fetchRankings', error);
     } finally {
       setLoading(false);
     }

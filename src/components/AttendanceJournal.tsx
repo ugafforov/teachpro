@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { logError } from '@/lib/errorUtils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -75,7 +76,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
         .sort((a, b) => a.name.localeCompare(b.name));
       setStudents(studentsData);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('AttendanceJournal:fetchStudents', error);
       toast({ title: 'Xatolik', description: 'O\'quvchilarni olishda xatolik', variant: 'destructive' });
     }
   };
@@ -96,7 +97,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
       });
       setAttendance(attendanceData);
     } catch (error) {
-      console.error('Error fetching attendance:', error);
+      logError('AttendanceJournal:fetchAttendance', error);
     } finally {
       setLoading(false);
     }
@@ -204,7 +205,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({ teacherId, groupN
         });
       }
     } catch (error) {
-      console.error('Error updating attendance:', error);
+      logError('AttendanceJournal:updateAttendance', error);
       toast({ title: 'Xatolik', description: 'Davomatni o\'zgartirishda xatolik', variant: 'destructive' });
     }
   };

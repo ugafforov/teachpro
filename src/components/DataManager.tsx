@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { logError } from '@/lib/errorUtils';
+import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
 import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2, Shield, Database } from 'lucide-react';
 import { cn, getTashkentDate, getTashkentToday } from '@/lib/utils';
@@ -193,7 +194,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         }
       });
     } catch (error) {
-      console.error('Export error:', error);
+      logError('DataManager:handleExport', error);
       toast.error('Eksport qilishda xatolik yuz berdi');
     } finally {
       setExporting(false);
@@ -323,7 +324,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       toast.success("Ma'lumotlar muvaffaqiyatli import qilindi!");
       setTimeout(() => window.location.reload(), 2000);
     } catch (error) {
-      console.error('Import error:', error);
+      logError('DataManager:handleImport', error);
       toast.error('Import qilishda xatolik yuz berdi');
     } finally {
       setImporting(false);

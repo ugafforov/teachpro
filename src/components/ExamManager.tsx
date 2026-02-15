@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { logError } from '@/lib/errorUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -275,7 +276,7 @@ const ExamAnalysis: React.FC<ExamAnalysisProps> = ({ teacherId, exams, groups })
 
       setAnalysisData(grouped);
     } catch (error) {
-      console.error('Error fetching analysis:', error);
+      logError('ExamManager:fetchAnalysis', error);
       setAnalysisData({});
     } finally {
       setLoading(false);
@@ -635,7 +636,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       const snapshot = await getDocs(q);
       setGroups(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Group)));
     } catch (error) {
-      console.error('Error fetching groups:', error);
+      logError('ExamManager:fetchGroups', error);
     }
   };
 
@@ -654,7 +655,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       });
       setAttendanceOnExamDate(attendanceData);
     } catch (error) {
-      console.error('Error fetching attendance:', error);
+      logError('ExamManager:fetchAttendance', error);
     }
   };
 
@@ -684,7 +685,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       
       setStudents(allStudents);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      logError('ExamManager:fetchStudents', error);
     }
   };
 
@@ -694,7 +695,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       const snapshot = await getDocs(q);
       setExamTypes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExamType)));
     } catch (error) {
-      console.error('Error fetching exam types:', error);
+      logError('ExamManager:fetchExamTypes', error);
     }
   };
 
@@ -710,7 +711,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         .sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
       setExams(data);
     } catch (error) {
-      console.error('Error fetching exams:', error);
+      logError('ExamManager:fetchExams', error);
     }
   };
 
@@ -771,7 +772,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         description: 'Imtihon yaratildi',
       });
     } catch (error) {
-      console.error('Error creating exam:', error);
+      logError('ExamManager:handleCreateExam', error);
       toast({
         title: 'Xato',
         description: 'Imtihon yaratishda xatolik',
@@ -845,7 +846,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       setCustomExamName('');
       setExamDate(getTashkentToday());
     } catch (error) {
-      console.error('Error saving results:', error);
+      logError('ExamManager:handleSaveResults', error);
       toast({
         title: 'Xato',
         description: 'Natijalarni saqlashda xatolik',
@@ -902,7 +903,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
       await fetchExams();
     } catch (error) {
-      console.error('Error archiving exam:', error);
+      logError('ExamManager:handleArchiveExam', error);
       toast({
         title: 'Xato',
         description: 'Imtihonni arxivlashda xatolik',
@@ -1032,7 +1033,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       
       setExamDetailsData(allResults);
     } catch (error) {
-      console.error('Error fetching exam details:', error);
+      logError('ExamManager:fetchExamDetails', error);
       toast({
         title: 'Xato',
         description: 'Imtihon natijalarini yuklashda xatolik',
@@ -1084,7 +1085,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       setEditScore('');
       setEditReason('');
     } catch (error) {
-      console.error('Error updating result:', error);
+      logError('ExamManager:handleUpdateResult', error);
       toast({
         title: 'Xato',
         description: 'Natijani yangilashda xatolik',
