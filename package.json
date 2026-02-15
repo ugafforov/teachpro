@@ -10,7 +10,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:console": "node scripts/console-test.mjs",
-    "test:visual": "node scripts/visual-test-dark.mjs"
+    "test:visual": "node scripts/visual-test-dark.mjs",
+    "update:browsers": "npx update-browserslist-db@latest"
+  },
+  "overrides": {
+    "esbuild": "0.21.5"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -42,6 +46,8 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
     "@tanstack/react-query": "^5.56.2",
+    "baseline-browser-mapping": "^2.9.19",
+    "caniuse-lite": "^1.0.30001770",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

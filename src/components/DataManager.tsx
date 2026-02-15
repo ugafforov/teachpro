@@ -218,6 +218,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         setImportData(json);
         setShowImportDialog(true);
       } catch (error) {
+        logError('DataManager.handleFileSelect', error);
         toast.error('Faylni o\'qishda xatolik', { description: 'JSON formati noto\'g\'ri' });
       }
     };

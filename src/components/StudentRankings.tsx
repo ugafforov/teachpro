@@ -191,7 +191,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
               <Card key={student.id} className={`p-6 text-center cursor-pointer hover:shadow-lg transition-shadow ${index === 0 ? 'ring-2 ring-yellow-500 dark:ring-amber-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-amber-950/40 dark:to-amber-900/30' :
                 index === 1 ? 'ring-2 ring-gray-400 dark:ring-muted-foreground/50 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-muted/50 dark:to-muted/30' :
                   'ring-2 ring-amber-600 dark:ring-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-900/30'
-                }`} onClick={() => handleStudentClick(student.student_id)}>
+                }`} onClick={() => handleStudentClick(student.student_id || student.id)}>
                 <div className="flex flex-col items-center">
                   {getRankIcon(student.class_rank)}
                   <h3 className="text-lg font-semibold text-foreground mt-2 mb-1">
@@ -224,7 +224,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
           ) : (
             <div className="divide-y">
               {scoreRankings.map((student) => (
-                <div key={student.id} className="p-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer" onClick={() => handleStudentClick(student.student_id)}>
+                <div key={student.id} className="p-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer" onClick={() => handleStudentClick(student.student_id || student.id)}>
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 flex items-center justify-center">{getRankIcon(student.class_rank)}</div>
                     <div className="flex items-center gap-3">

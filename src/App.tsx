@@ -9,7 +9,15 @@ const Index = lazy(() => import("./pages/Index"));
 const StudentProfile = lazy(() => import("./pages/StudentProfile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const PageLoader = () => (
   <main className="min-h-screen bg-background flex items-center justify-center">

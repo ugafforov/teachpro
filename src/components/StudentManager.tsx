@@ -973,7 +973,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                     key={student.id} 
                     className={cn(
                       "group transition-all duration-200",
-                      "hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/50",
+                      "hover:bg-gradient-to-r hover:from-blue-50/80 hover:to-indigo-50/50 dark:hover:bg-none dark:hover:bg-accent",
                       isRiskStudent && "bg-red-50/30 dark:bg-red-500/10",
                       isTopStudent && "bg-emerald-50/30 dark:bg-emerald-500/10",
                       selectedStudentIds.has(student.id) && "bg-blue-50 dark:bg-blue-500/15"
@@ -1062,7 +1062,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
                           variant={student.stats.totalScore < 0 ? "destructive" : "secondary"}
                           className={cn(
                             "font-bold px-3 py-1",
-                            student.stats.totalScore >= 10 && "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+                            student.stats.totalScore >= 10 && "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/25 dark:text-emerald-300 dark:hover:bg-emerald-500/40",
                             student.stats.totalScore >= 0 && student.stats.totalScore < 10 && "bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-500/40",
                             student.stats.totalScore < 0 && "bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/40"
                           )}

@@ -279,7 +279,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         } catch (error: any) {
             // Fallback path: avoid relying on a composite index (works even if index isn't deployed)
             if (error?.code !== 'failed-precondition' && error?.code !== 'permission-denied' && !error?.message?.includes('index')) {
-
+                logError('GroupDetails.fetchLessonNotes', error);
             }
         }
 
@@ -309,7 +309,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             setLessonNotes(notes);
         } catch (fallbackError: any) {
             if (fallbackError?.code !== 'permission-denied') {
-
+                logError('GroupDetails.fetchLessonNotes.fallback', fallbackError);
             }
             setLessonNotes([]);
         }

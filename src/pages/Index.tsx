@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { onAuthChange, firebaseSignOut, db, User } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { XCircle, RefreshCw } from 'lucide-react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import AuthPage from '@/components/AuthPage';
 import Dashboard from '@/components/Dashboard';
@@ -27,11 +27,14 @@ interface Teacher {
 }
 
 const Index = () => {
+  const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isStudentProfileRoute = /^\/students\/[^/]+$/.test(location.pathname);
 
   const fetchProfile = async (firebaseUser: User) => {
     setLoading(true);
@@ -204,11 +207,12 @@ const Index = () => {
     );
   }
 
-  // Show dashboard for approved teachers
+  // Show dashboard for approved teachers.
+  // When URL is /students/:id, Dashboard shows StudentDetailView in its main area — do not render Outlet to avoid duplicate content.
   return (
     <>
       <Dashboard teacherId={teacher.id} teacherName={teacher.name} onLogout={handleLogout} />
-      <Outlet />
+      {!isStudentProfileRoute && <Outlet />}
     </>
   );
 };
