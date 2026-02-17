@@ -1,4 +1,4 @@
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
 const NotFound = () => {
@@ -6,7 +6,7 @@ const NotFound = () => {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      console.warn('[NotFound] User attempted to access:', location.pathname);
+      console.info("[NotFound] User attempted to access:", location.pathname);
     }
   }, [location.pathname]);
 
@@ -15,9 +15,9 @@ const NotFound = () => {
       <div className="text-center">
         <h1 className="text-4xl font-bold text-foreground mb-4">404</h1>
         <p className="text-xl text-muted-foreground mb-4">Sahifa topilmadi</p>
-        <a href="/" className="text-primary hover:underline underline-offset-4">
+        <Link to="/" className="text-primary hover:underline underline-offset-4">
           Bosh sahifaga qaytish
-        </a>
+        </Link>
       </div>
     </div>
   );

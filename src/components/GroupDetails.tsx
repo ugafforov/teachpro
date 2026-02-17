@@ -471,9 +471,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 // Silently handle
             }
 
-            const allStudentsData = [...studentsData, ...archivedData].sort((a, b) => 
-                a.name.localeCompare(b.name)
-            );
+            const allStudentsData = [...studentsData, ...archivedData].sort((a, b) => {
+                // Avval faol o'quvchilar chiqishi kerak (is_active=true)
+                if (a.is_active !== b.is_active) {
+                    return a.is_active ? -1 : 1;
+                }
+                // Keyin ism bo'yicha saralash
+                return a.name.localeCompare(b.name);
+            });
 
             const studentIds = Array.from(new Set(allStudentsData.map(s => s.id)));
             if (studentIds.length > 0) {
