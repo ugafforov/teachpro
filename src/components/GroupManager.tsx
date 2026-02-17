@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { logError } from '@/lib/errorUtils';
 import { Plus, Users, Calendar, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import GroupDetails from './GroupDetails';
 import { groupSchema, formatValidationError } from '@/lib/validations';
 import { z } from 'zod';
@@ -74,10 +74,62 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     groupName: ''
   });
   const { toast } = useToast();
+  const hasInitializedRef = useRef(false);
+  const buildGroupsWithStats = useCallback((
+    groupsData: Group[],
+    studentsData: Array<{ id: string; group_name?: string }>,
+    attendanceData: Array<{ student_id?: string; status?: string }>
+  ) => {
+    if (groupsData.length === 0) {
+      setGroups([]);
+      return;
+    }
 
-  const fetchGroups = useCallback(async () => {
+    const attendanceByStudent: Record<string, Array<{ status?: string }>> = {};
+    attendanceData.forEach((data) => {
+      if (!data.student_id) return;
+      if (!attendanceByStudent[data.student_id]) {
+        attendanceByStudent[data.student_id] = [];
+      }
+      attendanceByStudent[data.student_id].push(data);
+    });
+
+    const studentsByGroup: Record<string, string[]> = {};
+    studentsData.forEach((data) => {
+      if (!data.group_name) return;
+      if (!studentsByGroup[data.group_name]) {
+        studentsByGroup[data.group_name] = [];
+      }
+      studentsByGroup[data.group_name].push(data.id);
+    });
+
+    const groupsWithStats = groupsData.map(group => {
+      const groupStudentIds = studentsByGroup[group.name] || [];
+      const groupAttendance = groupStudentIds.flatMap(id => attendanceByStudent[id] || []);
+
+      let attendancePercentage = 0;
+      if (groupAttendance.length > 0) {
+        const presentCount = groupAttendance.filter(a =>
+          a.status === 'present' || a.status === 'late'
+        ).length;
+        attendancePercentage = Math.round((presentCount / groupAttendance.length) * 100);
+      }
+
+      return {
+        ...group,
+        student_count: groupStudentIds.length,
+        attendance_percentage: attendancePercentage
+      };
+    });
+
+    setGroups(groupsWithStats);
+  }, []);
+
+  const fetchGroups = useCallback(async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       // 1. Fetch all active groups
       const groupsQuery = query(
         collection(db, 'groups'),
@@ -101,7 +153,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         where('is_active', '==', true)
       );
       const studentsSnapshot = await getDocs(studentsQuery);
-      const allStudents = studentsSnapshot.docs.map(d => d.data());
+      const allStudents = studentsSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
       // 3. Fetch all attendance records for this teacher to calculate percentage
       const attendanceQuery = query(
@@ -109,63 +161,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         where('teacher_id', '==', teacherId)
       );
       const attendanceSnapshot = await getDocs(attendanceQuery);
-
-      // Pre-group attendance by student_id for O(1) lookup
-      const attendanceByStudent: Record<string, any[]> = {};
-      attendanceSnapshot.docs.forEach(d => {
-        const data = d.data();
-        if (data.student_id) {
-          if (!attendanceByStudent[data.student_id]) {
-            attendanceByStudent[data.student_id] = [];
-          }
-          attendanceByStudent[data.student_id].push(data);
-        }
-      });
-
-      // 4. Combine data in memory
-      // Pre-group students by group name for efficient lookup
-      const studentsByGroup: Record<string, string[]> = {};
-      studentsSnapshot.docs.forEach(d => {
-        const data = d.data();
-        if (data.group_name) {
-          if (!studentsByGroup[data.group_name]) {
-            studentsByGroup[data.group_name] = [];
-          }
-          studentsByGroup[data.group_name].push(d.id);
-        }
-      });
-
-      const groupsWithStats = groupsData.map(group => {
-        const groupStudentIds = studentsByGroup[group.name] || [];
-
-        // Get all attendance for all students in this group
-        const groupAttendance = groupStudentIds.flatMap(id => attendanceByStudent[id] || []);
-
-        let attendancePercentage = 0;
-        if (groupAttendance.length > 0) {
-          const presentCount = groupAttendance.filter(a =>
-            a.status === 'present' || a.status === 'late'
-          ).length;
-          attendancePercentage = Math.round((presentCount / groupAttendance.length) * 100);
-        }
-
-        return {
-          ...group,
-          student_count: groupStudentIds.length,
-          attendance_percentage: attendancePercentage
-        };
-      });
-
-      setGroups(groupsWithStats);
-
-      if (selectedGroup && !groupsWithStats.some(g => g.name === selectedGroup)) {
-        setSelectedGroup(null);
-        try {
-          localStorage.removeItem(selectedGroupStorageKey);
-        } catch {
-          // ignore
-        }
-      }
+      const attendanceData = attendanceSnapshot.docs.map(d => d.data() as { student_id?: string; status?: string });
+      buildGroupsWithStats(groupsData, allStudents, attendanceData);
     } catch (error) {
       logError('GroupManager:fetchGroups', error);
       toast({
@@ -174,13 +171,101 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      if (showLoading || !hasInitializedRef.current) {
+        setLoading(false);
+      }
+      hasInitializedRef.current = true;
     }
-  }, [teacherId, selectedGroup, selectedGroupStorageKey, toast]);
+  }, [teacherId, toast, buildGroupsWithStats]);
 
   useEffect(() => {
-    fetchGroups();
+    void fetchGroups(true);
   }, [fetchGroups]);
+
+  useEffect(() => {
+    if (!teacherId) return;
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let groupsData: Group[] | null = null;
+    let studentsData: Array<{ id: string; group_name?: string }> | null = null;
+    let attendanceData: Array<{ student_id?: string; status?: string }> | null = null;
+
+    const scheduleRealtimeApply = () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = setTimeout(() => {
+        if (!groupsData || !studentsData || !attendanceData) return;
+        buildGroupsWithStats(groupsData, studentsData, attendanceData);
+        if (!hasInitializedRef.current) {
+          setLoading(false);
+          hasInitializedRef.current = true;
+        }
+      }, 120);
+    };
+
+    const groupsQ = query(
+      collection(db, 'groups'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const studentsQ = query(
+      collection(db, 'students'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const attendanceQ = query(
+      collection(db, 'attendance_records'),
+      where('teacher_id', '==', teacherId)
+    );
+
+    const unsubs = [
+      onSnapshot(groupsQ, (snapshot) => {
+        groupsData = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() } as Group))
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        scheduleRealtimeApply();
+      }, (error) => {
+        logError('GroupManager:groupsSnapshot', error);
+        groupsData = [];
+        scheduleRealtimeApply();
+      }),
+      onSnapshot(studentsQ, (snapshot) => {
+        studentsData = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as any) }));
+        scheduleRealtimeApply();
+      }, (error) => {
+        logError('GroupManager:studentsSnapshot', error);
+        studentsData = [];
+        scheduleRealtimeApply();
+      }),
+      onSnapshot(attendanceQ, (snapshot) => {
+        attendanceData = snapshot.docs.map((doc) => doc.data() as { student_id?: string; status?: string });
+        scheduleRealtimeApply();
+      }, (error) => {
+        logError('GroupManager:attendanceSnapshot', error);
+        attendanceData = [];
+        scheduleRealtimeApply();
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((unsubscribe) => unsubscribe());
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+    };
+  }, [teacherId, buildGroupsWithStats]);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
+    if (groups.some(group => group.name === selectedGroup)) return;
+    setSelectedGroup(null);
+    try {
+      localStorage.removeItem(selectedGroupStorageKey);
+    } catch {
+      // ignore
+    }
+  }, [groups, selectedGroup, selectedGroupStorageKey]);
 
   useEffect(() => {
     try {
@@ -278,8 +363,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         created_at: getTashkentDate().toISOString()
       });
 
-      await fetchGroups();
-      await onStatsUpdate();
+      void onStatsUpdate();
 
       setNewGroup({ name: '', description: '' });
       setNameError('');
@@ -358,8 +442,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         }
       }
 
-      await fetchGroups();
-      await onStatsUpdate();
+      void onStatsUpdate();
 
       setEditingGroup(null);
       setIsEditDialogOpen(false);
@@ -436,8 +519,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       // Mark group as inactive
       await updateDoc(doc(db, 'groups', groupId), { is_active: false });
 
-      await fetchGroups();
-      await onStatsUpdate();
+      void onStatsUpdate();
 
       toast({
         title: "Muvaffaqiyat",

@@ -22,6 +22,7 @@ import {
     query,
     where,
     getDocs,
+    onSnapshot,
     setDoc,
     doc,
     addDoc,
@@ -151,17 +152,28 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     const isNavigatingRef = useRef(false);
     const attendanceWriteSeqRef = useRef<Record<string, number>>({});
     const attendanceRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hasInitializedRef = useRef(false);
+    const selectedDateRef = useRef(selectedDate);
+    const studentsRef = useRef<Student[]>([]);
 
     // 1. Initial load of students (only when group/teacher changes)
     useEffect(() => {
         const loadGroupData = async () => {
-            // setLoading(true); // Removed to prevent full page reload on group switch
-            await fetchStudents();
+            const shouldShowLoading = !hasInitializedRef.current;
+            await fetchStudents(shouldShowLoading);
             await fetchLessonNotes();
-            setLoading(false);
+            hasInitializedRef.current = true;
         };
         loadGroupData();
     }, [groupName, teacherId, selectedPeriod]);
+
+    useEffect(() => {
+        selectedDateRef.current = selectedDate;
+    }, [selectedDate]);
+
+    useEffect(() => {
+        studentsRef.current = students;
+    }, [students]);
 
     useEffect(() => {
         try {
@@ -184,15 +196,111 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     }, [groupDetailsTabStorageKey, activeTab]);
 
+    // Realtime subscriptions: keep group detail view live without manual refresh.
+    useEffect(() => {
+        if (!teacherId || !groupName) return;
+
+        type RealtimeTask = 'students' | 'attendance' | 'scores' | 'notes';
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+        const pendingTasks = new Set<RealtimeTask>();
+        let flushInProgress = false;
+
+        const flushTasks = async () => {
+            if (flushInProgress) return;
+            flushInProgress = true;
+            try {
+                while (pendingTasks.size > 0) {
+                    const tasks = new Set(pendingTasks);
+                    pendingTasks.clear();
+
+                    const shouldRefreshStudents = tasks.has('students') || tasks.has('scores');
+                    if (shouldRefreshStudents) {
+                        await fetchStudents(false);
+                    }
+
+                    if (tasks.has('attendance')) {
+                        await fetchAttendanceForDate(selectedDateRef.current);
+                        await fetchAttendanceDates();
+                    }
+
+                    if (tasks.has('scores')) {
+                        await fetchDailyScores(selectedDateRef.current);
+                    }
+
+                    if (tasks.has('notes')) {
+                        await fetchLessonNotes();
+                    }
+                }
+            } finally {
+                flushInProgress = false;
+            }
+        };
+
+        const schedule = (task: RealtimeTask) => {
+            pendingTasks.add(task);
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
+            refreshTimer = setTimeout(() => {
+                void flushTasks();
+            }, 120);
+        };
+
+        const studentsQ = query(
+            collection(db, 'students'),
+            where('teacher_id', '==', teacherId),
+            where('group_name', '==', groupName),
+            where('is_active', '==', true)
+        );
+        const archivedQ = query(
+            collection(db, 'archived_students'),
+            where('teacher_id', '==', teacherId),
+            where('group_name', '==', groupName)
+        );
+        const attendanceQ = query(
+            collection(db, 'attendance_records'),
+            where('teacher_id', '==', teacherId),
+            where('date', '==', selectedDate)
+        );
+        const rewardsQ = query(
+            collection(db, 'reward_penalty_history'),
+            where('teacher_id', '==', teacherId),
+            where('date', '==', selectedDate)
+        );
+        const notesQ = query(
+            collection(db, 'group_notes'),
+            where('teacher_id', '==', teacherId),
+            where('group_name', '==', groupName)
+        );
+
+        const unsubs = [
+            onSnapshot(studentsQ, () => schedule('students'), (error) => logError('GroupDetails:studentsSnapshot', error)),
+            onSnapshot(archivedQ, () => schedule('students'), (error) => logError('GroupDetails:archivedStudentsSnapshot', error)),
+            onSnapshot(attendanceQ, () => schedule('attendance'), (error) => logError('GroupDetails:attendanceSnapshot', error)),
+            onSnapshot(rewardsQ, () => schedule('scores'), (error) => logError('GroupDetails:rewardsSnapshot', error)),
+            onSnapshot(notesQ, () => schedule('notes'), (error) => logError('GroupDetails:notesSnapshot', error)),
+        ];
+
+        return () => {
+            unsubs.forEach((unsubscribe) => unsubscribe());
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
+            pendingTasks.clear();
+        };
+    }, [teacherId, groupName, selectedPeriod, selectedDate]);
+
     // 2. Load daily data when date or students change (no global loading)
     useEffect(() => {
         const loadDailyData = async () => {
             await fetchAttendanceForDate(selectedDate);
             if (students.length > 0) {
-                fetchDailyScores(selectedDate);
+                await fetchDailyScores(selectedDate);
+            } else {
+                setDailyScores({});
             }
         };
-        loadDailyData();
+        void loadDailyData();
     }, [selectedDate, teacherId, students]);
 
     // 3. Load calendar highlights when students change
@@ -411,7 +519,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             const records = snapshot.docs.map(d => d.data());
 
             // Filter by group students in memory
-            const groupStudentIds = new Set(students.map(s => s.id));
+            const groupStudentIds = new Set(studentsRef.current.map(s => s.id));
             const uniqueDates = [...new Set(records.filter(r => groupStudentIds.has(r.student_id)).map(r => r.date))];
             setAttendanceDates(uniqueDates.map(date => parseISO(date)));
         } catch (error) {
@@ -419,9 +527,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         }
     };
 
-    const fetchStudents = async () => {
+    const fetchStudents = async (showLoading = false) => {
         if (!teacherId || !groupName) return;
-        setLoading(true);
+        if (showLoading) {
+            setLoading(true);
+        }
         try {
             // Fetch active students
             const q = query(
@@ -560,13 +670,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     };
                 });
                 setStudents(studentsWithStats);
+                studentsRef.current = studentsWithStats;
             } else {
                 setStudents([]);
+                studentsRef.current = [];
             }
         } catch (error) {
             logError('GroupDetails:fetchStudents', error);
         } finally {
-            setLoading(false);
+            if (showLoading) {
+                setLoading(false);
+            }
         }
     };
 
@@ -579,9 +693,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             );
             const snapshot = await getDocs(q);
             const attendanceMap: Record<string, AttendanceStatus> = {};
+            const currentStudents = studentsRef.current;
             snapshot.docs.forEach(d => {
                 const data = d.data();
-                const student = students.find(s => s.id === data.student_id);
+                const student = currentStudents.find(s => s.id === data.student_id);
                 if (!student) return;
                 if (!isDateWithinStudentPeriod(student, date)) return;
                 attendanceMap[data.student_id] = (data.status === 'absent' ? 'absent_without_reason' : data.status) as AttendanceStatus;
@@ -594,8 +709,12 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
     const fetchDailyScores = async (date: string) => {
         try {
-            const studentIds = students.map(s => s.id);
-            if (studentIds.length === 0) return;
+            const currentStudents = studentsRef.current;
+            const studentIds = currentStudents.map(s => s.id);
+            if (studentIds.length === 0) {
+                setDailyScores({});
+                return;
+            }
 
             const q = query(
                 collection(db, 'reward_penalty_history'),
@@ -608,7 +727,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             snapshot.docs.forEach(d => {
                 const record = { id: d.id, ...d.data() } as any;
                 if (studentIds.includes(record.student_id)) {
-                    const student = students.find(s => s.id === record.student_id);
+                    const student = currentStudents.find(s => s.id === record.student_id);
                     if (!student) return;
                     if (!isDateWithinStudentPeriod(student, date)) return;
                     if (!scoresMap[record.student_id]) scoresMap[record.student_id] = {};
@@ -645,8 +764,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 updated_at: serverTimestamp()
             });
 
-            await fetchStudents();
-            onStatsUpdate?.();
+            void onStatsUpdate?.();
             setIsEditDialogOpen(false);
             setEditingStudent(null);
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi ma'lumotlari yangilandi" });
@@ -723,11 +841,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 });
                 setAttendance(prev => ({ ...prev, [studentId]: status }));
             }
-            fetchStudents();
-            onStatsUpdate?.();
+            void fetchAttendanceDates();
         } catch (error) {
             logError('GroupDetails:handleQuickAttendance', error);
-            fetchAttendanceForDate(selectedDate);
+            void fetchAttendanceForDate(selectedDate);
         }
     };
 
@@ -754,9 +871,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 }, { merge: true });
             });
             await batch.commit();
-            fetchStudents();
-            fetchAttendanceForDate(selectedDate);
-            onStatsUpdate?.();
+            setAttendance((prev) => {
+                const next = { ...prev };
+                students.forEach((student) => {
+                    if (!isDateWithinStudentPeriod(student, selectedDate)) return;
+                    next[student.id] = 'present';
+                });
+                return next;
+            });
+            void fetchAttendanceDates();
         } catch (error) {
             logError('GroupDetails:handleMarkAllPresent', error);
         }
@@ -785,11 +908,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             setAttendance({});
             setPendingAttendance({});
             setSavedAttendance({});
-
-            await fetchAttendanceForDate(selectedDate);
-            await fetchAttendanceDates();
-            fetchStudents();
-            onStatsUpdate?.();
+            void fetchAttendanceDates();
         } catch (error) {
             logError('GroupDetails:handleClearAttendance', error);
         }
@@ -875,6 +994,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 return;
             }
 
+            let savedRecordId = existingRecordId;
             if (existingRecordId) {
                 if (!reason || reason.trim() === '') {
                     toast({ title: "Xatolik", description: "Izoh kiritish majburiy", variant: "destructive" });
@@ -886,7 +1006,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     updated_at: serverTimestamp()
                 });
             } else {
-                await addDoc(collection(db, 'reward_penalty_history'), {
+                const createdRef = await addDoc(collection(db, 'reward_penalty_history'), {
                     student_id: studentId,
                     teacher_id: teacherId,
                     points: newScore,
@@ -895,11 +1015,19 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     date: selectedDate,
                     created_at: serverTimestamp()
                 });
+                savedRecordId = createdRef.id;
             }
 
-            fetchStudents();
-            fetchDailyScores(selectedDate);
-            onStatsUpdate?.();
+            if (savedRecordId) {
+                setDailyScores((prev) => ({
+                    ...prev,
+                    [studentId]: {
+                        ...(prev[studentId] || {}),
+                        [type]: { points: newScore, id: savedRecordId },
+                    },
+                }));
+            }
+
             toast({ title: "Muvaffaqiyatli", description: `${typeLabel} saqlandi` });
         } catch (error) {
             logError('GroupDetails:handleScoreSubmit', error);
@@ -987,8 +1115,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 archived_at: serverTimestamp()
             });
 
-            await fetchStudents();
-            onStatsUpdate?.();
+            void onStatsUpdate?.();
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi arxivlandi" });
         } catch (error) {
             logError('GroupDetails:handleArchiveStudent', error);
@@ -1032,8 +1159,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 });
             }
 
-            await fetchStudents();
-            onStatsUpdate?.();
+            void onStatsUpdate?.();
             toast({ title: "Muvaffaqiyatli", description: "O'quvchi tiklandi" });
         } catch (error) {
             logError('GroupDetails:handleRestoreStudent', error);
@@ -1137,8 +1263,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             clearTimeout(attendanceRefreshTimerRef.current);
         }
         attendanceRefreshTimerRef.current = setTimeout(() => {
-            fetchStudents();
-            onStatsUpdate?.();
+            void fetchAttendanceDates();
             attendanceRefreshTimerRef.current = null;
         }, 350);
     };
@@ -1182,7 +1307,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                 return nextPending;
             });
             toast({ title: "Xatolik", description: "Davomatni saqlashda xatolik yuz berdi", variant: "destructive" });
-            fetchAttendanceForDate(selectedDate);
+            void fetchAttendanceForDate(selectedDate);
         }
     };
 
@@ -1281,7 +1406,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    <StudentImport teacherId={teacherId} groupName={groupName} onImportComplete={() => { fetchStudents(); fetchAttendanceForDate(selectedDate); fetchDailyScores(selectedDate); onStatsUpdate(); }} availableGroups={availableGroups} />
+                    <StudentImport
+                        teacherId={teacherId}
+                        groupName={groupName}
+                        onImportComplete={() => {
+                            void onStatsUpdate();
+                        }}
+                        availableGroups={availableGroups}
+                    />
 
                     <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                         <DialogContent>

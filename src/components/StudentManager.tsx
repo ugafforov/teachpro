@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
@@ -26,7 +26,7 @@ import { Slider } from '@/components/ui/slider';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, Timestamp, onSnapshot } from 'firebase/firestore';
 import { z } from 'zod';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -202,6 +202,53 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
   const { toast } = useToast();
 
+  const fetchStudents = useCallback(async () => {
+    const q = query(
+      collection(db, 'students'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    setStudents(data);
+  }, [teacherId]);
+
+  const fetchGroups = useCallback(async () => {
+    const q = query(
+      collection(db, 'groups'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as Group))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    setGroups(data);
+  }, [teacherId]);
+
+  const fetchAttendance = useCallback(async () => {
+    const q = query(
+      collection(db, 'attendance_records'),
+      where('teacher_id', '==', teacherId)
+    );
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({ ...doc.data() }));
+    setAttendanceRecords(data);
+  }, [teacherId]);
+
+  const fetchRewards = useCallback(async () => {
+    const q = query(
+      collection(db, 'reward_penalty_history'),
+      where('teacher_id', '==', teacherId)
+    );
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({ ...doc.data() }));
+    setRewardRecords(data);
+  }, [teacherId]);
+
+  const realtimeStatsCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -218,8 +265,105 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         setLoading(false);
       }
     };
-    fetchData();
-  }, [teacherId]);
+    void fetchData();
+  }, [fetchStudents, fetchGroups, fetchAttendance, fetchRewards]);
+
+  useEffect(() => {
+    if (!teacherId) return;
+
+    type RealtimeResource = 'students' | 'groups' | 'attendance' | 'rewards';
+    const pendingResources = new Set<RealtimeResource>();
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+
+    const scheduleStatsUpdate = () => {
+      if (!onStatsUpdate) return;
+      if (realtimeStatsCooldownRef.current) {
+        return;
+      }
+      realtimeStatsCooldownRef.current = setTimeout(() => {
+        realtimeStatsCooldownRef.current = null;
+      }, 250);
+      void onStatsUpdate();
+    };
+
+    const flushRefresh = async () => {
+      if (refreshInFlight) return;
+      refreshInFlight = true;
+      try {
+        while (pendingResources.size > 0) {
+          const batch = new Set(pendingResources);
+          pendingResources.clear();
+          const tasks: Promise<unknown>[] = [];
+          const statsAffected = batch.has('students') || batch.has('attendance') || batch.has('rewards');
+
+          if (batch.has('students')) tasks.push(fetchStudents());
+          if (batch.has('groups')) tasks.push(fetchGroups());
+          if (batch.has('attendance')) tasks.push(fetchAttendance());
+          if (batch.has('rewards')) tasks.push(fetchRewards());
+
+          if (tasks.length > 0) {
+            await Promise.all(tasks);
+          }
+          if (statsAffected) {
+            scheduleStatsUpdate();
+          }
+        }
+      } catch (error) {
+        logError('StudentManager:flushRealtimeRefresh', error);
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const scheduleRefresh = (resource: RealtimeResource) => {
+      pendingResources.add(resource);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = setTimeout(() => {
+        void flushRefresh();
+      }, 120);
+    };
+
+    const studentsQ = query(
+      collection(db, 'students'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const groupsQ = query(
+      collection(db, 'groups'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const attendanceQ = query(
+      collection(db, 'attendance_records'),
+      where('teacher_id', '==', teacherId)
+    );
+    const rewardsQ = query(
+      collection(db, 'reward_penalty_history'),
+      where('teacher_id', '==', teacherId)
+    );
+
+    const unsubs = [
+      onSnapshot(studentsQ, () => scheduleRefresh('students'), (error) => logError('StudentManager:studentsSnapshot', error)),
+      onSnapshot(groupsQ, () => scheduleRefresh('groups'), (error) => logError('StudentManager:groupsSnapshot', error)),
+      onSnapshot(attendanceQ, () => scheduleRefresh('attendance'), (error) => logError('StudentManager:attendanceSnapshot', error)),
+      onSnapshot(rewardsQ, () => scheduleRefresh('rewards'), (error) => logError('StudentManager:rewardsSnapshot', error)),
+    ];
+
+    return () => {
+      unsubs.forEach((unsubscribe) => unsubscribe());
+      pendingResources.clear();
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      if (realtimeStatsCooldownRef.current) {
+        clearTimeout(realtimeStatsCooldownRef.current);
+        realtimeStatsCooldownRef.current = null;
+      }
+    };
+  }, [teacherId, fetchStudents, fetchGroups, fetchAttendance, fetchRewards, onStatsUpdate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -227,51 +371,6 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
-
-  const fetchStudents = async () => {
-    const q = query(
-      collection(db, 'students'),
-      where('teacher_id', '==', teacherId),
-      where('is_active', '==', true)
-    );
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Student));
-    setStudents(data);
-  };
-
-  const fetchGroups = async () => {
-    const q = query(
-      collection(db, 'groups'),
-      where('teacher_id', '==', teacherId),
-      where('is_active', '==', true)
-    );
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as Group))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    setGroups(data);
-  };
-
-  const fetchAttendance = async () => {
-    const q = query(
-      collection(db, 'attendance_records'),
-      where('teacher_id', '==', teacherId)
-    );
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => ({ ...doc.data() }));
-    setAttendanceRecords(data);
-  };
-
-  const fetchRewards = async () => {
-    const q = query(
-      collection(db, 'reward_penalty_history'),
-      where('teacher_id', '==', teacherId)
-    );
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => ({ ...doc.data() }));
-    setRewardRecords(data);
-  };
 
   // Compute stats for all students
   const studentsWithStats = useMemo(() => {
@@ -488,8 +587,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         is_active: true,
         created_at: getTashkentDate().toISOString()
       });
-      await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
+      if (onStatsUpdate) {
+        void onStatsUpdate();
+      }
       setNewStudent({ name: '', join_date: getTashkentToday(), student_id: '', email: '', phone: '', group_name: '' });
       setIsAddDialogOpen(false);
       toast({ title: "O'quvchi qo'shildi", description: `"${newStudent.name}" muvaffaqiyatli qo'shildi` });
@@ -509,8 +609,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         phone: editingStudent.phone?.trim() || null,
         group_name: editingStudent.group_name
       });
-      await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
+      if (onStatsUpdate) {
+        void onStatsUpdate();
+      }
       setIsEditDialogOpen(false);
       setEditingStudent(null);
       toast({ title: "Yangilandi", description: "O'quvchi ma'lumotlari yangilandi" });
@@ -550,8 +651,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         archived_at: serverTimestamp()
       });
 
-      await fetchStudents();
-      if (onStatsUpdate) await onStatsUpdate();
+      if (onStatsUpdate) {
+        void onStatsUpdate();
+      }
       toast({ title: "Arxivlandi", description: `"${studentName}" arxivlandi` });
     } catch (error) {
       logError('StudentManager:handleArchiveStudent', error);
@@ -579,9 +681,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           await updateDoc(doc(db, 'students', studentId), { is_active: false, left_date: getTashkentToday(), archived_at: serverTimestamp() });
         }
       }
-      await fetchStudents();
       setSelectedStudentIds(new Set());
-      if (onStatsUpdate) await onStatsUpdate();
+      if (onStatsUpdate) {
+        void onStatsUpdate();
+      }
       toast({ title: "Muvaffaqiyat", description: "O'quvchilar arxivlandi" });
     } catch (error) {
       logError('StudentManager:handleDeleteStudent', error);
@@ -658,8 +761,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
             teacherId={teacherId} 
             groupName={selectedGroup !== 'all' ? selectedGroup : undefined} 
             onImportComplete={async () => {
-              await fetchStudents();
-              if (onStatsUpdate) await onStatsUpdate();
+              if (onStatsUpdate) {
+                void onStatsUpdate();
+              }
             }} 
             availableGroups={groups} 
           />

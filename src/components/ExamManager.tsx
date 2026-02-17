@@ -14,6 +14,7 @@ import {
   query,
   where,
   getDocs,
+  onSnapshot,
   addDoc,
   updateDoc,
   doc,
@@ -464,15 +465,69 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   }, [exams]);
 
   useEffect(() => {
-    const init = async () => {
-      await Promise.all([
-        fetchGroups(),
-        fetchExamTypes(),
-        fetchExams()
-      ]);
-      setLoading(false);
+    if (!teacherId) return;
+
+    setLoading(true);
+    let groupsReady = false;
+    let examTypesReady = false;
+    let examsReady = false;
+
+    const markReady = () => {
+      if (groupsReady && examTypesReady && examsReady) {
+        setLoading(false);
+      }
     };
-    init();
+
+    const groupsQ = query(
+      collection(db, 'groups'),
+      where('teacher_id', '==', teacherId),
+      where('is_active', '==', true)
+    );
+    const examTypesQ = query(
+      collection(db, 'exam_types'),
+      where('teacher_id', '==', teacherId)
+    );
+    const examsQ = query(
+      collection(db, 'exams'),
+      where('teacher_id', '==', teacherId)
+    );
+
+    const unsubs = [
+      onSnapshot(groupsQ, (snapshot) => {
+        setGroups(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Group)));
+        groupsReady = true;
+        markReady();
+      }, (error) => {
+        logError('ExamManager:groupsSnapshot', error);
+        groupsReady = true;
+        markReady();
+      }),
+      onSnapshot(examTypesQ, (snapshot) => {
+        setExamTypes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as ExamType)));
+        examTypesReady = true;
+        markReady();
+      }, (error) => {
+        logError('ExamManager:examTypesSnapshot', error);
+        examTypesReady = true;
+        markReady();
+      }),
+      onSnapshot(examsQ, (snapshot) => {
+        const data = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() } as Exam))
+          .sort((a, b) => new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime());
+        setExams(data);
+        examsReady = true;
+        markReady();
+      }, (error) => {
+        logError('ExamManager:examsSnapshot', error);
+        examsReady = true;
+        markReady();
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((unsubscribe) => unsubscribe());
+    };
   }, [teacherId]);
 
   useEffect(() => {
@@ -747,7 +802,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
           created_at: serverTimestamp()
         });
         examTypeId = typeDoc.id;
-        await fetchExamTypes();
       }
 
       const examDoc = await addDoc(collection(db, 'exams'), {
@@ -765,7 +819,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       await fetchStudents(selectedGroup, examDate);
       await fetchAttendanceForExamDate(examDate);
       setShowResultsDialog(true);
-      await fetchExams();
 
       toast({
         title: 'Muvaffaqiyatli',
@@ -900,8 +953,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         title: 'Muvaffaqiyatli',
         description: 'Imtihon arxivlandi',
       });
-
-      await fetchExams();
     } catch (error) {
       logError('ExamManager:handleArchiveExam', error);
       toast({
