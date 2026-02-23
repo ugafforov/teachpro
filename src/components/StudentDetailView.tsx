@@ -966,9 +966,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                         record.status === 'absent_without_reason' && 'bg-red-50/50 dark:bg-red-500/20 border-red-200 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/30'
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center",
+                          "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
                           record.status === 'present' && 'bg-emerald-200 dark:bg-emerald-500/50',
                           record.status === 'late' && 'bg-amber-200 dark:bg-amber-500/50',
                           record.status === 'absent_with_reason' && 'bg-orange-200 dark:bg-orange-500/50',
@@ -979,12 +979,12 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                           {record.status === 'absent_with_reason' && <MinusCircle className="w-5 h-5 text-orange-700 dark:text-orange-400" />}
                           {record.status === 'absent_without_reason' && <XCircle className="w-5 h-5 text-red-700 dark:text-red-400" />}
                         </div>
-                        <div>
-                          <div className="font-medium">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">
                             {formatDateUz(record.date)}
                           </div>
                           {record.notes && (
-                            <div className="text-xs text-muted-foreground mt-0.5">
+                            <div className="text-xs text-muted-foreground mt-0.5 truncate">
                               {record.notes}
                             </div>
                           )}
@@ -992,7 +992,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                       </div>
                       <Badge
                         className={cn(
-                          'font-semibold',
+                          'font-semibold ml-2 whitespace-nowrap',
                           record.status === 'present' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/40',
                           record.status === 'late' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/40',
                           record.status === 'absent_with_reason' && 'bg-orange-100 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-500/40',
@@ -1049,9 +1049,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                           : 'bg-red-50/50 dark:bg-red-500/20 border-red-200 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/30'
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center",
+                          "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
                           reward.type === 'Mukofot' ? 'bg-emerald-200 dark:bg-emerald-500/50' : 'bg-red-200 dark:bg-red-500/50'
                         )}>
                           {reward.type === 'Mukofot' ? (
@@ -1060,11 +1060,11 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                             <AlertTriangle className="w-5 h-5 text-red-700 dark:text-red-400" />
                           )}
                         </div>
-                        <div>
-                          <div className="font-medium">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">
                             {reward.reason}
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground truncate">
                             {reward.created_at instanceof Timestamp
                               ? formatDateUz(reward.created_at.toDate().toISOString())
                               : formatDateUz(reward.created_at)}
@@ -1272,10 +1272,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                           scoreColor === 'red' && "bg-red-50/50 dark:bg-red-500/15 border-red-200 dark:border-red-500/40"
                         )}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={cn(
-                              "w-12 h-12 rounded-xl flex items-center justify-center",
+                              "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
                               scoreColor === 'emerald' && "bg-emerald-200 dark:bg-emerald-500/40",
                               scoreColor === 'blue' && "bg-blue-200 dark:bg-blue-500/40",
                               scoreColor === 'amber' && "bg-amber-200 dark:bg-amber-500/40",
@@ -1292,15 +1292,15 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                               )}
                             />
                           </div>
-                          <div>
-                            <div className="font-semibold text-foreground">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground truncate">
                               {result.exam_name}
                             </div>
-                            <div className="text-sm text-muted-foreground">
+                            <div className="text-sm text-muted-foreground truncate">
                               {formatDateUz(result.exam_date)}
                             </div>
                             {result.notes && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
+                              <div className="text-xs text-muted-foreground mt-0.5 truncate">
                                 {result.notes}
                               </div>
                             )}

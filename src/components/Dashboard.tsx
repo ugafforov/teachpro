@@ -452,13 +452,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <main className="h-screen overflow-hidden bg-background flex flex-col">
       {/* Top Header */}
-      <div className="bg-background border-b border-border px-3 sm:px-4 py-3 flex items-center justify-between shrink-0 z-50 relative">
+      <div className="bg-background border-b border-border px-3 sm:px-4 h-[60px] flex items-center justify-between shrink-0 z-50 relative">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden flex-shrink-0 h-9 w-9 p-0"
+            aria-label="Menyuni ochish"
           >
             <Menu className="w-5 h-5" />
           </Button>
@@ -467,6 +468,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             size="sm"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden lg:flex flex-shrink-0 h-9 w-9 p-0"
+            aria-label="Yon panelni yig'ish"
           >
             <Menu className="w-5 h-5" />
           </Button>
@@ -477,7 +479,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </span>
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-xl font-bold text-foreground leading-tight">
+              <h1 className="text-base sm:text-xl font-bold text-foreground leading-tight truncate">
                 TeachPro
               </h1>
               {teacherName && (
@@ -491,12 +493,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         <ThemeToggle />
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Mobile overlay */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black/50 dark:bg-black/60 z-30 lg:hidden"
+            className="fixed inset-0 bg-black/50 dark:bg-black/60 z-30 lg:hidden backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
           />
         )}
 
@@ -511,11 +514,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           flex flex-col
         `}
           style={{
-            top: mobileMenuOpen ? "var(--header-height, 57px)" : undefined,
+            top: mobileMenuOpen ? "60px" : undefined,
+            height: mobileMenuOpen ? "calc(100% - 60px)" : "100%",
           }}
         >
           <nav className="flex flex-col h-full overflow-hidden">
-            <div className="flex-1 overflow-y-auto py-4">
+            <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -525,16 +529,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center px-4 py-3 text-left transition-colors ${
+                    className={`w-full flex items-center px-3 py-3 text-left transition-all rounded-lg group ${
                       activeTab === item.id
-                        ? "bg-primary/10 text-primary border-r-2 border-primary dark:bg-primary/20"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    } ${sidebarCollapsed ? "lg:justify-center lg:px-4" : ""}`}
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    } ${sidebarCollapsed ? "lg:justify-center lg:px-2" : ""}`}
                     title={sidebarCollapsed ? item.label : ""}
+                    aria-label={item.label}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${
+                      activeTab === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    }`} />
                     <span
-                      className={`ml-3 ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                      className={`ml-3 truncate ${sidebarCollapsed ? "lg:hidden" : ""}`}
                     >
                       {item.label}
                     </span>
@@ -543,17 +550,18 @@ const Dashboard: React.FC<DashboardProps> = ({
               })}
             </div>
 
-            <div className="border-t border-border p-2">
+            <div className="border-t border-border p-3">
               <button
                 onClick={onLogout}
-                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg ${
-                  sidebarCollapsed ? "lg:justify-center lg:px-4" : ""
+                className={`w-full flex items-center px-3 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg group ${
+                  sidebarCollapsed ? "lg:justify-center lg:px-2" : ""
                 }`}
                 title={sidebarCollapsed ? "Chiqish" : ""}
+                aria-label="Tizimdan chiqish"
               >
-                <LogOut className="w-5 h-5 flex-shrink-0" />
+                <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
                 <span
-                  className={`ml-3 font-medium ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                  className={`ml-3 font-medium truncate ${sidebarCollapsed ? "lg:hidden" : ""}`}
                 >
                   Chiqish
                 </span>
