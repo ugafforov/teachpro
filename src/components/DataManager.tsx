@@ -372,39 +372,39 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         <p className="text-muted-foreground">Barcha ma'lumotlaringizni eksport yoki import qiling</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0"><Download className="w-6 h-6 text-green-600" /></div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-2">Ma'lumotlarni eksport qilish</h3>
-              <p className="text-sm text-muted-foreground mb-4">Barcha o'quvchilar, guruhlar, davomat va boshqa ma'lumotlarni bitta JSON faylga yuklab oling</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <Card className="p-4 sm:p-6">
+          <div className="flex items-start space-x-3 sm:space-x-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0"><Download className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" /></div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Ma'lumotlarni eksport qilish</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Barcha o'quvchilar, guruhlar, davomat va boshqa ma'lumotlarni bitta JSON faylga yuklab oling</p>
               {exporting && <div className="mb-4"><Progress value={progress} className="h-2" /><p className="text-xs text-muted-foreground mt-1">{progress}% - {progressMessage}</p></div>}
-              <Button onClick={exportData} disabled={exporting} className="w-full bg-green-600 hover:bg-green-700">{exporting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eksport qilinmoqda...</> : <><Download className="w-4 h-4 mr-2" />Eksport qilish</>}</Button>
+              <Button onClick={exportData} disabled={exporting} className="w-full bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-sm">{exporting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eksport qilinmoqda...</> : <><Download className="w-4 h-4 mr-2" />Eksport qilish</>}</Button>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0"><Upload className="w-6 h-6 text-blue-600" /></div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-2">Ma'lumotlarni import qilish</h3>
-              <p className="text-sm text-muted-foreground mb-4">Oldin eksport qilingan JSON fayldan ma'lumotlarni tiklang</p>
+        <Card className="p-4 sm:p-6">
+          <div className="flex items-start space-x-3 sm:space-x-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0"><Upload className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" /></div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Ma'lumotlarni import qilish</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Oldin eksport qilingan JSON fayldan ma'lumotlarni tiklang</p>
               {importing && <div className="mb-4"><Progress value={progress} className="h-2" /><p className="text-xs text-muted-foreground mt-1">{progress}% - {progressMessage}</p></div>}
               <input type="file" accept=".json" onChange={handleFileSelect} ref={fileInputRef} className="hidden" />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50">{importing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Import qilinmoqda...</> : <><Upload className="w-4 h-4 mr-2" />Faylni tanlash</>}</Button>
+              <Button onClick={() => fileInputRef.current?.click()} disabled={importing} variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50 h-9 sm:h-10 text-sm">{importing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Import qilinmoqda...</> : <><Upload className="w-4 h-4 mr-2" />Faylni tanlash</>}</Button>
             </div>
           </div>
         </Card>
       </div>
 
-      <Card className="p-6 bg-amber-50 border-amber-200">
+      <Card className="p-4 sm:p-6 bg-amber-50 border-amber-200">
         <div className="flex items-start space-x-3">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-medium text-amber-800">Muhim ma'lumot</h4>
-            <ul className="text-sm text-amber-700 mt-2 space-y-1">
+            <h4 className="font-medium text-amber-800 text-sm sm:text-base">Muhim ma'lumot</h4>
+            <ul className="text-xs sm:text-sm text-amber-700 mt-2 space-y-1">
               <li>• Eksport qilish faqat sizning ma'lumotlaringizni yuklab oladi</li>
               <li>• Import qilishda mavjud ma'lumotlar o'chiriladi va yangilari bilan almashtiriladi</li>
               <li>• Guruhlar, o'quvchilar, imtihonlar va ularning bog'lanishlari to'liq tiklanadi</li>
@@ -415,28 +415,28 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       </Card>
 
       <AlertDialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <AlertDialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <AlertDialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><FileJson className="w-5 h-5" />Ma'lumotlarni import qilish</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2 text-lg sm:text-xl"><FileJson className="w-5 h-5" />Ma'lumotlarni import qilish</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4 text-sm sm:text-base">
                 <p>Quyidagi ma'lumotlar import qilinadi:</p>
                 {summary && (
-                  <div className="bg-muted p-4 rounded-lg space-y-2 text-sm">
+                  <div className="bg-muted p-3 sm:p-4 rounded-lg space-y-2 text-xs sm:text-sm">
                     <div className="flex justify-between border-b pb-2 mb-2"><span>Versiya:</span><span className="font-medium">{summary.version}</span></div>
                     <div className="flex justify-between"><span>Guruhlar:</span><span className="font-medium">{summary.groups} ta</span></div>
                     <div className="flex justify-between"><span>O'quvchilar:</span><span className="font-medium">{summary.students} ta</span></div>
                     <div className="flex justify-between"><span>Imtihonlar:</span><span className="font-medium">{summary.exams} ta</span></div>
-                    <div className="flex justify-between border-t pt-2 mt-2"><span>Tekshirish kodi:</span><span className="font-mono text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">{summary.checksum}</span></div>
+                    <div className="flex justify-between border-t pt-2 mt-2"><span>Tekshirish kodi:</span><span className="font-mono text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded break-all">{summary.checksum}</span></div>
                   </div>
                 )}
                 <p className="text-amber-600 font-medium">⚠️ Diqqat: Mavjud ma'lumotlar o'chiriladi!</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
-            <AlertDialogAction onClick={performImport} className="bg-blue-600 hover:bg-blue-700"><CheckCircle className="w-4 h-4 mr-2" />Import qilish</AlertDialogAction>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto mt-0">Bekor qilish</AlertDialogCancel>
+            <AlertDialogAction onClick={performImport} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"><CheckCircle className="w-4 h-4 mr-2" />Import qilish</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

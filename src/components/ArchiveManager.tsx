@@ -358,35 +358,35 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     return (
       <div className="space-y-4">
         {filtered.length === 0 ? (
-          <Card className="p-12 text-center">
-            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Arxivlangan o'quvchilar topilmadi</h3>
+          <Card className="p-8 sm:p-12 text-center">
+            <Users className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-medium mb-2">Arxivlangan o'quvchilar topilmadi</h3>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(student => (
-              <Card key={student.id} className="p-6">
-                <div className="space-y-4">
+              <Card key={student.id} className="p-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center">
-                      <span className="text-lg font-medium">{(student.name || '?')[0]}</span>
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-base sm:text-lg font-medium">{(student.name || '?')[0]}</span>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate text-sm sm:text-base">
                         <StudentProfileLink studentId={student.original_student_id} className="text-inherit hover:text-blue-700">
                           {student.name || 'Ismsiz o\'quvchi'}
                         </StudentProfileLink>
                       </h3>
-                      <Badge variant="secondary" className="text-xs">{student.group_name}</Badge>
+                      <Badge variant="secondary" className="text-[10px] sm:text-xs truncate max-w-full">{student.group_name}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">
-                      {student.archived_at ? `Arxivlangan: ${formatDateUz(student.archived_at)}` : ''}
+                    <span className="text-[10px] sm:text-xs text-muted-foreground truncate mr-2">
+                      {student.archived_at ? `Arxiv: ${formatDateUz(student.archived_at)}` : ''}
                     </span>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleRestore('student', student.id, student.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete('student', student.id, student.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex space-x-1 sm:space-x-2 flex-shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('student', student.id, student.name)} className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('student', student.id, student.name)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -403,26 +403,26 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     return (
       <div className="space-y-4">
         {filtered.length === 0 ? (
-          <Card className="p-12 text-center">
-            <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Arxivlangan guruhlar topilmadi</h3>
+          <Card className="p-8 sm:p-12 text-center">
+            <BookOpen className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-medium mb-2">Arxivlangan guruhlar topilmadi</h3>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(group => (
-              <Card key={group.id} className="p-6">
-                <div className="space-y-4">
+              <Card key={group.id} className="p-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center"><BookOpen className="w-6 h-6" /></div>
-                    <div className="flex-1"><h3 className="font-semibold">{group.name}</h3></div>
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0"><BookOpen className="w-5 h-5 sm:w-6 sm:h-6" /></div>
+                    <div className="flex-1 min-w-0"><h3 className="font-semibold truncate text-sm sm:text-base">{group.name}</h3></div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">
-                      {group.archived_at ? `Arxivlangan: ${formatDateUz(group.archived_at)}` : ''}
+                    <span className="text-[10px] sm:text-xs text-muted-foreground truncate mr-2">
+                      {group.archived_at ? `Arxiv: ${formatDateUz(group.archived_at)}` : ''}
                     </span>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleRestore('group', group.id, group.name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete('group', group.id, group.name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex space-x-1 sm:space-x-2 flex-shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('group', group.id, group.name)} className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('group', group.id, group.name)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -439,30 +439,30 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     return (
       <div className="space-y-4">
         {filtered.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Arxivlangan imtihonlar topilmadi</h3>
+          <Card className="p-8 sm:p-12 text-center">
+            <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-medium mb-2">Arxivlangan imtihonlar topilmadi</h3>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(exam => (
-              <Card key={exam.id} className="p-6">
-                <div className="space-y-4">
+              <Card key={exam.id} className="p-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-secondary rounded-full flex items-center justify-center"><FileText className="w-6 h-6" /></div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{exam.exam_name}</h3>
-                      <p className="text-sm text-muted-foreground">{formatDateUz(exam.exam_date)}</p>
-                      <Badge variant="secondary" className="text-xs">{exam.group_name}</Badge>
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 sm:w-6 sm:h-6" /></div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate text-sm sm:text-base">{exam.exam_name}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{formatDateUz(exam.exam_date)}</p>
+                      <Badge variant="secondary" className="text-[10px] sm:text-xs truncate max-w-full mt-1">{exam.group_name}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">
-                      {exam.archived_at ? `Arxivlangan: ${formatDateUz(exam.archived_at)}` : ''}
+                    <span className="text-[10px] sm:text-xs text-muted-foreground truncate mr-2">
+                      {exam.archived_at ? `Arxiv: ${formatDateUz(exam.archived_at)}` : ''}
                     </span>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="ghost" onClick={() => handleRestore('exam', exam.id, exam.exam_name)} className="text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete('exam', exam.id, exam.exam_name)} className="text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex space-x-1 sm:space-x-2 flex-shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => handleRestore('exam', exam.id, exam.exam_name)} className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"><RotateCcw className="w-4 h-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete('exam', exam.id, exam.exam_name)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
                 </div>

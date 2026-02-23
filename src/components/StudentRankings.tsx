@@ -48,11 +48,7 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    fetchAllRankings();
-  }, [teacherId, selectedGroup, selectedPeriod]);
-
-  const fetchAllRankings = async () => {
+  const fetchAllRankings = React.useCallback(async () => {
     try {
       setLoading(true);
 
@@ -110,7 +106,11 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [teacherId, selectedGroup, selectedPeriod]);
+
+  useEffect(() => {
+    fetchAllRankings();
+  }, [fetchAllRankings]);
 
   const handleStudentClick = (studentId: string) => {
     navigate(`/students/${studentId}`, { state: { from: `${location.pathname}${location.search}` } });
@@ -184,29 +184,29 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {scoreRankings.length >= 3 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
             {scoreRankings.slice(0, 3).map((student, index) => (
-              <Card key={student.id} className={`p-6 text-center cursor-pointer hover:shadow-lg transition-shadow ${index === 0 ? 'ring-2 ring-yellow-500 dark:ring-amber-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-amber-950/40 dark:to-amber-900/30' :
+              <Card key={student.id} className={`p-4 text-center cursor-pointer hover:shadow-lg transition-shadow ${index === 0 ? 'ring-2 ring-yellow-500 dark:ring-amber-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-amber-950/40 dark:to-amber-900/30' :
                 index === 1 ? 'ring-2 ring-gray-400 dark:ring-muted-foreground/50 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-muted/50 dark:to-muted/30' :
                   'ring-2 ring-amber-600 dark:ring-amber-400 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-900/30'
                 }`} onClick={() => handleStudentClick(student.student_id || student.id)}>
                 <div className="flex flex-col items-center">
                   {getRankIcon(student.class_rank)}
-                  <h3 className="text-lg font-semibold text-foreground mt-2 mb-1">
+                  <h3 className="text-base sm:text-lg font-semibold text-foreground mt-2 mb-1 line-clamp-1">
                     <StudentProfileLink studentId={student.student_id} className="text-inherit hover:text-inherit">
                       {student.student_name}
                     </StudentProfileLink>
                   </h3>
-                  <p className="text-sm text-muted-foreground mb-3">{student.group_name}</p>
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl mb-4 ${getScoreColor(student.total_score)}`}>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">{student.group_name}</p>
+                  <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl mb-3 sm:mb-4 ${getScoreColor(student.total_score)}`}>
                     {student.total_score.toFixed(1)}
                   </div>
-                  <div className="flex gap-4 text-[10px] font-medium">
-                    <div className="flex flex-col"><span className="text-blue-600 dark:text-blue-400">{student.attendance_points.toFixed(1)}</span><span className="text-muted-foreground">Davomat</span></div>
-                    <div className="flex flex-col"><span className="text-green-600 dark:text-emerald-400">+{student.mukofot_points.toFixed(1)}</span><span className="text-muted-foreground">Mukofot</span></div>
-                    <div className="flex flex-col"><span className="text-red-600 dark:text-red-400">-{student.jarima_points.toFixed(1)}</span><span className="text-muted-foreground">Jarima</span></div>
+                  <div className="flex gap-2 sm:gap-4 text-[10px] font-medium justify-center w-full">
+                    <div className="flex flex-col items-center"><span className="text-blue-600 dark:text-blue-400">{student.attendance_points.toFixed(1)}</span><span className="text-muted-foreground hidden sm:inline">Davomat</span><span className="text-muted-foreground sm:hidden">D</span></div>
+                    <div className="flex flex-col items-center"><span className="text-green-600 dark:text-emerald-400">+{student.mukofot_points.toFixed(1)}</span><span className="text-muted-foreground hidden sm:inline">Mukofot</span><span className="text-muted-foreground sm:hidden">M</span></div>
+                    <div className="flex flex-col items-center"><span className="text-red-600 dark:text-red-400">-{student.jarima_points.toFixed(1)}</span><span className="text-muted-foreground hidden sm:inline">Jarima</span><span className="text-muted-foreground sm:hidden">J</span></div>
                   </div>
                 </div>
               </Card>
@@ -215,39 +215,39 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
         )}
 
         <Card>
-          <div className="p-6 border-b flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-foreground">{selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `${selectedGroup} guruhi`} ball reytingi</h3>
-            <span className="text-sm text-muted-foreground">{scoreRankings.length} o'quvchi topildi</span>
+          <div className="p-4 border-b flex justify-between items-center bg-muted/20">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">{selectedGroup === 'all' ? 'Barcha o\'quvchilar' : `${selectedGroup} guruhi`} ball reytingi</h3>
+            <span className="text-xs sm:text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">{scoreRankings.length} ta</span>
           </div>
           {scoreRankings.length === 0 ? (
-            <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><p className="text-foreground">Ma'lumotlar topilmadi</p></div>
+            <div className="p-8 sm:p-12 text-center"><BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" /><p className="text-foreground">Ma'lumotlar topilmadi</p></div>
           ) : (
             <div className="divide-y">
               {scoreRankings.map((student) => (
-                <div key={student.id} className="p-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer" onClick={() => handleStudentClick(student.student_id || student.id)}>
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 flex items-center justify-center">{getRankIcon(student.class_rank)}</div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
+                <div key={student.id} className="p-3 sm:p-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => handleStudentClick(student.student_id || student.id)}>
+                  <div className="flex items-center space-x-3 sm:space-x-4 overflow-hidden">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 flex items-center justify-center font-bold text-muted-foreground text-sm sm:text-base">{student.class_rank}</div>
+                    <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center text-xs font-bold text-primary">
                         {student.student_name.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </div>
-                      <div>
-                        <p className="font-medium">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm sm:text-base truncate">
                           <StudentProfileLink studentId={student.student_id} className="text-inherit hover:text-inherit">
                             {student.student_name}
                           </StudentProfileLink>
                         </p>
-                        <p className="text-xs text-muted-foreground">{student.group_name}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{student.group_name}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="hidden sm:flex items-center gap-4 text-[11px]">
-                      <div className="text-blue-600 dark:text-blue-400 font-medium">{student.attendance_points.toFixed(1)} davomat</div>
-                      <div className="text-green-600 dark:text-emerald-400 font-medium">+{student.mukofot_points.toFixed(1)} mukofot</div>
-                      <div className="text-red-600 dark:text-red-400 font-medium">-{student.jarima_points.toFixed(1)} jarima</div>
+                  <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
+                    <div className="hidden md:flex items-center gap-4 text-[11px]">
+                      <div className="text-blue-600 dark:text-blue-400 font-medium text-right w-16">{student.attendance_points.toFixed(1)} <span className="text-muted-foreground">dav</span></div>
+                      <div className="text-green-600 dark:text-emerald-400 font-medium text-right w-16">+{student.mukofot_points.toFixed(1)} <span className="text-muted-foreground">muk</span></div>
+                      <div className="text-red-600 dark:text-red-400 font-medium text-right w-16">-{student.jarima_points.toFixed(1)} <span className="text-muted-foreground">jar</span></div>
                     </div>
-                    <Badge className={`${getScoreColor(student.total_score)} text-white min-w-[60px] justify-center`}>{student.total_score.toFixed(1)}</Badge>
+                    <Badge className={`${getScoreColor(student.total_score)} text-white min-w-[50px] sm:min-w-[60px] justify-center text-xs sm:text-sm h-6 sm:h-7`}>{student.total_score.toFixed(1)}</Badge>
                   </div>
                 </div>
               ))}

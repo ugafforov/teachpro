@@ -1,20 +1,46 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { logError } from '@/lib/errorUtils';
-import { Plus, Users, Calendar, AlertTriangle, Archive, Edit2, Grid3x3, List } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import GroupDetails from './GroupDetails';
-import { groupSchema, formatValidationError } from '@/lib/validations';
-import { z } from 'zod';
-import { formatDateUz, getTashkentDate, getTashkentToday } from '@/lib/utils';
-import ConfirmDialog from './ConfirmDialog';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { logError } from "@/lib/errorUtils";
+import {
+  Plus,
+  Users,
+  Calendar,
+  AlertTriangle,
+  Archive,
+  Edit2,
+  Grid3x3,
+  List,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  addDoc,
+  updateDoc,
+  serverTimestamp,
+  onSnapshot,
+} from "firebase/firestore";
+import GroupDetails from "./GroupDetails";
+import { groupSchema, formatValidationError } from "@/lib/validations";
+import { z } from "zod";
+import { formatDateUz, getTashkentDate, getTashkentToday } from "@/lib/utils";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface Group {
   id: string;
@@ -35,7 +61,7 @@ interface GroupManagerProps {
 const GroupManager: React.FC<GroupManagerProps> = ({
   teacherId,
   onGroupSelect,
-  onStatsUpdate
+  onStatsUpdate,
 }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const selectedGroupStorageKey = `tp:groups:selectedGroup:${teacherId}`;
@@ -50,133 +76,156 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     try {
       const saved = localStorage.getItem(groupViewModeStorageKey);
-      return saved === 'list' || saved === 'grid' ? saved : 'grid';
+      return saved === "list" || saved === "grid" ? saved : "grid";
     } catch {
-      return 'grid';
+      return "grid";
     }
   });
   const [newGroup, setNewGroup] = useState({
-    name: '',
-    description: ''
+    name: "",
+    description: "",
   });
   const [loading, setLoading] = useState(true);
-  const [nameError, setNameError] = useState('');
+  const [nameError, setNameError] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     groupId: string;
     groupName: string;
   }>({
     isOpen: false,
-    groupId: '',
-    groupName: ''
+    groupId: "",
+    groupName: "",
   });
   const { toast } = useToast();
   const hasInitializedRef = useRef(false);
-  const buildGroupsWithStats = useCallback((
-    groupsData: Group[],
-    studentsData: Array<{ id: string; group_name?: string }>,
-    attendanceData: Array<{ student_id?: string; status?: string }>
-  ) => {
-    if (groupsData.length === 0) {
-      setGroups([]);
-      return;
-    }
-
-    const attendanceByStudent: Record<string, Array<{ status?: string }>> = {};
-    attendanceData.forEach((data) => {
-      if (!data.student_id) return;
-      if (!attendanceByStudent[data.student_id]) {
-        attendanceByStudent[data.student_id] = [];
-      }
-      attendanceByStudent[data.student_id].push(data);
-    });
-
-    const studentsByGroup: Record<string, string[]> = {};
-    studentsData.forEach((data) => {
-      if (!data.group_name) return;
-      if (!studentsByGroup[data.group_name]) {
-        studentsByGroup[data.group_name] = [];
-      }
-      studentsByGroup[data.group_name].push(data.id);
-    });
-
-    const groupsWithStats = groupsData.map(group => {
-      const groupStudentIds = studentsByGroup[group.name] || [];
-      const groupAttendance = groupStudentIds.flatMap(id => attendanceByStudent[id] || []);
-
-      let attendancePercentage = 0;
-      if (groupAttendance.length > 0) {
-        const presentCount = groupAttendance.filter(a =>
-          a.status === 'present' || a.status === 'late'
-        ).length;
-        attendancePercentage = Math.round((presentCount / groupAttendance.length) * 100);
-      }
-
-      return {
-        ...group,
-        student_count: groupStudentIds.length,
-        attendance_percentage: attendancePercentage
-      };
-    });
-
-    setGroups(groupsWithStats);
-  }, []);
-
-  const fetchGroups = useCallback(async (showLoading = false) => {
-    try {
-      if (showLoading) {
-        setLoading(true);
-      }
-      // 1. Fetch all active groups
-      const groupsQuery = query(
-        collection(db, 'groups'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
-      );
-      const groupsSnapshot = await getDocs(groupsQuery);
-      const groupsData = groupsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Group))
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-
+  const buildGroupsWithStats = useCallback(
+    (
+      groupsData: Group[],
+      studentsData: Array<{ id: string; group_name?: string }>,
+      attendanceData: Array<{ student_id?: string; status?: string }>,
+    ) => {
       if (groupsData.length === 0) {
         setGroups([]);
         return;
       }
 
-      // 2. Fetch all active students for this teacher to count per group
-      const studentsQuery = query(
-        collection(db, 'students'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
-      );
-      const studentsSnapshot = await getDocs(studentsQuery);
-      const allStudents = studentsSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-
-      // 3. Fetch all attendance records for this teacher to calculate percentage
-      const attendanceQuery = query(
-        collection(db, 'attendance_records'),
-        where('teacher_id', '==', teacherId)
-      );
-      const attendanceSnapshot = await getDocs(attendanceQuery);
-      const attendanceData = attendanceSnapshot.docs.map(d => d.data() as { student_id?: string; status?: string });
-      buildGroupsWithStats(groupsData, allStudents, attendanceData);
-    } catch (error) {
-      logError('GroupManager:fetchGroups', error);
-      toast({
-        title: "Xatolik",
-        description: "Guruhlarni yuklashda xatolik yuz berdi",
-        variant: "destructive"
+      const attendanceByStudent: Record<
+        string,
+        Array<{ status?: string }>
+      > = {};
+      attendanceData.forEach((data) => {
+        if (!data.student_id) return;
+        if (!attendanceByStudent[data.student_id]) {
+          attendanceByStudent[data.student_id] = [];
+        }
+        attendanceByStudent[data.student_id].push(data);
       });
-    } finally {
-      if (showLoading || !hasInitializedRef.current) {
-        setLoading(false);
+
+      const studentsByGroup: Record<string, string[]> = {};
+      studentsData.forEach((data) => {
+        if (!data.group_name) return;
+        if (!studentsByGroup[data.group_name]) {
+          studentsByGroup[data.group_name] = [];
+        }
+        studentsByGroup[data.group_name].push(data.id);
+      });
+
+      const groupsWithStats = groupsData.map((group) => {
+        const groupStudentIds = studentsByGroup[group.name] || [];
+        const groupAttendance = groupStudentIds.flatMap(
+          (id) => attendanceByStudent[id] || [],
+        );
+
+        let attendancePercentage = 0;
+        if (groupAttendance.length > 0) {
+          const presentCount = groupAttendance.filter(
+            (a) => a.status === "present" || a.status === "late",
+          ).length;
+          attendancePercentage = Math.round(
+            (presentCount / groupAttendance.length) * 100,
+          );
+        }
+
+        return {
+          ...group,
+          student_count: groupStudentIds.length,
+          attendance_percentage: attendancePercentage,
+        };
+      });
+
+      setGroups(groupsWithStats);
+    },
+    [],
+  );
+
+  const fetchGroups = useCallback(
+    async (showLoading = false) => {
+      try {
+        if (showLoading) {
+          setLoading(true);
+        }
+        // 1. Fetch all active groups
+        const groupsQuery = query(
+          collection(db, "groups"),
+          where("teacher_id", "==", teacherId),
+          where("is_active", "==", true),
+        );
+        const groupsSnapshot = await getDocs(groupsQuery);
+        const groupsData = groupsSnapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }) as Group)
+          .sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, {
+              numeric: true,
+              sensitivity: "base",
+            }),
+          );
+
+        if (groupsData.length === 0) {
+          setGroups([]);
+          return;
+        }
+
+        // 2. Fetch all active students for this teacher to count per group
+        const studentsQuery = query(
+          collection(db, "students"),
+          where("teacher_id", "==", teacherId),
+          where("is_active", "==", true),
+        );
+        const studentsSnapshot = await getDocs(studentsQuery);
+        const allStudents = studentsSnapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+
+        // 3. Fetch all attendance records for this teacher to calculate percentage
+        const attendanceQuery = query(
+          collection(db, "attendance_records"),
+          where("teacher_id", "==", teacherId),
+        );
+        const attendanceSnapshot = await getDocs(attendanceQuery);
+        const attendanceData = attendanceSnapshot.docs.map(
+          (d) => d.data() as { student_id?: string; status?: string },
+        );
+        buildGroupsWithStats(groupsData, allStudents, attendanceData);
+      } catch (error) {
+        logError("GroupManager:fetchGroups", error);
+        toast({
+          title: "Xatolik",
+          description: "Guruhlarni yuklashda xatolik yuz berdi",
+          variant: "destructive",
+        });
+      } finally {
+        if (showLoading || !hasInitializedRef.current) {
+          setLoading(false);
+        }
+        hasInitializedRef.current = true;
       }
-      hasInitializedRef.current = true;
-    }
-  }, [teacherId, toast, buildGroupsWithStats]);
+    },
+    [teacherId, toast, buildGroupsWithStats],
+  );
 
   useEffect(() => {
     void fetchGroups(true);
@@ -188,7 +237,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let groupsData: Group[] | null = null;
     let studentsData: Array<{ id: string; group_name?: string }> | null = null;
-    let attendanceData: Array<{ student_id?: string; status?: string }> | null = null;
+    let attendanceData: Array<{ student_id?: string; status?: string }> | null =
+      null;
 
     const scheduleRealtimeApply = () => {
       if (refreshTimer) {
@@ -205,47 +255,69 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     };
 
     const groupsQ = query(
-      collection(db, 'groups'),
-      where('teacher_id', '==', teacherId),
-      where('is_active', '==', true)
+      collection(db, "groups"),
+      where("teacher_id", "==", teacherId),
+      where("is_active", "==", true),
     );
     const studentsQ = query(
-      collection(db, 'students'),
-      where('teacher_id', '==', teacherId),
-      where('is_active', '==', true)
+      collection(db, "students"),
+      where("teacher_id", "==", teacherId),
+      where("is_active", "==", true),
     );
     const attendanceQ = query(
-      collection(db, 'attendance_records'),
-      where('teacher_id', '==', teacherId)
+      collection(db, "attendance_records"),
+      where("teacher_id", "==", teacherId),
     );
 
     const unsubs = [
-      onSnapshot(groupsQ, (snapshot) => {
-        groupsData = snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() } as Group))
-          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-        scheduleRealtimeApply();
-      }, (error) => {
-        logError('GroupManager:groupsSnapshot', error);
-        groupsData = [];
-        scheduleRealtimeApply();
-      }),
-      onSnapshot(studentsQ, (snapshot) => {
-        studentsData = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as any) }));
-        scheduleRealtimeApply();
-      }, (error) => {
-        logError('GroupManager:studentsSnapshot', error);
-        studentsData = [];
-        scheduleRealtimeApply();
-      }),
-      onSnapshot(attendanceQ, (snapshot) => {
-        attendanceData = snapshot.docs.map((doc) => doc.data() as { student_id?: string; status?: string });
-        scheduleRealtimeApply();
-      }, (error) => {
-        logError('GroupManager:attendanceSnapshot', error);
-        attendanceData = [];
-        scheduleRealtimeApply();
-      }),
+      onSnapshot(
+        groupsQ,
+        (snapshot) => {
+          groupsData = snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }) as Group)
+            .sort((a, b) =>
+              a.name.localeCompare(b.name, undefined, {
+                numeric: true,
+                sensitivity: "base",
+              }),
+            );
+          scheduleRealtimeApply();
+        },
+        (error) => {
+          logError("GroupManager:groupsSnapshot", error);
+          groupsData = [];
+          scheduleRealtimeApply();
+        },
+      ),
+      onSnapshot(
+        studentsQ,
+        (snapshot) => {
+          studentsData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...(doc.data() as any),
+          }));
+          scheduleRealtimeApply();
+        },
+        (error) => {
+          logError("GroupManager:studentsSnapshot", error);
+          studentsData = [];
+          scheduleRealtimeApply();
+        },
+      ),
+      onSnapshot(
+        attendanceQ,
+        (snapshot) => {
+          attendanceData = snapshot.docs.map(
+            (doc) => doc.data() as { student_id?: string; status?: string },
+          );
+          scheduleRealtimeApply();
+        },
+        (error) => {
+          logError("GroupManager:attendanceSnapshot", error);
+          attendanceData = [];
+          scheduleRealtimeApply();
+        },
+      ),
     ];
 
     return () => {
@@ -258,7 +330,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   useEffect(() => {
     if (!selectedGroup) return;
-    if (groups.some(group => group.name === selectedGroup)) return;
+    if (groups.some((group) => group.name === selectedGroup)) return;
     setSelectedGroup(null);
     try {
       localStorage.removeItem(selectedGroupStorageKey);
@@ -270,13 +342,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   useEffect(() => {
     try {
       const saved = localStorage.getItem(groupViewModeStorageKey);
-      if (saved === 'list' || saved === 'grid') {
+      if (saved === "list" || saved === "grid") {
         setViewMode(saved);
       } else {
-        setViewMode('grid');
+        setViewMode("grid");
       }
     } catch {
-      setViewMode('grid');
+      setViewMode("grid");
     }
   }, [groupViewModeStorageKey]);
 
@@ -291,39 +363,39 @@ const GroupManager: React.FC<GroupManagerProps> = ({
   const checkGroupNameExists = async (name: string): Promise<boolean> => {
     try {
       const activeQuery = query(
-        collection(db, 'groups'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
+        collection(db, "groups"),
+        where("teacher_id", "==", teacherId),
+        where("is_active", "==", true),
       );
       const activeSnapshot = await getDocs(activeQuery);
-      const activeExists = activeSnapshot.docs.some(d =>
-        d.data().name.toLowerCase() === name.toLowerCase()
+      const activeExists = activeSnapshot.docs.some(
+        (d) => d.data().name.toLowerCase() === name.toLowerCase(),
       );
 
       const archivedQuery = query(
-        collection(db, 'archived_groups'),
-        where('teacher_id', '==', teacherId)
+        collection(db, "archived_groups"),
+        where("teacher_id", "==", teacherId),
       );
       const archivedSnapshot = await getDocs(archivedQuery);
-      const archivedExists = archivedSnapshot.docs.some(d =>
-        d.data().name.toLowerCase() === name.toLowerCase()
+      const archivedExists = archivedSnapshot.docs.some(
+        (d) => d.data().name.toLowerCase() === name.toLowerCase(),
       );
 
       return activeExists || archivedExists;
     } catch (error) {
-      logError('GroupManager:checkGroupName', error);
+      logError("GroupManager:checkGroupName", error);
       return false;
     }
   };
 
   const handleNameChange = async (name: string) => {
     setNewGroup({ ...newGroup, name });
-    setNameError('');
+    setNameError("");
 
     if (name.trim()) {
       const exists = await checkGroupNameExists(name.trim());
       if (exists) {
-        setNameError('Ushbu nomda guruh mavjud');
+        setNameError("Ushbu nomda guruh mavjud");
       }
     }
   };
@@ -332,7 +404,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     try {
       groupSchema.parse({
         name: newGroup.name,
-        description: newGroup.description || ''
+        description: newGroup.description || "",
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -340,7 +412,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         toast({
           title: "Validatsiya xatosi",
           description: formatValidationError(error),
-          variant: "destructive"
+          variant: "destructive",
         });
       }
       return;
@@ -351,22 +423,22 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     try {
       const exists = await checkGroupNameExists(newGroup.name.trim());
       if (exists) {
-        setNameError('Ushbu nomda guruh mavjud');
+        setNameError("Ushbu nomda guruh mavjud");
         return;
       }
 
-      await addDoc(collection(db, 'groups'), {
+      await addDoc(collection(db, "groups"), {
         teacher_id: teacherId,
         name: newGroup.name.trim(),
         description: newGroup.description.trim() || null,
         is_active: true,
-        created_at: getTashkentDate().toISOString()
+        created_at: getTashkentDate().toISOString(),
       });
 
       void onStatsUpdate();
 
-      setNewGroup({ name: '', description: '' });
-      setNameError('');
+      setNewGroup({ name: "", description: "" });
+      setNameError("");
       setIsAddDialogOpen(false);
 
       toast({
@@ -374,7 +446,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh muvaffaqiyatli qo'shildi",
       });
     } catch (error) {
-      logError('GroupManager:handleAddGroup', error);
+      logError("GroupManager:handleAddGroup", error);
       toast({
         title: "Xatolik",
         description: "Guruh qo'shishda xatolik yuz berdi",
@@ -419,25 +491,25 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
 
     try {
-      const originalGroup = groups.find(g => g.id === editingGroup.id);
+      const originalGroup = groups.find((g) => g.id === editingGroup.id);
 
-      await updateDoc(doc(db, 'groups', editingGroup.id), {
+      await updateDoc(doc(db, "groups", editingGroup.id), {
         name: editingGroup.name.trim(),
-        description: editingGroup.description?.trim() || null
+        description: editingGroup.description?.trim() || null,
       });
 
       // Update students with new group name if changed
       if (originalGroup && originalGroup.name !== editingGroup.name.trim()) {
         const studentsQuery = query(
-          collection(db, 'students'),
-          where('group_name', '==', originalGroup.name),
-          where('teacher_id', '==', teacherId)
+          collection(db, "students"),
+          where("group_name", "==", originalGroup.name),
+          where("teacher_id", "==", teacherId),
         );
         const studentsSnapshot = await getDocs(studentsQuery);
 
         for (const studentDoc of studentsSnapshot.docs) {
-          await updateDoc(doc(db, 'students', studentDoc.id), {
-            group_name: editingGroup.name.trim()
+          await updateDoc(doc(db, "students", studentDoc.id), {
+            group_name: editingGroup.name.trim(),
           });
         }
       }
@@ -452,7 +524,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh ma'lumotlari muvaffaqiyatli yangilandi",
       });
     } catch (error) {
-      logError('GroupManager:handleUpdateGroup', error);
+      logError("GroupManager:handleUpdateGroup", error);
       toast({
         title: "Xatolik",
         description: "Guruhni yangilashda xatolik yuz berdi",
@@ -461,42 +533,46 @@ const GroupManager: React.FC<GroupManagerProps> = ({
     }
   };
 
-  const handleArchiveGroup = (e: React.MouseEvent, groupId: string, groupName: string) => {
+  const handleArchiveGroup = (
+    e: React.MouseEvent,
+    groupId: string,
+    groupName: string,
+  ) => {
     e.stopPropagation();
     setConfirmDialog({
       isOpen: true,
       groupId,
-      groupName
+      groupName,
     });
   };
 
   const executeArchiveGroup = async () => {
     const { groupId, groupName } = confirmDialog;
     try {
-      const group = groups.find(g => g.id === groupId);
+      const group = groups.find((g) => g.id === groupId);
       if (group) {
         // Add to archived_groups
-        await addDoc(collection(db, 'archived_groups'), {
+        await addDoc(collection(db, "archived_groups"), {
           original_group_id: group.id,
           teacher_id: teacherId,
           name: group.name,
           description: group.description,
-          archived_at: serverTimestamp()
+          archived_at: serverTimestamp(),
         });
       }
 
       // Get and archive students
       const studentsQuery = query(
-        collection(db, 'students'),
-        where('group_name', '==', groupName),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
+        collection(db, "students"),
+        where("group_name", "==", groupName),
+        where("teacher_id", "==", teacherId),
+        where("is_active", "==", true),
       );
       const studentsSnapshot = await getDocs(studentsQuery);
 
       for (const studentDoc of studentsSnapshot.docs) {
         const student = studentDoc.data();
-        await addDoc(collection(db, 'archived_students'), {
+        await addDoc(collection(db, "archived_students"), {
           original_student_id: studentDoc.id,
           teacher_id: teacherId,
           name: student.name,
@@ -507,17 +583,17 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           join_date: student.join_date || null,
           created_at: student.created_at || null,
           left_date: getTashkentToday(),
-          archived_at: serverTimestamp()
+          archived_at: serverTimestamp(),
         });
-        await updateDoc(doc(db, 'students', studentDoc.id), {
+        await updateDoc(doc(db, "students", studentDoc.id), {
           is_active: false,
           left_date: getTashkentToday(),
-          archived_at: serverTimestamp()
+          archived_at: serverTimestamp(),
         });
       }
 
       // Mark group as inactive
-      await updateDoc(doc(db, 'groups', groupId), { is_active: false });
+      await updateDoc(doc(db, "groups", groupId), { is_active: false });
 
       void onStatsUpdate();
 
@@ -526,14 +602,14 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         description: "Guruh muvaffaqiyatli arxivlandi",
       });
     } catch (error) {
-      logError('GroupManager:handleArchiveGroup', error);
+      logError("GroupManager:handleArchiveGroup", error);
       toast({
         title: "Xatolik",
         description: "Guruhni arxivlashda xatolik yuz berdi",
         variant: "destructive",
       });
     } finally {
-      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -552,7 +628,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         teacherId={teacherId}
         onBack={handleBackToGroups}
         onStatsUpdate={onStatsUpdate}
-        availableGroups={groups.map(g => ({ id: g.id, name: g.name }))}
+        availableGroups={groups.map((g) => ({ id: g.id, name: g.name }))}
         onGroupChange={(newGroupName) => setSelectedGroup(newGroupName)}
       />
     );
@@ -560,35 +636,39 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Guruhlar boshqaruvi</h2>
-          <p className="text-muted-foreground">Sinflaringizni yarating va boshqaring</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+            Guruhlar boshqaruvi
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Sinflaringizni yarating va boshqaring
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div className="flex items-center border border-border rounded-lg overflow-hidden">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setViewMode('list')}
-              className={`rounded-l-lg rounded-r-none px-3 ${viewMode === 'list' ? 'bg-muted' : ''}`}
+              onClick={() => setViewMode("list")}
+              className={`rounded-l-lg rounded-r-none px-3 ${viewMode === "list" ? "bg-muted" : ""}`}
             >
               <List className="w-4 h-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setViewMode('grid')}
-              className={`rounded-l-none rounded-r-lg px-3 ${viewMode === 'grid' ? 'bg-muted' : ''}`}
+              onClick={() => setViewMode("grid")}
+              className={`rounded-l-none rounded-r-lg px-3 ${viewMode === "grid" ? "bg-muted" : ""}`}
             >
               <Grid3x3 className="w-4 h-4" />
             </Button>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:opacity-90 rounded-xl px-4 py-2">
-                <Plus className="w-4 h-4 mr-2" />
-                Yangi guruh
+              <Button className="bg-primary text-primary-foreground hover:opacity-90 rounded-xl px-3 sm:px-4 py-2">
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Yangi guruh</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -606,7 +686,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                     value={newGroup.name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="Masalan: 10-A sinf"
-                    className={nameError ? 'border-red-500' : ''}
+                    className={nameError ? "border-red-500" : ""}
                   />
                   {nameError && (
                     <div className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400">
@@ -620,7 +700,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   <Textarea
                     id="groupDescription"
                     value={newGroup.description}
-                    onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
+                    onChange={(e) =>
+                      setNewGroup({ ...newGroup, description: e.target.value })
+                    }
                     placeholder="Guruh haqida qo'shimcha ma'lumot"
                     rows={3}
                   />
@@ -636,8 +718,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                   <Button
                     onClick={() => {
                       setIsAddDialogOpen(false);
-                      setNewGroup({ name: '', description: '' });
-                      setNameError('');
+                      setNewGroup({ name: "", description: "" });
+                      setNameError("");
                     }}
                     variant="outline"
                     className="flex-1"
@@ -652,55 +734,70 @@ const GroupManager: React.FC<GroupManagerProps> = ({
       </div>
 
       {groups.length === 0 ? (
-        <Card className="p-12 text-center bg-card border border-border rounded-lg">
-          <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">Guruhlar topilmadi</h3>
-          <p className="text-muted-foreground mb-4">
+        <Card className="p-8 sm:p-12 text-center bg-card border border-border rounded-lg">
+          <Users className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+          <h3 className="text-base sm:text-lg font-medium mb-2">
+            Guruhlar topilmadi
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
             Birinchi guruhingizni yarating va o'quvchilar qo'shishni boshlang
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)} className="bg-primary text-primary-foreground hover:opacity-90">
+          <Button
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-primary text-primary-foreground hover:opacity-90"
+          >
             <Plus className="w-4 h-4 mr-2" />
             Birinchi guruhni yaratish
           </Button>
         </Card>
-      ) : viewMode === 'list' ? (
+      ) : viewMode === "list" ? (
         <div className="space-y-3">
-          {groups.map(group => (
+          {groups.map((group) => (
             <Card
               key={group.id}
               className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1 min-w-0">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-bold text-foreground">{group.name}</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                      {group.name}
+                    </h3>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                  <div className="flex items-center gap-3 sm:gap-6 flex-shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                       <div>
-                        <span className="text-muted-foreground text-xs">O'quvchilar</span>
-                        <div className="text-sm font-semibold">{group.student_count}</div>
+                        <span className="text-muted-foreground text-xs hidden sm:block">
+                          O'quvchilar
+                        </span>
+                        <div className="text-sm font-semibold">
+                          {group.student_count}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-green-500 dark:text-emerald-400" />
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-green-500 dark:text-emerald-400 flex-shrink-0" />
                       <div>
-                        <span className="text-muted-foreground text-xs">Davomat</span>
-                        <div className="text-sm font-semibold text-green-600 dark:text-emerald-400">{group.attendance_percentage}%</div>
+                        <span className="text-muted-foreground text-xs hidden sm:block">
+                          Davomat
+                        </span>
+                        <div className="text-sm font-semibold text-green-600 dark:text-emerald-400">
+                          {group.attendance_percentage}%
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground hidden md:block">
                       {formatDateUz(group.created_at)}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-1 ml-4">
+                <div className="flex gap-1 flex-shrink-0">
                   <Button
                     onClick={(e) => handleEditGroup(e, group)}
                     variant="ghost"
@@ -725,37 +822,47 @@ const GroupManager: React.FC<GroupManagerProps> = ({
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map(group => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {groups.map((group) => (
             <Card
               key={group.id}
-              className="p-6 bg-card border border-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+              className="p-4 sm:p-6 bg-card border border-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               onClick={() => handleGroupClick(group.name)}
             >
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
-                  <h3 className="text-xl font-bold text-foreground mb-2">{group.name}</h3>
+                  <h3 className="text-lg sm:text-xl font-bold text-foreground mb-1 sm:mb-2 truncate">
+                    {group.name}
+                  </h3>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 dark:text-blue-400" />
                     <div>
-                      <span className="text-muted-foreground text-sm">O'quvchilar</span>
-                      <div className="text-lg font-semibold">{group.student_count}</div>
+                      <span className="text-muted-foreground text-xs sm:text-sm">
+                        O'quvchilar
+                      </span>
+                      <div className="text-base sm:text-lg font-semibold">
+                        {group.student_count}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-green-500 dark:text-emerald-400" />
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 dark:text-emerald-400" />
                     <div>
-                      <span className="text-muted-foreground text-sm">Davomat</span>
-                      <div className="text-lg font-semibold text-green-600 dark:text-emerald-400">{group.attendance_percentage}%</div>
+                      <span className="text-muted-foreground text-xs sm:text-sm">
+                        Davomat
+                      </span>
+                      <div className="text-base sm:text-lg font-semibold text-green-600 dark:text-emerald-400">
+                        {group.attendance_percentage}%
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs sm:text-sm text-muted-foreground">
                   {formatDateUz(group.created_at)}
                 </div>
 
@@ -801,23 +908,37 @@ const GroupManager: React.FC<GroupManagerProps> = ({
                 <Input
                   id="edit-groupName"
                   value={editingGroup.name}
-                  onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
+                  onChange={(e) =>
+                    setEditingGroup({ ...editingGroup, name: e.target.value })
+                  }
                 />
               </div>
               <div>
                 <Label htmlFor="edit-groupDescription">Izoh</Label>
                 <Textarea
                   id="edit-groupDescription"
-                  value={editingGroup.description || ''}
-                  onChange={(e) => setEditingGroup({ ...editingGroup, description: e.target.value })}
+                  value={editingGroup.description || ""}
+                  onChange={(e) =>
+                    setEditingGroup({
+                      ...editingGroup,
+                      description: e.target.value,
+                    })
+                  }
                   rows={3}
                 />
               </div>
               <div className="flex space-x-2">
-                <Button onClick={updateGroup} className="bg-primary text-primary-foreground hover:opacity-90 flex-1">
+                <Button
+                  onClick={updateGroup}
+                  className="bg-primary text-primary-foreground hover:opacity-90 flex-1"
+                >
                   Saqlash
                 </Button>
-                <Button onClick={() => setIsEditDialogOpen(false)} variant="outline" className="flex-1">
+                <Button
+                  onClick={() => setIsEditDialogOpen(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
                   Bekor qilish
                 </Button>
               </div>
@@ -828,7 +949,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={executeArchiveGroup}
         title="Guruhni arxivlash"
         description={`"${confirmDialog.groupName}" guruhini arxivlashga ishonchingiz komilmi?`}

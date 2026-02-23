@@ -1,25 +1,40 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Users, BookOpen, TrendingUp, Trophy, LogOut, Archive, Menu, Database } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { logError } from '@/lib/errorUtils';
-import GroupManager from './GroupManager';
-import StudentManager from './StudentManager';
-import StudentRankings from './StudentRankings';
-import ArchiveManager from './ArchiveManager';
-import ExamManager from './ExamManager';
-import DataManager from './DataManager';
-import StudentDetailView from './StudentDetailView';
-import StudentProfileLink from './StudentProfileLink';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useStatistics } from '@/components/statistics/hooks/useStatistics';
-import MonthlyAnalysis from './statistics/MonthlyAnalysis';
-import GroupRankings from './statistics/GroupRankings';
-import ThemeToggle from './ThemeToggle';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Users,
+  BookOpen,
+  TrendingUp,
+  Trophy,
+  LogOut,
+  Archive,
+  Menu,
+  Database,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { logError } from "@/lib/errorUtils";
+import GroupManager from "./GroupManager";
+import StudentManager from "./StudentManager";
+import StudentRankings from "./StudentRankings";
+import ArchiveManager from "./ArchiveManager";
+import ExamManager from "./ExamManager";
+import DataManager from "./DataManager";
+import StudentDetailView from "./StudentDetailView";
+import StudentProfileLink from "./StudentProfileLink";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useStatistics } from "@/components/statistics/hooks/useStatistics";
+import MonthlyAnalysis from "./statistics/MonthlyAnalysis";
+import GroupRankings from "./statistics/GroupRankings";
+import ThemeToggle from "./ThemeToggle";
 
 interface DashboardProps {
   teacherId: string;
@@ -27,8 +42,11 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-
-const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({
+  teacherId,
+  teacherName,
+  onLogout,
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { studentId: routeStudentId } = useParams<{ studentId?: string }>();
@@ -47,51 +65,58 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const saved = localStorage.getItem(activeTabStorageKey);
-      return saved || 'overview';
+      return saved || "overview";
     } catch {
-      return 'overview';
+      return "overview";
     }
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('all');
-  const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [groups, setGroups] = useState<Array<{ id: string, name: string }>>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
 
-  const { stats: detailedStats, monthlyData, loading: statsLoading } = useStatistics(teacherId, selectedPeriod, selectedGroup);
+  const {
+    stats: detailedStats,
+    monthlyData,
+    loading: statsLoading,
+  } = useStatistics(teacherId, selectedPeriod, selectedGroup);
 
-  const handleStudentClick = useCallback((studentId: string) => {
-    if (isAnimatingRef.current) return;
-    
-    isAnimatingRef.current = true;
-    setActiveStudentId(studentId);
-    activeStudentIdRef.current = studentId;
-    
-    // Navigate without page refresh - no animations
-    navigate(`/students/${studentId}`, { 
-      replace: false,
-      state: { from: location.pathname + location.search }
-    });
-    
-    // Reset animation flag after transition
-    setTimeout(() => {
-      isAnimatingRef.current = false;
-    }, 100);
-  }, [navigate, location]);
+  const handleStudentClick = useCallback(
+    (studentId: string) => {
+      if (isAnimatingRef.current) return;
+
+      isAnimatingRef.current = true;
+      setActiveStudentId(studentId);
+      activeStudentIdRef.current = studentId;
+
+      // Navigate without page refresh - no animations
+      navigate(`/students/${studentId}`, {
+        replace: false,
+        state: { from: location.pathname + location.search },
+      });
+
+      // Reset animation flag after transition
+      setTimeout(() => {
+        isAnimatingRef.current = false;
+      }, 100);
+    },
+    [navigate, location],
+  );
 
   const handleBackClick = useCallback(() => {
     if (isAnimatingRef.current) return;
-    
+
     isAnimatingRef.current = true;
-    
+
     // Navigate immediately - no animations
     navigate(-1);
-    
+
     // Clear state immediately to prevent conflicts
     setActiveStudentId(null);
     activeStudentIdRef.current = null;
-    
+
     // Reset animation flag after a short delay
     setTimeout(() => {
       isAnimatingRef.current = false;
@@ -101,22 +126,26 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   // Enhanced context for student profile components
   const profileContext = {
     onBack: handleBackClick,
-    isAnimating: isAnimatingRef.current
+    isAnimating: isAnimatingRef.current,
   };
 
   // Handle route changes for smooth transitions - simplified without animations
   useEffect(() => {
     if (routeStudentId && routeStudentId !== activeStudentIdRef.current) {
       if (isAnimatingRef.current) return;
-      
+
       isAnimatingRef.current = true;
       setActiveStudentId(routeStudentId);
       activeStudentIdRef.current = routeStudentId;
-      
+
       setTimeout(() => {
         isAnimatingRef.current = false;
       }, 100);
-    } else if (!routeStudentId && activeStudentIdRef.current && !isAnimatingRef.current) {
+    } else if (
+      !routeStudentId &&
+      activeStudentIdRef.current &&
+      !isAnimatingRef.current
+    ) {
       // Only clear state if not already handled by back click
       setActiveStudentId(null);
       activeStudentIdRef.current = null;
@@ -126,15 +155,25 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   const fetchGroups = useCallback(async () => {
     try {
       const q = query(
-        collection(db, 'groups'),
-        where('teacher_id', '==', teacherId),
-        where('is_active', '==', true)
+        collection(db, "groups"),
+        where("teacher_id", "==", teacherId),
+        where("is_active", "==", true),
       );
       const snapshot = await getDocs(q);
-      const groupsData = snapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
-      setGroups(groupsData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })));
+      const groupsData = snapshot.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name,
+      }));
+      setGroups(
+        groupsData.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }),
+        ),
+      );
     } catch (error) {
-      logError('Dashboard:fetchGroups', error);
+      logError("Dashboard:fetchGroups", error);
     }
   }, [teacherId]);
 
@@ -144,13 +183,13 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
 
   useEffect(() => {
     const validTabIds = new Set([
-      'overview',
-      'groups',
-      'students',
-      'exams',
-      'rankings',
-      'archive',
-      'data'
+      "overview",
+      "groups",
+      "students",
+      "exams",
+      "rankings",
+      "archive",
+      "data",
     ]);
 
     try {
@@ -164,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     }
 
     if (!validTabIds.has(activeTab)) {
-      setActiveTab('overview');
+      setActiveTab("overview");
     }
   }, [activeTabStorageKey, teacherId]);
 
@@ -175,7 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
       // ignore
     }
 
-    if (activeTab !== 'groups') {
+    if (activeTab !== "groups") {
       try {
         localStorage.removeItem(selectedGroupStorageKey);
       } catch {
@@ -184,53 +223,83 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
     }
   }, [activeTab, activeTabStorageKey, selectedGroupStorageKey]);
 
-
   const handleGroupSelect = (groupName: string) => {
     // Group selected
   };
 
   const menuItems = [
-    { id: 'overview', label: 'Umumiy ko\'rinish', icon: BookOpen },
-    { id: 'groups', label: 'Guruhlar', icon: Users },
-    { id: 'students', label: 'O\'quvchilar', icon: Users },
-    { id: 'exams', label: 'Imtihonlar', icon: TrendingUp },
-    { id: 'rankings', label: 'Reyting', icon: Trophy },
-    { id: 'archive', label: 'Arxiv', icon: Archive },
-    { id: 'data', label: 'Ma\'lumotlar', icon: Database },
+    { id: "overview", label: "Umumiy ko'rinish", icon: BookOpen },
+    { id: "groups", label: "Guruhlar", icon: Users },
+    { id: "students", label: "O'quvchilar", icon: Users },
+    { id: "exams", label: "Imtihonlar", icon: TrendingUp },
+    { id: "rankings", label: "Reyting", icon: Trophy },
+    { id: "archive", label: "Arxiv", icon: Archive },
+    { id: "data", label: "Ma'lumotlar", icon: Database },
   ];
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'groups':
-        return <GroupManager teacherId={teacherId} onGroupSelect={handleGroupSelect} onStatsUpdate={async () => { }} />;
-      case 'students':
-        return <StudentManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
-      case 'exams':
+      case "groups":
+        return (
+          <GroupManager
+            teacherId={teacherId}
+            onGroupSelect={handleGroupSelect}
+            onStatsUpdate={async () => {}}
+          />
+        );
+      case "students":
+        return (
+          <StudentManager
+            teacherId={teacherId}
+            onStatsUpdate={async () => {}}
+          />
+        );
+      case "exams":
         return <ExamManager teacherId={teacherId} />;
-      case 'rankings':
+      case "rankings":
         return <StudentRankings teacherId={teacherId} />;
-      case 'archive':
-        return <ArchiveManager teacherId={teacherId} onStatsUpdate={async () => { }} />;
-      case 'data':
+      case "archive":
+        return (
+          <ArchiveManager
+            teacherId={teacherId}
+            onStatsUpdate={async () => {}}
+          />
+        );
+      case "data":
         return <DataManager teacherId={teacherId} />;
       default:
         return (
-          <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-6 sm:space-y-8">
+            <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-3xl font-black tracking-tight mb-1 text-foreground">Umumiy ko'rinish</h2>
-                <p className="text-muted-foreground">Sinflaringiz va o'quvchilaringiz statistikasi</p>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-1 text-foreground">
+                  Umumiy ko'rinish
+                </h2>
+                <p className="text-sm sm:text-base text-muted-foreground">
+                  Sinflaringiz va o'quvchilaringiz statistikasi
+                </p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-row gap-2 sm:gap-3">
                 <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger className="w-48 apple-button-secondary bg-card"><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
+                  <SelectTrigger className="flex-1 sm:w-48 sm:flex-none apple-button-secondary bg-card">
+                    <SelectValue placeholder="Guruhni tanlang" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Barcha guruhlar</SelectItem>
-                    {groups.map((group) => <SelectItem key={group.id} value={group.name}>{group.name}</SelectItem>)}
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.name}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-40 apple-button-secondary bg-card"><SelectValue placeholder="Muddatni tanlang" /></SelectTrigger>
+                <Select
+                  value={selectedPeriod}
+                  onValueChange={setSelectedPeriod}
+                >
+                  <SelectTrigger className="flex-1 sm:w-40 sm:flex-none apple-button-secondary bg-card">
+                    <SelectValue placeholder="Muddatni tanlang" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1_day">1 kun</SelectItem>
                     <SelectItem value="1_week">1 hafta</SelectItem>
@@ -250,98 +319,107 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="space-y-6 sm:space-y-8">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                   {/* Students Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Users className="w-16 h-16 text-blue-500 dark:text-blue-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Users className="w-10 h-10 sm:w-14 sm:h-14 text-blue-500 dark:text-blue-400" />
                     </div>
-                    <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
-                        <Users className="w-7 h-7 text-white" />
+                    <div className="relative flex items-center space-x-2 sm:space-x-3">
+                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
+                        <Users className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                       </div>
-                      <div>
-                        <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.totalStudents}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600/70 dark:text-blue-400/80">Faol o'quvchilar</p>
+                      <div className="min-w-0">
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                          {detailedStats.totalStudents}
+                        </p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-blue-600/70 dark:text-blue-400/80 leading-tight">
+                          Faol o'quvchilar
+                        </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Classes Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <BookOpen className="w-16 h-16 text-emerald-600 dark:text-emerald-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <BookOpen className="w-10 h-10 sm:w-14 sm:h-14 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
-                        <BookOpen className="w-7 h-7 text-white" />
+                    <div className="relative flex items-center space-x-2 sm:space-x-3">
+                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
+                        <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                       </div>
-                      <div>
-                        <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.totalClasses}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/80">O'tilgan darslar</p>
+                      <div className="min-w-0">
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                          {detailedStats.totalClasses}
+                        </p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/80 leading-tight">
+                          O'tilgan darslar
+                        </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Attendance Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <TrendingUp className="w-16 h-16 text-amber-600 dark:text-amber-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <TrendingUp className="w-10 h-10 sm:w-14 sm:h-14 text-amber-600 dark:text-amber-400" />
                     </div>
-                    <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
-                        <TrendingUp className="w-7 h-7 text-white" />
+                    <div className="relative flex items-center space-x-2 sm:space-x-3">
+                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
+                        <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                       </div>
-                      <div>
-                        <div className="flex items-baseline gap-1">
-                          <p className="text-3xl font-black text-foreground tracking-tight">{detailedStats.averageAttendance.toFixed(1)}%</p>
-                          <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 border-none ${detailedStats.averageAttendance >= 90 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300' :
-                            detailedStats.averageAttendance >= 75 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300' :
-                              'bg-amber-100 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300'
-                            }`}>
-                            {detailedStats.averageAttendance >= 90 ? 'A\'lo' : detailedStats.averageAttendance >= 75 ? 'Yaxshi' : 'O\'rtacha'}
-                          </Badge>
-                        </div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600/70 dark:text-amber-400/80">O'rtacha davomat</p>
+                      <div className="min-w-0">
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                          {detailedStats.averageAttendance.toFixed(1)}%
+                        </p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600/70 dark:text-amber-400/80 leading-tight">
+                          O'rtacha davomat
+                        </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Top Student Card */}
-                  <Card className="group relative overflow-hidden apple-card p-6 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Trophy className="w-16 h-16 text-purple-600 dark:text-purple-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Trophy className="w-10 h-10 sm:w-14 sm:h-14 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <div className="relative flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500">
-                        <Trophy className="w-7 h-7 text-white" />
+                    <div className="relative flex items-center space-x-2 sm:space-x-3">
+                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
+                        <Trophy className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                       </div>
                       <div className="min-w-0">
                         {detailedStats.topStudent ? (
                           <StudentProfileLink
                             studentId={detailedStats.topStudent.id}
-                            className="block text-lg font-black text-foreground leading-tight mb-0.5 truncate hover:text-purple-600 dark:hover:text-purple-400"
+                            className="block text-xs sm:text-base lg:text-lg font-black text-foreground leading-tight mb-0.5 truncate hover:text-purple-600 dark:hover:text-purple-400"
                           >
                             {detailedStats.topStudent.name}
                           </StudentProfileLink>
                         ) : (
-                          <p className="text-lg font-black text-foreground leading-tight mb-0.5 truncate">Ma'lumot yo'q</p>
+                          <p className="text-xs sm:text-base lg:text-lg font-black text-foreground leading-tight mb-0.5 truncate">
+                            Ma'lumot yo'q
+                          </p>
                         )}
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-purple-600/70 dark:text-purple-400/80">Eng faol o'quvchi</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-purple-600/70 dark:text-purple-400/80 leading-tight">
+                          Eng faol o'quvchi
+                        </p>
                       </div>
                     </div>
                   </Card>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <GroupRankings teacherId={teacherId} selectedPeriod={selectedPeriod} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <GroupRankings
+                    teacherId={teacherId}
+                    selectedPeriod={selectedPeriod}
+                  />
                   <MonthlyAnalysis monthlyData={monthlyData} />
                 </div>
               </div>
             )}
-
-
           </div>
         );
     }
@@ -349,15 +427,15 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
 
   const closeStudentProfile = () => {
     if (isAnimatingRef.current) return;
-    
+
     isAnimatingRef.current = true;
-    
+
     // Simple navigation without animations
     navigate(-1);
-    
+
     setActiveStudentId(null);
     activeStudentIdRef.current = null;
-    
+
     setTimeout(() => {
       isAnimatingRef.current = false;
     }, 100);
@@ -374,13 +452,13 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
   return (
     <main className="h-screen overflow-hidden bg-background flex flex-col">
       {/* Top Header */}
-      <div className="bg-background border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center space-x-4">
+      <div className="bg-background border-b border-border px-3 sm:px-4 py-3 flex items-center justify-between shrink-0 z-50 relative">
+        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden"
+            className="lg:hidden flex-shrink-0 h-9 w-9 p-0"
           >
             <Menu className="w-5 h-5" />
           </Button>
@@ -388,18 +466,24 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             variant="ghost"
             size="sm"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex"
+            className="hidden lg:flex flex-shrink-0 h-9 w-9 p-0"
           >
             <Menu className="w-5 h-5" />
           </Button>
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">T</span>
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-primary-foreground font-bold text-sm">
+                T
+              </span>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">TeachPro</h1>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-foreground leading-tight">
+                TeachPro
+              </h1>
               {teacherName && (
-                <p className="text-sm text-muted-foreground">Xush kelibsiz, {teacherName}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate max-w-[140px] sm:max-w-xs">
+                  Xush kelibsiz, {teacherName}
+                </p>
               )}
             </div>
           </div>
@@ -408,15 +492,30 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Mobile overlay */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 dark:bg-black/60 z-30 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <div className={`
-          ${sidebarCollapsed ? 'w-16' : 'w-56'} 
-          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          bg-card border-r border-border shadow-lg lg:h-full fixed lg:relative z-40 transition-all duration-300 ease-in-out
-          ${mobileMenuOpen ? 'top-0 h-screen' : ''}
-        `}>
-          <nav className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto py-6">
+        <div
+          className={`
+          ${sidebarCollapsed ? "lg:w-16" : "lg:w-56"}
+          ${mobileMenuOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
+          bg-card border-r border-border shadow-lg lg:shadow-none
+          fixed lg:relative top-0 bottom-0 left-0 z-40
+          transition-all duration-300 ease-in-out
+          flex flex-col
+        `}
+          style={{
+            top: mobileMenuOpen ? "var(--header-height, 57px)" : undefined,
+          }}
+        >
+          <nav className="flex flex-col h-full overflow-hidden">
+            <div className="flex-1 overflow-y-auto py-4">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -426,43 +525,46 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center px-6 py-3 text-left transition-colors ${activeTab === item.id
-                      ? 'bg-primary/10 text-primary border-r-2 border-primary dark:bg-primary/20'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                      } ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
-                    title={sidebarCollapsed ? item.label : ''}
+                    className={`w-full flex items-center px-4 py-3 text-left transition-colors ${
+                      activeTab === item.id
+                        ? "bg-primary/10 text-primary border-r-2 border-primary dark:bg-primary/20"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    } ${sidebarCollapsed ? "lg:justify-center lg:px-4" : ""}`}
+                    title={sidebarCollapsed ? item.label : ""}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
-                    {!sidebarCollapsed && <span className="ml-3">{item.label}</span>}
+                    <span
+                      className={`ml-3 ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                    >
+                      {item.label}
+                    </span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-auto border-t border-border p-2">
+            <div className="border-t border-border p-2">
               <button
                 onClick={onLogout}
-                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg ${sidebarCollapsed ? 'justify-center px-4' : ''}`}
-                title={sidebarCollapsed ? "Chiqish" : ''}
+                className={`w-full flex items-center px-4 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg ${
+                  sidebarCollapsed ? "lg:justify-center lg:px-4" : ""
+                }`}
+                title={sidebarCollapsed ? "Chiqish" : ""}
               >
                 <LogOut className="w-5 h-5 flex-shrink-0" />
-                {!sidebarCollapsed && <span className="ml-3 font-medium">Chiqish</span>}
+                <span
+                  className={`ml-3 font-medium ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                >
+                  Chiqish
+                </span>
               </button>
             </div>
           </nav>
         </div>
 
-        {/* Mobile overlay */}
-        {mobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 dark:bg-black/60 z-30 lg:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
-
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto h-full bg-background text-foreground">
-          <div className="p-4 lg:p-8">
+        <div className="flex-1 overflow-y-auto h-full bg-background text-foreground min-w-0">
+          <div className="p-3 sm:p-5 lg:p-8">
             {/* Student Profile (full content) */}
             {activeStudentId && (
               <div ref={profileRef}>
@@ -475,11 +577,7 @@ const Dashboard: React.FC<DashboardProps> = ({ teacherId, teacherName, onLogout 
             )}
 
             {/* Dashboard content (hidden when profile is open) */}
-            {!activeStudentId && (
-              <div ref={contentRef}>
-                {renderContent()}
-              </div>
-            )}
+            {!activeStudentId && <div ref={contentRef}>{renderContent()}</div>}
           </div>
         </div>
       </div>

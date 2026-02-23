@@ -716,10 +716,10 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
 
       {/* Tabs Navigation */}
       <Card className="apple-card bg-card border-border">
-        <div className="flex border-b border-border/60">
+        <div className="flex border-b border-border/60 overflow-x-auto hide-scrollbar">
           <button
             className={cn(
-              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              'flex-1 min-w-[100px] whitespace-nowrap px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'overview'
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -733,7 +733,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           </button>
           <button
             className={cn(
-              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              'flex-1 min-w-[100px] whitespace-nowrap px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'attendance'
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -747,7 +747,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           </button>
           <button
             className={cn(
-              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              'flex-1 min-w-[120px] whitespace-nowrap px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'rewards'
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -761,7 +761,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           </button>
           <button
             className={cn(
-              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              'flex-1 min-w-[100px] whitespace-nowrap px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'exams'
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -775,7 +775,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           </button>
           <button
             className={cn(
-              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              'flex-1 min-w-[100px] whitespace-nowrap px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'analysis'
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -833,7 +833,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
                 </div>
 
                 {/* Detailed Stats Grid */}
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="text-center p-4 bg-muted/50 rounded-xl border border-border">
                     <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-muted flex items-center justify-center">
                       <Target className="w-5 h-5 text-muted-foreground" />
