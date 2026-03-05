@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getTashkentDate } from '@/lib/utils';
 import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
-import { firebaseSignIn, firebaseSignUp, db, addDocument } from '@/lib/firebase';
+import { firebaseSignIn, firebaseSignUp, db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { sanitizeError, logError } from '@/lib/errorUtils';
 
@@ -169,6 +169,7 @@ const AuthPage: React.FC = () => {
                 <Input
                   id="name"
                   type="text"
+                  autoComplete="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="To'liq ismingizni kiriting"
@@ -184,6 +185,7 @@ const AuthPage: React.FC = () => {
                   <Input
                     id="school"
                     type="text"
+                    autoComplete="organization"
                     value={formData.school}
                     onChange={(e) => setFormData({ ...formData, school: e.target.value })}
                     placeholder="Maktab yoki muassasa nomi"
@@ -200,6 +202,7 @@ const AuthPage: React.FC = () => {
                   <Input
                     id="phone"
                     type="tel"
+                    autoComplete="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+998 (90) 123-45-67"
@@ -215,6 +218,7 @@ const AuthPage: React.FC = () => {
                   <Input
                     id="institution_name"
                     type="text"
+                    autoComplete="organization"
                     value={formData.institution_name}
                     onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
                     placeholder="Ta'lim muassasasi nomi"
@@ -231,6 +235,7 @@ const AuthPage: React.FC = () => {
                   <Input
                     id="institution_address"
                     type="text"
+                    autoComplete="street-address"
                     value={formData.institution_address}
                     onChange={(e) => setFormData({ ...formData, institution_address: e.target.value })}
                     placeholder="Shahar, ko'cha, bino"
@@ -248,6 +253,7 @@ const AuthPage: React.FC = () => {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => {
                   setFormData({ ...formData, email: e.target.value });
@@ -266,6 +272,7 @@ const AuthPage: React.FC = () => {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
+                autoComplete={authMode === 'signin' ? "current-password" : "new-password"}
                 value={formData.password}
                 onChange={(e) => {
                   setFormData({ ...formData, password: e.target.value });
