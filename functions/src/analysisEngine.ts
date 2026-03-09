@@ -125,6 +125,187 @@ const modelOutputSchema = analyzeInsightsResponseSchema.omit({
   modelMeta: true,
   language: true,
 });
+
+type JsonSchema = Record<string, unknown>;
+type SupportedAiProvider = "openai" | "gemini";
+type LlmJsonCallResult<T> = {
+  parsed: T;
+  tokensIn: number;
+  tokensOut: number;
+  model: string;
+  provider: SupportedAiProvider;
+};
+
+const jsonStringSchema = { type: "string" } as const;
+const jsonNumberSchema = { type: "number" } as const;
+const jsonIntegerSchema = { type: "integer" } as const;
+
+function jsonArraySchema(items: JsonSchema): JsonSchema {
+  return { type: "array", items };
+}
+
+function jsonObjectSchema(
+  properties: Record<string, JsonSchema>,
+  required: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+  };
+}
+
+const modelOutputResponseJsonSchema = jsonObjectSchema(
+  {
+    summary: jsonStringSchema,
+    riskAlerts: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          id: jsonStringSchema,
+          level: { type: "string", enum: ["high", "medium", "low"] },
+          reason: jsonStringSchema,
+          confidence: jsonNumberSchema,
+          affectedCount: jsonIntegerSchema,
+        },
+        ["id", "level", "reason", "confidence", "affectedCount"],
+      ),
+    ),
+    anomalies: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          metric: jsonStringSchema,
+          current: jsonNumberSchema,
+          baseline: jsonNumberSchema,
+          deltaPct: jsonNumberSchema,
+          explanation: jsonStringSchema,
+        },
+        ["metric", "current", "baseline", "deltaPct", "explanation"],
+      ),
+    ),
+    forecasts: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          metric: {
+            type: "string",
+            enum: ["attendance", "exam_score", "discipline"],
+          },
+          horizonDays: jsonIntegerSchema,
+          points: jsonArraySchema(
+            jsonObjectSchema(
+              {
+                date: jsonStringSchema,
+                value: jsonNumberSchema,
+              },
+              ["date", "value"],
+            ),
+          ),
+          confidence: jsonNumberSchema,
+        },
+        ["metric", "horizonDays", "points", "confidence"],
+      ),
+    ),
+    whatIf: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          scenario: jsonStringSchema,
+          expectedDeltaPct: jsonNumberSchema,
+          confidence: jsonNumberSchema,
+          assumptions: jsonStringSchema,
+        },
+        ["scenario", "expectedDeltaPct", "confidence", "assumptions"],
+      ),
+    ),
+    interventions: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          title: jsonStringSchema,
+          priority: { type: "integer", enum: [1, 2, 3] },
+          owner: { type: "string", enum: ["teacher", "admin"] },
+          dueInDays: jsonIntegerSchema,
+          expectedImpact: jsonStringSchema,
+          steps: jsonStringSchema,
+        },
+        ["title", "priority", "owner", "dueInDays", "expectedImpact", "steps"],
+      ),
+    ),
+    weeklyPlan: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          day: jsonStringSchema,
+          task: jsonStringSchema,
+        },
+        ["day", "task"],
+      ),
+    ),
+    comparison: jsonObjectSchema({
+      previousRunId: jsonStringSchema,
+      attendanceDeltaPct: jsonNumberSchema,
+      examDeltaPct: jsonNumberSchema,
+      highRiskDelta: jsonNumberSchema,
+      summary: jsonStringSchema,
+    }),
+  },
+  [
+    "summary",
+    "riskAlerts",
+    "anomalies",
+    "forecasts",
+    "whatIf",
+    "interventions",
+    "weeklyPlan",
+  ],
+);
+
+const askInsightsResponseJsonSchema = jsonObjectSchema(
+  {
+    answer: jsonStringSchema,
+    citations: jsonArraySchema(jsonStringSchema),
+  },
+  ["answer", "citations"],
+);
+
+function normalizeAiProviderName(rawProvider?: string): SupportedAiProvider {
+  if (rawProvider === "gemini") {
+    return "gemini";
+  }
+  return "openai";
+}
+
+function getSelectedProvider(): SupportedAiProvider {
+  if (process.env.AI_PROVIDER) {
+    return normalizeAiProviderName(process.env.AI_PROVIDER);
+  }
+
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+    return "gemini";
+  }
+
+  return "openai";
+}
+
+function getDefaultModelForProvider(provider: SupportedAiProvider): string {
+  if (provider === "gemini") {
+    return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  }
+
+  return process.env.OPENAI_MODEL || "gpt-4.1-mini";
+}
+
+function resolveModelName(
+  provider: SupportedAiProvider,
+  fallbackModel: string,
+): string {
+  if (process.env.AI_MODEL) {
+    return process.env.AI_MODEL;
+  }
+
+  if (provider === "gemini") {
+    return process.env.GEMINI_MODEL || fallbackModel;
+  }
+
+  return process.env.OPENAI_MODEL || fallbackModel;
+}
+
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -814,6 +995,27 @@ type OpenAIResponsesPayload = {
   };
 };
 
+type GeminiGenerateContentPayload = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+  };
+  promptFeedback?: {
+    blockReason?: string;
+    blockReasonMessage?: string;
+  };
+  error?: {
+    message?: string;
+  };
+};
+
 function extractOpenAIOutputText(payload: OpenAIResponsesPayload): string {
   if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text;
@@ -834,20 +1036,31 @@ function extractOpenAIOutputText(payload: OpenAIResponsesPayload): string {
   return chunks.join("\n").trim();
 }
 
-async function callOpenAIJson<T>(prompt: string, fallbackModel: string): Promise<{
-  parsed: T;
-  tokensIn: number;
-  tokensOut: number;
-  model: string;
-  provider: string;
-}> {
+function extractGeminiOutputText(payload: GeminiGenerateContentPayload): string {
+  const chunks: string[] = [];
+
+  payload.candidates?.forEach((candidate) => {
+    candidate.content?.parts?.forEach((part) => {
+      if (typeof part.text === "string" && part.text.trim()) {
+        chunks.push(part.text);
+      }
+    });
+  });
+
+  return chunks.join("\n").trim();
+}
+
+async function callOpenAIJson<T>(
+  prompt: string,
+  fallbackModel: string,
+): Promise<LlmJsonCallResult<T>> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY topilmadi. Functions env ga API key kiriting.");
   }
 
   const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-  const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || fallbackModel;
+  const model = resolveModelName("openai", fallbackModel);
 
   const httpResponse = await fetch(`${baseUrl}/responses`, {
     method: "POST",
@@ -885,6 +1098,103 @@ async function callOpenAIJson<T>(prompt: string, fallbackModel: string): Promise
   const tokensOut = payload.usage?.output_tokens ?? 0;
 
   return { parsed, tokensIn, tokensOut, model, provider: "openai" };
+}
+
+async function callGeminiJson<T>(
+  prompt: string,
+  fallbackModel: string,
+  responseJsonSchema?: JsonSchema,
+): Promise<LlmJsonCallResult<T>> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY topilmadi. Google AI Studio key ni Functions env ga kiriting.",
+    );
+  }
+
+  const baseUrl = (
+    process.env.GEMINI_BASE_URL ||
+    "https://generativelanguage.googleapis.com/v1beta"
+  ).replace(/\/+$/, "");
+  const model = resolveModelName("gemini", fallbackModel);
+
+  const makeRequestBody = (includeSchema: boolean) =>
+    JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+        ...(includeSchema && responseJsonSchema
+          ? { responseJsonSchema }
+          : {}),
+      },
+    });
+
+  const doRequest = async (includeSchema: boolean) =>
+    fetch(`${baseUrl}/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: makeRequestBody(includeSchema),
+    });
+
+  let httpResponse = await doRequest(Boolean(responseJsonSchema));
+  let rawBody = await httpResponse.text();
+
+  if (!httpResponse.ok && responseJsonSchema) {
+    httpResponse = await doRequest(false);
+    rawBody = await httpResponse.text();
+  }
+
+  if (!httpResponse.ok) {
+    const errMsg = rawBody.slice(0, 500);
+    throw new Error(`Gemini API xatolik (${httpResponse.status}): ${errMsg}`);
+  }
+
+  const payload = JSON.parse(rawBody) as GeminiGenerateContentPayload;
+  if (payload.error?.message) {
+    throw new Error(`Gemini API xatolik: ${payload.error.message}`);
+  }
+
+  if (payload.promptFeedback?.blockReason) {
+    throw new Error(
+      `Gemini javobi bloklandi: ${payload.promptFeedback.blockReason}${payload.promptFeedback.blockReasonMessage ? ` - ${payload.promptFeedback.blockReasonMessage}` : ""}`,
+    );
+  }
+
+  const text = extractGeminiOutputText(payload);
+  if (!text) {
+    throw new Error("Gemini javobidan matn topilmadi");
+  }
+
+  const rawJson = extractJsonBlock(text);
+  const parsed = JSON.parse(rawJson) as T;
+  const tokensIn = payload.usageMetadata?.promptTokenCount ?? 0;
+  const tokensOut = payload.usageMetadata?.candidatesTokenCount ?? 0;
+
+  return { parsed, tokensIn, tokensOut, model, provider: "gemini" };
+}
+
+async function callJsonModel<T>(
+  prompt: string,
+  fallbackModel: string,
+  responseJsonSchema?: JsonSchema,
+): Promise<LlmJsonCallResult<T>> {
+  const provider = getSelectedProvider();
+
+  if (provider === "gemini") {
+    return callGeminiJson<T>(prompt, fallbackModel, responseJsonSchema);
+  }
+
+  return callOpenAIJson<T>(prompt, fallbackModel);
 }
 
 function makeCacheKey(uid: string, role: Role, request: AnalyzeInsightsRequest): string {
@@ -1164,14 +1474,20 @@ export async function runAiAnalysis(
   const heuristic = buildHeuristicOutput(aggregated);
 
   let responseCore: ModelOutput = heuristic;
-  let providerName = process.env.AI_PROVIDER || "openai";
-  let modelName = process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const selectedProvider = getSelectedProvider();
+  const fallbackModel = getDefaultModelForProvider(selectedProvider);
+  let providerName: SupportedAiProvider = selectedProvider;
+  let modelName = resolveModelName(selectedProvider, fallbackModel);
   let tokensIn = 0;
   let tokensOut = 0;
 
   try {
     const prompt = buildPrompt(request, aggregated);
-    const llm = await callOpenAIJson<ModelOutput>(prompt, "gpt-4.1-mini");
+    const llm = await callJsonModel<ModelOutput>(
+      prompt,
+      fallbackModel,
+      modelOutputResponseJsonSchema,
+    );
     const parsed = modelOutputSchema.safeParse(llm.parsed);
     if (parsed.success) {
       responseCore = parsed.data;
@@ -1244,8 +1560,14 @@ export async function askAboutRun(
   }
 
   try {
+    const selectedProvider = getSelectedProvider();
+    const fallbackModel = getDefaultModelForProvider(selectedProvider);
     const prompt = buildAskPrompt(request.question, response);
-    const llm = await callOpenAIJson<AskInsightsResponse>(prompt, "gpt-4.1-mini");
+    const llm = await callJsonModel<AskInsightsResponse>(
+      prompt,
+      fallbackModel,
+      askInsightsResponseJsonSchema,
+    );
     const parsed = askInsightsResponseSchema.safeParse(llm.parsed);
     if (parsed.success) {
       return parsed.data;
