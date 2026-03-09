@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { logError } from '@/lib/errorUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,11 +98,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     itemName: ''
   });
 
-  useEffect(() => {
-    fetchArchivedData();
-  }, [teacherId]);
-
-  const fetchArchivedData = async () => {
+  const fetchArchivedData = useCallback(async () => {
     if (!teacherId) return;
     try {
       setLoading(true);
@@ -171,7 +167,11 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     } finally {
       setLoading(false);
     }
-  };
+  }, [teacherId]);
+
+  useEffect(() => {
+    void fetchArchivedData();
+  }, [fetchArchivedData]);
 
   const filterData = (data: any[]) => {
     if (!searchTerm) return data;

@@ -10,26 +10,12 @@ import Dashboard from '@/components/Dashboard';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
 import { logError, sanitizeError } from '@/lib/errorUtils';
-
-interface Teacher {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  school: string;
-  created_at: string;
-  verification_status: 'pending' | 'approved' | 'rejected';
-  is_approved?: boolean;
-  institution_name?: string;
-  institution_address?: string;
-  requested_at: string;
-  rejection_reason?: string;
-}
+import { fetchTeacherProfile, TeacherProfile } from '@/lib/teacherProfile';
 
 const Index = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
-  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [teacher, setTeacher] = useState<TeacherProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,22 +26,7 @@ const Index = () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch teacher data from Firestore
-      const teacherDoc = await getDoc(doc(db, 'teachers', firebaseUser.uid));
-
-      if (teacherDoc.exists()) {
-        const teacherData = teacherDoc.data() as Teacher;
-        teacherData.id = teacherDoc.id;
-
-        // Map is_approved to verification_status for compatibility
-        if (teacherData.is_approved !== undefined) {
-          teacherData.verification_status = teacherData.is_approved ? 'approved' : 'pending';
-        }
-
-        setTeacher(teacherData);
-      } else {
-        setTeacher(null);
-      }
+      setTeacher(await fetchTeacherProfile(firebaseUser.uid));
 
       // Check if user is admin
       const adminDoc = await getDoc(doc(db, 'admins', firebaseUser.uid));
@@ -148,7 +119,7 @@ const Index = () => {
 
   // Show admin panel if user is admin
   if (isAdmin) {
-    return <AdminPanel />;
+    return <AdminPanel adminId={user.uid} onLogout={handleLogout} />;
   }
 
   if (!teacher) {

@@ -11,6 +11,7 @@ import {
   Archive,
   Menu,
   Database,
+  Brain,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
@@ -35,6 +36,7 @@ import { useStatistics } from "@/components/statistics/hooks/useStatistics";
 import MonthlyAnalysis from "./statistics/MonthlyAnalysis";
 import GroupRankings from "./statistics/GroupRankings";
 import ThemeToggle from "./ThemeToggle";
+import AIAnalysisPage from "./AIAnalysisPage";
 
 interface DashboardProps {
   teacherId: string;
@@ -188,6 +190,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       "students",
       "exams",
       "rankings",
+      "ai-analysis",
       "archive",
       "data",
     ]);
@@ -205,7 +208,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (!validTabIds.has(activeTab)) {
       setActiveTab("overview");
     }
-  }, [activeTabStorageKey, teacherId]);
+  }, [activeTab, activeTabStorageKey]);
 
   useEffect(() => {
     try {
@@ -233,6 +236,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     { id: "students", label: "O'quvchilar", icon: Users },
     { id: "exams", label: "Imtihonlar", icon: TrendingUp },
     { id: "rankings", label: "Reyting", icon: Trophy },
+    { id: "ai-analysis", label: "AI tahlil", icon: Brain },
     { id: "archive", label: "Arxiv", icon: Archive },
     { id: "data", label: "Ma'lumotlar", icon: Database },
   ];
@@ -258,6 +262,14 @@ const Dashboard: React.FC<DashboardProps> = ({
         return <ExamManager teacherId={teacherId} />;
       case "rankings":
         return <StudentRankings teacherId={teacherId} />;
+      case "ai-analysis":
+        return (
+          <AIAnalysisPage
+            role="teacher"
+            teacherId={teacherId}
+            currentUserId={teacherId}
+          />
+        );
       case "archive":
         return (
           <ArchiveManager

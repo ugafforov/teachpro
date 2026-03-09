@@ -235,6 +235,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     if (studentId) {
       fetchStudentDetails();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, teacherId]);
 
   const fetchRecentRewards = async (id: string, joinDate?: string, leaveDate?: string | null): Promise<StudentStats['recentRewards']> => {

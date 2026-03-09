@@ -2,31 +2,24 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Clock, Building2, Mail, Phone, School } from 'lucide-react';
-import { firebaseSignOut } from '@/lib/firebase';
-import { useToast } from '@/hooks/use-toast';
 import { formatDateUz } from '@/lib/utils';
+import type { TeacherProfile } from '@/lib/teacherProfile';
 
 interface PendingApprovalProps {
-  teacher: {
-    name: string;
-    email: string;
-    phone?: string;
-    school?: string;
-    institution_name?: string;
-    institution_address?: string;
-    requested_at: string;
-  };
+  teacher: Pick<
+    TeacherProfile,
+    | 'name'
+    | 'email'
+    | 'phone'
+    | 'school'
+    | 'institution_name'
+    | 'institution_address'
+    | 'requested_at'
+  >;
   onLogout: () => void;
 }
 
 const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) => {
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    await firebaseSignOut();
-    onLogout();
-  };
-
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl bg-card border border-border shadow-lg rounded-2xl p-8 animate-fade-in">
@@ -115,7 +108,7 @@ const PendingApproval: React.FC<PendingApprovalProps> = ({ teacher, onLogout }) 
 
         <div className="flex justify-center">
           <Button
-            onClick={handleLogout}
+            onClick={onLogout}
             variant="outline"
             className="border-border"
           >

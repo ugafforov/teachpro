@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { logError } from "@/lib/errorUtils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,20 +86,7 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
   const [attendanceDates, setAttendanceDates] = useState<Date[]>([]);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchStudents(),
-        fetchAttendanceRecords(),
-        fetchAttendanceDates(),
-      ]);
-      setLoading(false);
-    };
-    init();
-  }, [teacherId, selectedDate]);
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const q = query(
         collection(db, "students"),
@@ -113,9 +100,9 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
     } catch (error) {
       logError("AttendanceTracker:fetchStudents", error);
     }
-  };
+  }, [teacherId]);
 
-  const fetchAttendanceRecords = async () => {
+  const fetchAttendanceRecords = useCallback(async () => {
     try {
       const q = query(
         collection(db, "attendance_records"),
@@ -131,9 +118,9 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
     } catch (error) {
       logError("AttendanceTracker:fetchAttendanceRecords", error);
     }
-  };
+  }, [selectedDate, teacherId]);
 
-  const fetchAttendanceDates = async () => {
+  const fetchAttendanceDates = useCallback(async () => {
     try {
       const q = query(
         collection(db, "attendance_records"),
@@ -146,7 +133,20 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
     } catch (error) {
       logError("AttendanceTracker:fetchAttendanceDates", error);
     }
-  };
+  }, [teacherId]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchStudents(),
+        fetchAttendanceRecords(),
+        fetchAttendanceDates(),
+      ]);
+      setLoading(false);
+    };
+    void init();
+  }, [fetchAttendanceDates, fetchAttendanceRecords, fetchStudents]);
 
   const groups = [...new Set(students.map((student) => student.group_name))];
 

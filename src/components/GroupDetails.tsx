@@ -258,6 +258,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       hasInitializedRef.current = true;
     };
     loadGroupData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupName, teacherId, selectedPeriod]);
 
   useEffect(() => {
@@ -402,6 +403,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
       pendingTasks.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId, groupName, selectedPeriod, selectedDate]);
 
   // 2. Load daily data when date or students change (no global loading)
@@ -415,6 +417,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
     };
     void loadDailyData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, teacherId, students]);
 
   // 3. Load calendar highlights when students change
@@ -422,6 +425,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     if (students.length > 0) {
       fetchAttendanceDates();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students]);
 
   // Eslatma funksiyalari

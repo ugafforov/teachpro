@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,13 +7,10 @@ import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import {
   collection,
-  query,
   getDocs,
-  orderBy,
   doc,
   updateDoc,
   serverTimestamp,
-  Timestamp,
 } from "firebase/firestore";
 import {
   CheckCircle,
@@ -23,44 +20,47 @@ import {
   Mail,
   Phone,
   School,
-  MapPin,
   Calendar,
+  LogOut,
 } from "lucide-react";
 import { formatDateUz } from "@/lib/utils";
 import { sanitizeError, logError } from "@/lib/errorUtils";
+import AIAnalysisPage from "./AIAnalysisPage";
+import {
+  normalizeTeacherProfile,
+  TeacherProfile,
+  TeacherVerificationStatus,
+} from "@/lib/teacherProfile";
 
-interface Teacher {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  school?: string;
-  institution_name?: string;
-  institution_address?: string;
-  verification_status: "pending" | "approved" | "rejected";
-  requested_at: any;
-  approved_at?: any;
-  rejection_reason?: string;
+interface AdminPanelProps {
+  adminId: string;
+  onLogout?: () => void;
 }
 
-const AdminPanel: React.FC = () => {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+const AdminPanel: React.FC<AdminPanelProps> = ({ adminId, onLogout }) => {
+  const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectionReason, setRejectionReason] = useState<{
     [key: string]: string;
   }>({});
   const { toast } = useToast();
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
-      const q = query(
-        collection(db, "teachers"),
-        orderBy("requested_at", "desc"),
-      );
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(collection(db, "teachers"));
       setTeachers(
-        snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Teacher),
+        snapshot.docs
+          .map((d) =>
+            normalizeTeacherProfile(
+              d.id,
+              d.data() as Record<string, unknown>,
+            ),
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.requested_at || b.created_at).getTime() -
+              new Date(a.requested_at || a.created_at).getTime(),
+          ),
       );
     } catch (error: unknown) {
       logError("AdminPanel.fetchTeachers", error);
@@ -69,23 +69,25 @@ const AdminPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    fetchTeachers();
-  }, []);
+    void fetchTeachers();
+  }, [fetchTeachers]);
 
   const handleApprove = async (teacherId: string) => {
     try {
       await updateDoc(doc(db, "teachers", teacherId), {
         verification_status: "approved",
+        is_approved: true,
         approved_at: serverTimestamp(),
+        rejection_reason: null,
       });
       toast({
         title: "Tasdiqlandi",
         description: "O'qituvchi muvaffaqiyatli tasdiqlandi",
       });
-      fetchTeachers();
+      await fetchTeachers();
     } catch (error: unknown) {
       logError("AdminPanel.handleApprove", error);
       const { message } = sanitizeError(error, "update");
@@ -107,14 +109,16 @@ const AdminPanel: React.FC = () => {
     try {
       await updateDoc(doc(db, "teachers", teacherId), {
         verification_status: "rejected",
+        is_approved: false,
         rejection_reason: reason,
+        approved_at: null,
       });
       toast({
         title: "Rad etildi",
         description: "O'qituvchi arizasi rad etildi",
       });
       setRejectionReason({ ...rejectionReason, [teacherId]: "" });
-      fetchTeachers();
+      await fetchTeachers();
     } catch (error: unknown) {
       logError("AdminPanel.handleReject", error);
       const { message } = sanitizeError(error, "update");
@@ -122,7 +126,7 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: TeacherVerificationStatus) => {
     switch (status) {
       case "pending":
         return (
@@ -170,13 +174,23 @@ const AdminPanel: React.FC = () => {
 
   return (
     <main className="container mx-auto p-4 sm:p-6 max-w-7xl">
-      <div className="mb-6 sm:mb-8">
+      <div className="mb-6 sm:mb-8 flex items-start justify-between gap-3">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
           Admin Panel
         </h1>
-        <p className="text-sm text-muted-foreground">
-          O'qituvchilarni tasdiqlash va boshqarish
-        </p>
+        {onLogout && (
+          <Button variant="outline" onClick={onLogout}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Chiqish
+          </Button>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground mb-6 sm:mb-8">
+        O'qituvchilarni tasdiqlash va boshqarish
+      </p>
+
+      <div className="mb-10">
+        <AIAnalysisPage role="admin" currentUserId={adminId} />
       </div>
 
       <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
@@ -241,13 +255,7 @@ const AdminPanel: React.FC = () => {
                   </div>
                   <div className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
                     <Calendar className="w-4 h-4 inline flex-shrink-0" />
-                    <span>
-                      {teacher.requested_at instanceof Timestamp
-                        ? formatDateUz(
-                            teacher.requested_at.toDate().toISOString(),
-                          )
-                        : formatDateUz(teacher.requested_at)}
-                    </span>
+                    <span>{formatDateUz(teacher.requested_at)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">

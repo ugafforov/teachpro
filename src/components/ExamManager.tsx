@@ -684,6 +684,10 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     if (selectedGroup) {
       fetchStudents(selectedGroup);
     }
+    // fetchStudents stays intentionally outside dependencies here because it is
+    // a local async helper coupled to dialog state; re-creating the effect on
+    // every render causes unnecessary refetch churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);
 
   const setScoreInputRef = useCallback((studentId: string) => {

@@ -1,8 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper funksiyalar
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,131 +10,151 @@ service cloud.firestore {
       return isAuthenticated() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    function isOwner(teacherId) {
-      return isAuthenticated() && request.auth.uid == teacherId;
+    function requestOwnedByCurrentUser() {
+      return isAuthenticated() && request.resource.data.get('teacher_id', '') == request.auth.uid;
     }
 
-    // Teachers collection - hamma o'qituvchilar bir-birini ko'ra oladi
+    function resourceOwnedByCurrentUser() {
+      return isAuthenticated() && resource.data.get('teacher_id', '') == request.auth.uid;
+    }
+
     match /teachers/{teacherId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (request.auth.uid == teacherId || isAdmin());
       allow create: if isAuthenticated() && request.auth.uid == teacherId;
       allow update: if isAuthenticated() && (request.auth.uid == teacherId || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Admins collection
     match /admins/{adminId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Students collection
     match /students/{studentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Groups collection
     match /groups/{groupId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Attendance Records collection
     match /attendance_records/{recordId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Group Notes collection
     match /group_notes/{noteId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Reward/Penalty History collection
     match /reward_penalty_history/{historyId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Exams collection
     match /exams/{examId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Exam Results
     match /exam_results/{resultId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    
-    // Exam Types
+
     match /exam_types/{typeId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Archived Data - Barcha o'qituvchilar ko'ra olishi uchun read huquqi ochildi
-    match /archived_students/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
-    }
-    match /archived_groups/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
-    }
-    match /archived_exams/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (isOwner(resource.data.get('teacher_id', '')) || isAdmin());
+    match /archived_students/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Deleted Data (Backup/Audit)
-    match /deleted_students/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+    match /archived_groups/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_groups/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /archived_exams/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_exams/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /deleted_students/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_attendance_records/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /deleted_groups/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_reward_penalty_history/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /deleted_exams/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_exam_results/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /deleted_attendance_records/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
-    match /deleted_student_scores/{docId} { 
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && isOwner(resource.data.get('teacher_id', '')));
+
+    match /deleted_reward_penalty_history/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+    }
+
+    match /deleted_exam_results/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+    }
+
+    match /deleted_student_scores/{docId} {
+      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+    }
+
+    match /audit_logs/{logId} {
+      allow create: if isAdmin() || requestOwnedByCurrentUser();
+      allow read, update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+    }
+
+    match /ai_analysis_runs/{runId} {
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.get('createdBy', '') == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
+    }
+
+    match /ai_analysis_cache/{cacheId} {
+      allow read, write: if false;
+    }
+
+    match /ai_analysis_feedback/{feedbackId} {
+      allow create: if isAuthenticated() && request.resource.data.get('createdBy', '') == request.auth.uid;
+      allow read, update, delete: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
     }
   }
 }

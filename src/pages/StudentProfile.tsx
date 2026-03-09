@@ -1,34 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
-import { onAuthChange, db, User } from '@/lib/firebase';
+import { onAuthChange, db, User, firebaseSignOut } from '@/lib/firebase';
 import AuthPage from '@/components/AuthPage';
 import PendingApproval from '@/components/PendingApproval';
 import AdminPanel from '@/components/AdminPanel';
 import StudentDetailView from '@/components/StudentDetailView';
 import { logError } from '@/lib/errorUtils';
-
-interface Teacher {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  school: string;
-  created_at: string;
-  verification_status: 'pending' | 'approved' | 'rejected';
-  is_approved?: boolean;
-  institution_name?: string;
-  institution_address?: string;
-  requested_at: string;
-  rejection_reason?: string;
-}
+import { fetchTeacherProfile, TeacherProfile } from '@/lib/teacherProfile';
 
 const StudentProfile = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
 
   const [user, setUser] = useState<User | null>(null);
-  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [teacher, setTeacher] = useState<TeacherProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -38,20 +24,7 @@ const StudentProfile = () => {
 
       if (firebaseUser) {
         try {
-          const teacherDoc = await getDoc(doc(db, 'teachers', firebaseUser.uid));
-          if (teacherDoc.exists()) {
-            const teacherData = teacherDoc.data() as Teacher;
-            teacherData.id = teacherDoc.id;
-
-            // compatibility: map is_approved -> verification_status
-            if (teacherData.is_approved !== undefined) {
-              teacherData.verification_status = teacherData.is_approved ? 'approved' : 'pending';
-            }
-
-            setTeacher(teacherData);
-          } else {
-            setTeacher(null);
-          }
+          setTeacher(await fetchTeacherProfile(firebaseUser.uid));
 
           const adminDoc = await getDoc(doc(db, 'admins', firebaseUser.uid));
           setIsAdmin(adminDoc.exists());
@@ -71,6 +44,16 @@ const StudentProfile = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await firebaseSignOut();
+    } catch (error) {
+      logError('StudentProfile.handleLogout', error);
+    } finally {
+      navigate('/');
+    }
+  };
 
   if (!studentId) {
     return (
@@ -93,7 +76,7 @@ const StudentProfile = () => {
   }
 
   if (isAdmin) {
-    return <AdminPanel />;
+    return <AdminPanel adminId={user.uid} onLogout={handleLogout} />;
   }
 
   if (!teacher) {
@@ -105,8 +88,7 @@ const StudentProfile = () => {
   }
 
   if (teacher.verification_status === 'pending') {
-    // no logout button here; user can go back
-    return <PendingApproval teacher={teacher} onLogout={() => navigate('/')} />;
+    return <PendingApproval teacher={teacher} onLogout={handleLogout} />;
   }
 
   if (teacher.verification_status === 'rejected') {

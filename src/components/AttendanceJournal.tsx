@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { logError } from "@/lib/errorUtils";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
   const { toast } = useToast();
 
   // O'quvchilarni olish
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       const q = query(
         collection(db, "students"),
@@ -105,10 +105,10 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
         variant: "destructive",
       });
     }
-  };
+  }, [groupName, teacherId, toast]);
 
   // Davomat ma'lumotlarini olish
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     try {
       const q = query(
         collection(db, "attendance_records"),
@@ -127,12 +127,12 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [teacherId]);
 
   useEffect(() => {
-    fetchStudents();
-    fetchAttendance();
-  }, [groupName, teacherId]);
+    void fetchStudents();
+    void fetchAttendance();
+  }, [fetchAttendance, fetchStudents]);
 
   // Effective join date olish
   const getEffectiveJoinDate = (student: Student): string | null => {

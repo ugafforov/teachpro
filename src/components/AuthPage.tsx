@@ -76,6 +76,8 @@ const AuthPage: React.FC = () => {
       const result = await firebaseSignUp(formData.email, formData.password);
 
       if (result.user) {
+        const now = getTashkentDate().toISOString();
+
         // Create teacher document in Firestore
         await setDoc(doc(db, 'teachers', result.user.uid), {
           id: result.user.uid,
@@ -85,8 +87,10 @@ const AuthPage: React.FC = () => {
           phone: formData.phone,
           institution_name: formData.institution_name,
           institution_address: formData.institution_address,
+          verification_status: 'pending',
           is_approved: false,
-          created_at: getTashkentDate().toISOString()
+          created_at: now,
+          requested_at: now
         });
 
         toast({
