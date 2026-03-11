@@ -44,6 +44,17 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+const VALID_TAB_IDS = new Set([
+  "overview",
+  "groups",
+  "students",
+  "exams",
+  "rankings",
+  "ai-analysis",
+  "archive",
+  "data",
+]);
+
 const Dashboard: React.FC<DashboardProps> = ({
   teacherId,
   teacherName,
@@ -131,6 +142,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     isAnimating: isAnimatingRef.current,
   };
 
+  const handleMenuItemClick = useCallback(
+    (tabId: string) => {
+      setActiveTab(tabId);
+      setMobileMenuOpen(false);
+
+      if (routeStudentId || activeStudentIdRef.current) {
+        setActiveStudentId(null);
+        activeStudentIdRef.current = null;
+        navigate("/", { replace: true });
+      }
+    },
+    [navigate, routeStudentId],
+  );
+
   // Handle route changes for smooth transitions - simplified without animations
   useEffect(() => {
     if (routeStudentId && routeStudentId !== activeStudentIdRef.current) {
@@ -184,20 +209,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [fetchGroups]);
 
   useEffect(() => {
-    const validTabIds = new Set([
-      "overview",
-      "groups",
-      "students",
-      "exams",
-      "rankings",
-      "ai-analysis",
-      "archive",
-      "data",
-    ]);
-
     try {
       const saved = localStorage.getItem(activeTabStorageKey);
-      if (saved && validTabIds.has(saved)) {
+      if (saved && VALID_TAB_IDS.has(saved)) {
         setActiveTab(saved);
         return;
       }
@@ -205,10 +219,10 @@ const Dashboard: React.FC<DashboardProps> = ({
       // ignore
     }
 
-    if (!validTabIds.has(activeTab)) {
-      setActiveTab("overview");
-    }
-  }, [activeTab, activeTabStorageKey]);
+    setActiveTab((currentTab: string) =>
+      VALID_TAB_IDS.has(currentTab) ? currentTab : "overview",
+    );
+  }, [activeTabStorageKey]);
 
   useEffect(() => {
     try {
@@ -537,10 +551,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 return (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setMobileMenuOpen(false);
-                    }}
+                    onClick={() => handleMenuItemClick(item.id)}
                     className={`w-full flex items-center px-3 py-3 text-left transition-all rounded-lg group ${
                       activeTab === item.id
                         ? "bg-primary/10 text-primary font-medium"

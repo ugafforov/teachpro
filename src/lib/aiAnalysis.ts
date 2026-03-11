@@ -1,4 +1,3 @@
-import { httpsCallable } from "firebase/functions";
 import {
   addDoc,
   collection,
@@ -6,38 +5,42 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db, functionsClient } from "@/lib/firebase";
 import {
+  askAboutStoredRun,
+  chatWithProjectContext,
+  runClientAiAnalysis,
+} from "@/lib/aiAnalysisEngine";
+import { db } from "@/lib/firebase";
+import {
+  AnalysisHistoryItem,
   AnalyzeInsightsRequest,
   AnalyzeInsightsResponse,
   AskInsightsRequest,
   AskInsightsResponse,
-  AnalysisHistoryItem,
+  ProjectChatRequest,
+  ProjectChatResponse,
 } from "@/types/aiAnalysis";
 
-const analyzeCallable = httpsCallable<AnalyzeInsightsRequest, AnalyzeInsightsResponse>(
-  functionsClient,
-  "aiAnalyzeInsights",
-);
-
-const askCallable = httpsCallable<AskInsightsRequest, AskInsightsResponse>(
-  functionsClient,
-  "aiAskAboutInsights",
-);
-
 export const analyzeInsights = async (
+  currentUserId: string,
+  role: "teacher" | "admin",
   request: AnalyzeInsightsRequest,
-): Promise<AnalyzeInsightsResponse> => {
-  const result = await analyzeCallable(request);
-  return result.data;
-};
+): Promise<AnalyzeInsightsResponse> =>
+  runClientAiAnalysis(currentUserId, role, request);
 
 export const askInsights = async (
+  currentUserId: string,
+  role: "teacher" | "admin",
   request: AskInsightsRequest,
-): Promise<AskInsightsResponse> => {
-  const result = await askCallable(request);
-  return result.data;
-};
+): Promise<AskInsightsResponse> =>
+  askAboutStoredRun(currentUserId, role, request);
+
+export const chatWithProjectInsights = async (
+  currentUserId: string,
+  role: "teacher" | "admin",
+  request: ProjectChatRequest,
+): Promise<ProjectChatResponse> =>
+  chatWithProjectContext(currentUserId, role, request);
 
 export const fetchAnalysisHistory = async (
   currentUserId: string,
@@ -47,10 +50,10 @@ export const fetchAnalysisHistory = async (
     where("createdBy", "==", currentUserId),
   );
 
-  const snap = await getDocs(historyQuery);
+  const snapshot = await getDocs(historyQuery);
   const items: AnalysisHistoryItem[] = [];
 
-  snap.docs.forEach((docSnap) => {
+  snapshot.docs.forEach((docSnap) => {
     const data = docSnap.data() as Record<string, unknown>;
     const response = data.response as AnalyzeInsightsResponse | undefined;
     if (!response) return;
@@ -112,20 +115,23 @@ export const fetchTeacherEntitiesForFilters = async (teacherId: string) => {
 
   return {
     groups: groupsSnap.docs
-      .map((d) => ({ id: d.id, name: (d.data().name as string) ?? d.id }))
+      .map((docSnap) => ({
+        id: docSnap.id,
+        name: (docSnap.data().name as string) ?? docSnap.id,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     students: studentsSnap.docs
-      .map((d) => ({
-        id: d.id,
-        name: (d.data().name as string) ?? d.id,
-        groupName: (d.data().group_name as string | undefined) ?? "",
+      .map((docSnap) => ({
+        id: docSnap.id,
+        name: (docSnap.data().name as string) ?? docSnap.id,
+        groupName: (docSnap.data().group_name as string | undefined) ?? "",
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     exams: examsSnap.docs
-      .map((d) => ({
-        id: d.id,
-        examName: (d.data().exam_name as string) ?? d.id,
-        examDate: (d.data().exam_date as string | undefined) ?? "",
+      .map((docSnap) => ({
+        id: docSnap.id,
+        examName: (docSnap.data().exam_name as string) ?? docSnap.id,
+        examDate: (docSnap.data().exam_date as string | undefined) ?? "",
       }))
       .sort((a, b) => a.examName.localeCompare(b.examName)),
   };

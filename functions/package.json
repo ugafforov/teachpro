@@ -9,8 +9,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rimraf lib",
-    "serve": "npm run build && firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions",
+    "serve": "npm run build && npx firebase-tools emulators:start --only functions",
+    "deploy": "npx firebase-tools deploy --only functions",
     "lint": "echo \"No lint configured for functions\""
   },
   "dependencies": {

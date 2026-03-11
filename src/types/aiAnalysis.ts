@@ -102,6 +102,27 @@ export interface AskInsightsResponse {
   citations: string[];
 }
 
+export interface ProjectChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ProjectChatRequest {
+  prompt: string;
+  conversation?: ProjectChatMessage[];
+  forceRefresh?: boolean;
+}
+
+export interface ProjectChatResponse {
+  runId: string;
+  answer: string;
+  citations: string[];
+  generatedAt: string;
+  sourceStatus: AnalyzeInsightsResponse["status"];
+  sourceSummary: string;
+  modelMeta: ModelMeta;
+}
+
 export interface AnalysisHistoryItem {
   id: string;
   generatedAt: string;

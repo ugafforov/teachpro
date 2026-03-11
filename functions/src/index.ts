@@ -20,49 +20,71 @@ if (getApps().length === 0) {
 const db = getFirestore();
 const region = process.env.FUNCTION_REGION || "us-central1";
 
-export const aiAnalyzeInsights = onCall({ region, timeoutSeconds: 120, memory: "1GiB" }, async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError("unauthenticated", "Avval tizimga kiring");
-  }
-
-  const parsed = analyzeInsightsRequestSchema.safeParse(request.data);
-  if (!parsed.success) {
-    throw new HttpsError("invalid-argument", parsed.error.issues[0]?.message ?? "Noto'g'ri so'rov");
-  }
-
-  try {
-    const response = await runAiAnalysis(db, request.auth.uid, parsed.data);
-    return response;
-  } catch (error) {
-    logger.error("aiAnalyzeInsights failed", error);
-    if (error instanceof HttpsError) {
-      throw error;
+export const aiAnalyzeInsights = onCall(
+  {
+    region,
+    cors: true,
+    timeoutSeconds: 120,
+    memory: "1GiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Avval tizimga kiring");
     }
-    throw new HttpsError("internal", "AI tahlilda ichki xatolik yuz berdi");
-  }
-});
 
-export const aiAskAboutInsights = onCall({ region, timeoutSeconds: 60, memory: "512MiB" }, async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError("unauthenticated", "Avval tizimga kiring");
-  }
-
-  const parsed = askInsightsRequestSchema.safeParse(request.data);
-  if (!parsed.success) {
-    throw new HttpsError("invalid-argument", parsed.error.issues[0]?.message ?? "Noto'g'ri so'rov");
-  }
-
-  try {
-    const response = await askAboutRun(db, request.auth.uid, parsed.data);
-    return response;
-  } catch (error) {
-    logger.error("aiAskAboutInsights failed", error);
-    if (error instanceof HttpsError) {
-      throw error;
+    const parsed = analyzeInsightsRequestSchema.safeParse(request.data);
+    if (!parsed.success) {
+      throw new HttpsError(
+        "invalid-argument",
+        parsed.error.issues[0]?.message ?? "Noto'g'ri so'rov",
+      );
     }
-    throw new HttpsError("internal", "AI savol-javobda ichki xatolik yuz berdi");
-  }
-});
+
+    try {
+      const response = await runAiAnalysis(db, request.auth.uid, parsed.data);
+      return response;
+    } catch (error) {
+      logger.error("aiAnalyzeInsights failed", error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "AI tahlilda ichki xatolik yuz berdi");
+    }
+  },
+);
+
+export const aiAskAboutInsights = onCall(
+  {
+    region,
+    cors: true,
+    timeoutSeconds: 60,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Avval tizimga kiring");
+    }
+
+    const parsed = askInsightsRequestSchema.safeParse(request.data);
+    if (!parsed.success) {
+      throw new HttpsError(
+        "invalid-argument",
+        parsed.error.issues[0]?.message ?? "Noto'g'ri so'rov",
+      );
+    }
+
+    try {
+      const response = await askAboutRun(db, request.auth.uid, parsed.data);
+      return response;
+    } catch (error) {
+      logger.error("aiAskAboutInsights failed", error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "AI savol-javobda ichki xatolik yuz berdi");
+    }
+  },
+);
 
 export const aiCleanupExpired = onSchedule(
   {

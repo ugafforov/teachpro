@@ -13,7 +13,10 @@
     "test:visual": "node scripts/visual-test-dark.mjs",
     "update:browsers": "npx update-browserslist-db@latest",
     "functions:build": "npm --prefix functions run build",
-    "functions:serve": "npm --prefix functions run serve"
+    "functions:serve": "npm --prefix functions run serve",
+    "firebase:deploy": "npx firebase-tools deploy --only functions,firestore",
+    "firebase:deploy:functions": "npx firebase-tools deploy --only functions",
+    "firebase:deploy:firestore": "npx firebase-tools deploy --only firestore"
   },
   "overrides": {
     "esbuild": "0.21.5"
