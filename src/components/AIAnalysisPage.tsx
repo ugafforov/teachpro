@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchAnalysisHistory, chatWithProjectInsights } from "@/lib/aiAnalysis";
+import {
+  fetchAnalysisHistory,
+  chatWithProjectInsights,
+  deleteAnalysisRun,
+} from "@/lib/aiAnalysis";
 import { cn } from "@/lib/utils";
 import {
   Sparkles,
@@ -291,7 +295,7 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quickActions = [
@@ -340,6 +344,11 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  useEffect(() => {
+    // Sahifa ochilganda sidebar avtomatik yopilsin
+    setSidebarOpen(false);
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -427,11 +436,29 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
         },
       },
     ]);
-    setHistoryOpen(false);
+    setSidebarOpen(false);
+  };
+
+  const deleteHistoryItem = async (runId: string) => {
+    const confirmed = window.confirm("Haqiqatan ham ushbu tahlilni o'chirmoqchimisiz?");
+    if (!confirmed) return;
+
+    try {
+      await deleteAnalysisRun(runId);
+      setHistory((prev) => prev.filter((item) => item.id !== runId));
+      if (activeHistoryId === runId) {
+        setActiveHistoryId(null);
+        setMessages([]);
+      }
+      toast.success("Tahlil muvaffaqiyatli o'chirildi");
+    } catch (error) {
+      console.error("Delete history error", error);
+      toast.error("Tahlilni o'chirishda xatolik yuz berdi");
+    }
   };
 
   const handleQuickAction = (text: string) => {
-    setHistoryOpen(false);
+    setSidebarOpen(false);
     handleSend(text);
   };
 
@@ -443,8 +470,9 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
         {/* Sidebar / History */}
         <aside
           className={cn(
-            "hidden lg:flex flex-col w-80 shrink-0 border-r border-border bg-card/70 backdrop-blur-lg",
+            "flex flex-col w-80 shrink-0 border-r border-border bg-card/70 backdrop-blur-lg",
             "transition-all duration-300",
+            sidebarOpen ? "flex lg:flex" : "hidden lg:hidden",
           )}
         >
           <div className="px-5 py-4 border-b border-border">
@@ -515,9 +543,22 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
                           <span className="text-sm font-semibold text-foreground truncate">
                             {item.scope === "global" ? "Global" : item.scope === "group" ? "Guruh" : item.scope === "student" ? "O'quvchi" : "Imtihon"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {formatRelativeTime(item.generatedAt)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground">
+                              {formatRelativeTime(item.generatedAt)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteHistoryItem(item.id);
+                              }}
+                              className="p-1 rounded-full hover:bg-destructive/10 text-destructive"
+                              aria-label="Tahlilni o'chirish"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         <p className="text-[12px] text-muted-foreground line-clamp-2">
                           {item.summary}
@@ -557,11 +598,15 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setHistoryOpen((prev) => !prev)}
-                className="rounded-full hover:bg-muted/80 text-muted-foreground transition-colors lg:hidden"
-                aria-label="Tahlil tarixi"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                className="rounded-full hover:bg-muted/80 text-muted-foreground transition-colors"
+                aria-label={sidebarOpen ? "Tahlil tarixini yopish" : "Tahlil tarixini ochish"}
               >
-                <ClipboardList className="w-5 h-5" />
+                {sidebarOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <ClipboardList className="w-5 h-5" />
+                )}
               </Button>
 
               <DropdownMenu>
@@ -741,11 +786,11 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
       </div>
 
       {/* Mobile history drawer */}
-      {historyOpen && (
+      {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setHistoryOpen(false)}
+            onClick={() => setSidebarOpen(false)}
           />
           <div className="absolute right-0 top-0 h-full w-11/12 max-w-xs bg-card/90 border-l border-border shadow-xl backdrop-blur-xl">
             <div className="flex items-center justify-between px-4 py-4 border-b border-border">
@@ -756,7 +801,7 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setHistoryOpen(false)}
+                onClick={() => setSidebarOpen(false)}
                 aria-label="Yopish"
               >
                 <X className="w-4 h-4" />
@@ -790,9 +835,22 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
                         <span className="text-sm font-semibold text-foreground truncate">
                           {item.scope === "global" ? "Global" : item.scope === "group" ? "Guruh" : item.scope === "student" ? "O'quvchi" : "Imtihon"}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatRelativeTime(item.generatedAt)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatRelativeTime(item.generatedAt)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteHistoryItem(item.id);
+                            }}
+                            className="p-1 rounded-full hover:bg-destructive/10 text-destructive"
+                            aria-label="Tahlilni o'chirish"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-[12px] text-muted-foreground line-clamp-2">
                         {item.summary}

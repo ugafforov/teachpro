@@ -1,6 +1,8 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   getDocs,
   query,
   where,
@@ -78,6 +80,10 @@ export const fetchAnalysisHistory = async (
     (a, b) =>
       new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime(),
   );
+};
+
+export const deleteAnalysisRun = async (runId: string): Promise<void> => {
+  await deleteDoc(doc(db, "ai_analysis_runs", runId));
 };
 
 export const submitAnalysisFeedback = async (
