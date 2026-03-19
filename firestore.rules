@@ -18,143 +18,226 @@ service cloud.firestore {
       return isAuthenticated() && resource.data.get('teacher_id', '') == request.auth.uid;
     }
 
+    // Rate limiting helper
+    function isWithinRateLimit(path, max_operations, window_ms) {
+      let operations = firestore.query(path)
+        .where('created_at', '>', request.time - duration.value(window_ms, 'ms'))
+        .where('created_by', '==', request.auth.uid)
+        .count().read;
+      return operations < max_operations;
+    }
+
+    // Data validation helpers
+    function hasValidTeacherId() {
+      return request.resource.data.teacher_id is string && 
+             request.resource.data.teacher_id.size() > 0;
+    }
+
+    function hasValidTimestamp() {
+      return !request.resource.data.has('created_at') ||
+             request.resource.data.created_at is timestamp;
+    }
+
+    function isValidDate(dateStr) {
+      return dateStr is string && dateStr.size() == 10;
+    }
+
     match /teachers/{teacherId} {
       allow read: if isAuthenticated() && (request.auth.uid == teacherId || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == teacherId;
+      allow create: if isAuthenticated() && request.auth.uid == teacherId && 
+                       hasValidTimestamp();
       allow update: if isAuthenticated() && (request.auth.uid == teacherId || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /admins/{adminId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
+    // Students collection
     match /students/{studentId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Groups collection
     match /groups/{groupId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Attendance records collection
     match /attendance_records/{recordId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Group notes
     match /group_notes/{noteId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Reward and penalty history
     match /reward_penalty_history/{historyId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Exams collection
     match /exams/{examId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Exam results collection
     match /exam_results/{resultId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
+    // Exam types (read-only for authenticated users, write for admins)
     match /exam_types/{typeId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
+    // Archived collections with same access rules as originals
     match /archived_students/{docId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAdmin() || resourceOwnedByCurrentUser();
+      allow delete: if isAdmin();
     }
 
     match /archived_groups/{docId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAdmin() || resourceOwnedByCurrentUser();
+      allow delete: if isAdmin();
     }
 
     match /archived_exams/{docId} {
       allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
+                       hasValidTeacherId() && hasValidTimestamp();
+      allow update: if isAdmin() || resourceOwnedByCurrentUser();
+      allow delete: if isAdmin();
     }
 
+    // Soft deleted collections (append-only logs)
     match /deleted_students/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_groups/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_exams/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_attendance_records/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_reward_penalty_history/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_exam_results/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /deleted_student_scores/{docId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
+    // Audit logs (append-only)
     match /audit_logs/{logId} {
-      allow create: if isAdmin() || requestOwnedByCurrentUser();
-      allow read, update, delete: if isAdmin() || resourceOwnedByCurrentUser();
+      allow create: if isAuthenticated() && (
+        isAdmin() || request.resource.data.get('teacher_id', '') == request.auth.uid
+      );
+      allow read: if isAdmin();
+      allow update, delete: if false;
     }
 
+    // AI analysis runs and feedback
     match /ai_analysis_runs/{runId} {
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.get('createdBy', '') == request.auth.uid;
-      allow update, delete: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
+      allow read: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
+      allow create: if isAuthenticated() && 
+                       request.resource.data.get('createdBy', '') == request.auth.uid &&
+                       hasValidTimestamp();
+      allow update: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
     }
 
+    // AI analysis cache (write-protected in production)
     match /ai_analysis_cache/{cacheId} {
       allow read, write: if false;
     }
 
+    // AI analysis feedback
     match /ai_analysis_feedback/{feedbackId} {
-      allow create: if isAuthenticated() && request.resource.data.get('createdBy', '') == request.auth.uid;
-      allow read, update, delete: if isAuthenticated() && (isAdmin() || resource.data.get('createdBy', '') == request.auth.uid);
+      allow create: if isAuthenticated() && 
+                       request.resource.data.get('createdBy', '') == request.auth.uid &&
+                       hasValidTimestamp();
+      allow read: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+      );
     }
   }
 }

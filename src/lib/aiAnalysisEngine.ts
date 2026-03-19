@@ -2850,27 +2850,36 @@ async function callAiJson<T>(
 
   try {
     console.log("Calling AI API with model:", AI_MODEL);
-    const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
+    
+    // Gemini API endpoint format
+    const endpoint = `${AI_BASE_URL}/models/${AI_MODEL}:generateContent?key=${AI_API_KEY}`;
+    
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${AI_API_KEY}`,
         "X-Title": "TeachPro AI Assistant",
       },
       body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: "Siz TeachPro tizimining o'ta aqlli va tajribali AI assistantisiz. " +
-                     "Faqat JSON formatida javob bering. Javobingizni har doim berilgan schema bo'yicha shakllantiring.",
-          },
+        system_instruction: {
+          parts: [{
+            text: "Siz TeachPro tizimining o'ta aqlli va tajribali AI assistantisiz. " +
+                   "Faqat JSON formatida javob bering. Javobingizni har doim berilgan schema bo'yicha shakllantiring.",
+          }],
+        },
+        contents: [
           {
             role: "user",
-            content: prompt,
+            parts: [{
+              text: prompt,
+            }],
           },
         ],
-        temperature: 0.1,
+        generationConfig: {
+          temperature: 0.1,
+          topP: 1.0,
+          topK: 1,
+        },
       }),
     });
 
@@ -2881,7 +2890,7 @@ async function callAiJson<T>(
     }
 
     const result = await response.json();
-    const rawText = result.choices[0]?.message?.content ?? "{}";
+    const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
     
     // JSONni qidirib topish va tozalash
     const jsonStr = extractJsonBlock(rawText);
@@ -2891,9 +2900,9 @@ async function callAiJson<T>(
 
     return {
       parsed,
-      tokensIn: result.usage?.prompt_tokens ?? 0,
-      tokensOut: result.usage?.completion_tokens ?? 0,
-      model: result.model || AI_MODEL,
+      tokensIn: result.usageMetadata?.prompt_token_count ?? 0,
+      tokensOut: result.usageMetadata?.candidates_token_count ?? 0,
+      model: AI_MODEL,
     };
   } catch (err) {
     console.error("callAiJson error:", err);
@@ -3140,11 +3149,11 @@ export async function runClientAiAnalysis(
     groups: aggregated.groupIdToToken,
   };
 
-  let responseCore: ModelOutput = heuristic;
-  let providerName = "heuristic";
-  let modelName = "fallback-local";
-  let tokensIn = 0;
-  let tokensOut = 0;
+  const responseCore: ModelOutput = heuristic;
+  const providerName = "heuristic";
+  const modelName = "fallback-local";
+  const tokensIn = 0;
+  const tokensOut = 0;
 
   // We skip calling LLM for initial analysis to speed up chat response
   // Chat will use the aggregated data directly
@@ -3152,7 +3161,7 @@ export async function runClientAiAnalysis(
   
   const runId = doc(collection(db, "ai_analysis_runs")).id;
 
-  let response = toRunSafeResponse(
+  const response = toRunSafeResponse(
     responseCore,
     runId,
     "ok",

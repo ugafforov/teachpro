@@ -285,7 +285,7 @@ function getSelectedProvider(): SupportedAiProvider {
 
 function getDefaultModelForProvider(provider: SupportedAiProvider): string {
   if (provider === "gemini") {
-    return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
   }
 
   return process.env.OPENAI_MODEL || "gpt-4.1-mini";

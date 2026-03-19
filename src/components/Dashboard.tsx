@@ -179,6 +179,13 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   }, [routeStudentId]);
 
+  // Close sidebar when AI Analysis page is opened
+  useEffect(() => {
+    if (activeTab === "ai-analysis") {
+      setSidebarCollapsed(true);
+    }
+  }, [activeTab]);
+
   const fetchGroups = useCallback(async () => {
     try {
       const q = query(

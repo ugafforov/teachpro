@@ -36,7 +36,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     useEffect(() => {
         // Initial fetch
         void fetchStatistics(true);
-    }, [teacherId, selectedPeriod, selectedGroup]); // Corrected dependency array
+    }, [teacherId, selectedPeriod, selectedGroup, fetchStatistics]);
 
     useEffect(() => {
         if (!teacherId) return;
