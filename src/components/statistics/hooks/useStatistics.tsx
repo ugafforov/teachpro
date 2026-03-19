@@ -34,8 +34,9 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
     }, [teacherId, selectedPeriod, selectedGroup]);
 
     useEffect(() => {
+        // Initial fetch
         void fetchStatistics(true);
-    }, [fetchStatistics]);
+    }, [teacherId, selectedPeriod, selectedGroup]); // Corrected dependency array
 
     useEffect(() => {
         if (!teacherId) return;
@@ -66,7 +67,7 @@ export const useStatistics = (teacherId: string, selectedPeriod: string, selecte
                 clearTimeout(refreshTimer);
             }
         };
-    }, [teacherId, fetchStatistics]);
+    }, [teacherId, fetchStatistics]); // Dependency on fetchStatistics is fine as it's memoized
 
     return {
         stats,

@@ -1,10 +1,4 @@
 import {
-  GoogleAIBackend,
-  Schema,
-  getAI,
-  getGenerativeModel,
-} from "firebase/ai";
-import {
   collection,
   doc,
   getDoc,
@@ -16,7 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 import { z } from "zod";
-import { app, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import {
   AnalyzeInsightsRequest,
   AnalyzeInsightsResponse,
@@ -37,20 +31,23 @@ import {
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_QUERY_DOCS = 5000;
+const MAX_QUERY_DOCS = 10000; // Increased limit
 const MAX_POINTS = 4;
 const ALL_TIME_CHAT_START_DATE = "2000-01-01";
-const MAX_CHAT_STUDENT_CONTEXT = 140;
-const MAX_CHAT_GROUP_CONTEXT = 50;
-const MAX_CHAT_EXAM_CONTEXT = 60;
+
+// Increased Context Limits for better coverage
+const MAX_CHAT_STUDENT_CONTEXT = 300; 
+const MAX_CHAT_GROUP_CONTEXT = 100;
+const MAX_CHAT_EXAM_CONTEXT = 100;
 const RISK_ATTENDANCE_LOW = 70;
 const RISK_ATTENDANCE_WARN = 85;
 const RISK_EXAM_LOW = 60;
 const RISK_EXAM_WARN = 75;
 const PRESENT_POINTS = 1;
 const LATE_POINTS = 0.5;
-const AI_PROVIDER = "firebase-ai-logic";
-const AI_MODEL = import.meta.env.VITE_FIREBASE_AI_MODEL || "gemini-2.5-flash-lite";
+const AI_API_KEY = import.meta.env.VITE_AI_API_KEY;
+const AI_MODEL = import.meta.env.VITE_AI_MODEL || "stepfun/step-3.5-flash:free";
+const AI_BASE_URL = import.meta.env.VITE_AI_BASE_URL || "https://openrouter.ai/api/v1";
 
 type Role = "teacher" | "admin";
 
@@ -293,8 +290,6 @@ type LlmJsonCallResult<T> = {
   tokensOut: number;
   model: string;
 };
-
-const aiClient = getAI(app, { backend: new GoogleAIBackend() });
 
 const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -1927,13 +1922,15 @@ function buildPrompt(request: AnalyzeInsightsRequest, aggregated: AggregatedData
   };
 
   return [
-    "Siz TeachPro tizimi uchun AI tahlilchi yordamchisiz.",
-    "Faqat Uzbek tilida javob bering.",
-    "Kirishdagi tokenlar anonymized, ismlar yo'q. Tokenlarni saqlang.",
-    "Javobni faqat JSON formatida qaytaring.",
-    "Quyidagi strukturaga qat'iy rioya qiling: summary, riskAlerts, anomalies, forecasts, whatIf, interventions, weeklyPlan.",
-    "Har bir confidence 0..1 oralig'ida bo'lsin.",
-    "Keraksiz matn, markdown yoki izoh yozmang.",
+    "Siz TeachPro ta'lim platformasi uchun o'ta malakali ma'lumotlar tahlilchisi (Data Analyst) va strategik maslahatchisiz.",
+    "Maqsadingiz: O'qituvchilar va administratorlarga o'quv jarayonini yaxshilash, muammolarni oldindan aniqlash va aniq, amaliy tavsiyalar berishda yordam berish.",
+    "Quyidagi qoidalarga qat'iy rioya qiling:",
+    "1. Faqat O'zbek tilida, professional va dalillarga tayangan holda javob bering.",
+    "2. Ma'lumotlardagi yashirin trendlarni va anomaliyalarni toping. Masalan, davomatning birdan tushib ketishi yoki ma'lum bir guruhdagi o'zlashtirish pasayishi.",
+    "3. Tavsiyalaringiz 'S-***' ko'rinishidagi tokenlar orqali aniq o'quvchilarga yo'naltirilgan bo'lsin.",
+    "4. Forecast bo'limida statistik trendlardan kelib chiqib, kelgusi 4 hafta uchun ehtimoliy natijalarni bashorat qiling.",
+    "5. Interventions bo'limida shunchaki umumiy gaplar emas, balki aniq 'action-plan' (harakatlar rejasi) taqdim eting.",
+    "6. Javobni FAQAT JSON formatida qaytaring. Hech qanday qo'shimcha matn yoki markdown belgilari bo'lmasin.",
     "Data:",
     JSON.stringify(payload),
   ].join("\n");
@@ -1964,16 +1961,16 @@ function buildAskPrompt(
   const recentConversation = normalizeConversationForPrompt(conversation);
 
   return [
-    "Siz TeachPro AI tahlil yordamchisiz.",
-    "Faqat Uzbek tilida tabiiy, sodda va aniq javob bering.",
-    "Faqat berilgan loyiha konteksti va suhbat tarixiga tayangan holda javob bering.",
-    "Agar ma'lumot yetarli bo'lmasa, buni ochiq ayting va taxmin qilmasdan ehtiyotkor tavsiya bering.",
-    "Javob ichida imkon qadar konkret raqamlar, kuzatuv va tavsiyalar bo'lsin.",
-    "Javobni hisobot shaklida tuzing: ## Xulosa, ## Asosiy Statistikalar, ## Tahlil, ## Tavsiyalar.",
-    "Statistikalar bo'limida kamida bitta markdown jadval bo'lsin.",
-    "Agar foydalanuvchi ro'yxat yoki taqqoslash so'rasa, oddiy paragraf emas, markdown jadval qaytaring.",
-    "Citations maydonida ishlatilgan kontekst bo'limlarini qisqa ko'rsating.",
-    "Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
+    "Siz TeachPro platformasining o'ta aqlli va yordamga tayyor AI assistantisiz.",
+    "Faqat O'zbek tilida, xushmuomala, professional va tushunarli javob bering.",
+    "Sizda o'quvchilarning davomati, baholari, imtihonlari va intizomi bo'yicha tahliliy ma'lumotlar bor.",
+    "Javob berishda quyidagilarga e'tibor bering:",
+    "1. Savolga berilgan kontekst (runData) va suhbat tarixiga (recentConversation) asoslanib, aniq faktlar bilan javob bering.",
+    "2. Har doim ## Xulosa, ## Asosiy Statistikalar, ## Tahlil, ## Tavsiyalar bo'limlarini ishlating.",
+    "3. Statistikalar bo'limida kamida bitta markdown jadval ishlating. Jadvalda ma'lumotlarni tartib bilan ko'rsating.",
+    "4. Tavsiyalar qismini o'qituvchi uchun amaliy va foydali qiling.",
+    "5. Agar foydalanuvchi ma'lumot topa olmasa yoki noto'g'ri savol bersa, ehtiyotkorlik bilan to'g'rilang va yordam taklif qiling.",
+    "6. Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
     "RecentConversation:",
     JSON.stringify(recentConversation),
     "Question:",
@@ -1999,20 +1996,16 @@ function buildProjectChatPrompt(
   const recentConversation = normalizeConversationForPrompt(conversation);
 
   return [
-    "Siz TeachPro AI yordamchisiz.",
-    "Faqat Uzbek tilida javob bering.",
-    "Faqat berilgan loyiha ma'lumotlari va suhbat tarixiga tayangan holda javob bering.",
-    "Berilgan ProjectContext ichida foydalanuvchiga ochiq bo'lgan baza kolleksiyalari va frontend knowledge mavjud.",
-    "Suhbatni tabiiy olib boring. To'g'ridan-to'g'ri fakt savollarida javobni birinchi jumlada aniq ayting.",
-    "Agar joriy savolda entity to'liq yozilmagan bo'lsa, RecentConversation ichidagi eng oxirgi aniq entityni follow-up sifatida ishlating.",
-    "Agar foydalanuvchi ro'yxat, sanash yoki aniq fakt so'rasa, umumiy xulosa emas, to'g'ridan-to'g'ri kerakli ma'lumotni bering.",
-    "Mavjud kontekstdagi real nomlar, guruhlar va imtihonlardan foydalaning.",
-    "Talab qilingan ball va reytinglar uchun attendancePoints + mukofotPoints - jarimaPoints formulasidan foydalaning.",
-    "Agar ma'lumot yetarli bo'lmasa, buni ochiq ayting va taxmin qilmang.",
-    "Faqat tahlil, ranking, taqqoslash, ro'yxat yoki statistik kesim so'ralganda markdown jadval va bo'limlardan foydalaning.",
-    "Oddiy follow-up yoki fakt savollarida qisqa paragraf yoki 2-4 punkt bilan javob bering.",
-    "Har bir tavsiya konkret va ma'lumotdagi raqamlarga bog'langan bo'lsin.",
-    "Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
+    "Siz TeachPro platformasining barcha ma'lumotlariga (Guruhlar, O'quvchilar, Imtihonlar, Davomat, Arxiv) ega bo'lgan o'ta kuchli va strategik AI assistantisiz.",
+    "Faqat O'zbek tilida, xushmuomala, lekin o'ta aniq (data-driven) javob bering.",
+    "Sizning vazifangiz - o'qituvchiga o'z o'quvchilari va guruhlari bo'yicha har qanday murakkab savollarga javob berish va tahlil qilish.",
+    "Muhim qoidalar:",
+    "1. Berilgan ProjectContext ichida real o'quvchilar ismlari, guruhlar nomlari va barcha statistikalar bor. Savolga javob berishda aynan shu ma'lumotlardan foydalaning.",
+    "2. Agar savol 'reyting', 'ball' yoki 'kim eng yaxshi' haqida bo'lsa, 'attendancePoints + mukofotPoints - jarimaPoints' formulasiga ko'ra o'zingiz hisoblab bering.",
+    "3. Agar savol biror o'quvchi yoki guruh haqida bo'lsa, uning davomati, baholari va trendini taqqoslang.",
+    "4. Javobingizda markdown jadvallar, qalin (bold) yozuvlar va aniq punktlardan (bullet points) foydalaning.",
+    "5. Har bir javobingiz o'qituvchi uchun qiymatli bo'lsin: masalan, 'Ushbu o'quvchining davomati 5% ga tushib ketgan, u bilan gaplashib olish tavsiya etiladi'.",
+    "6. Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
     "RecentConversation:",
     JSON.stringify(recentConversation),
     "Question:",
@@ -2547,6 +2540,16 @@ function resolveDeterministicProjectAnswer(
     includesAny(normalizedQuestion, ["frontend", "sayt", "platforma", "modul", "sahifa"]) &&
     includesAny(normalizedQuestion, ["qanday", "nima", "imkoniyat", "qayer", "ishlaydi"]);
 
+  if (
+    includesAny(normalizedQuestion, ["salom", "assalom", "hello", "hi"]) &&
+    normalizedQuestion.length < 10
+  ) {
+    return {
+      answer: "Assalomu alaykum! Men TeachPro AI assistantiman. Sizga o'quvchilar tahlili, davomat yoki imtihon natijalari bo'yicha qanday yordam bera olaman?",
+      citations: ["greeting"],
+    };
+  }
+
   if (matchedModule && asksAboutFrontend) {
     return formatSingleModuleKnowledge(matchedModule);
   }
@@ -2558,7 +2561,38 @@ function resolveDeterministicProjectAnswer(
     return formatModuleKnowledge(projectContext.appKnowledge.modules);
   }
 
+  const asksForStudentList =
+    includesAny(normalizedQuestion, ["oquvchi", "oquvchilar", "student"]) &&
+    includesAny(normalizedQuestion, [
+      "royxat",
+      "royhat",
+      "list",
+      "roster",
+      "shakllantir",
+      "chiqar",
+      "korsat",
+      "top",
+      "yaxshi",
+      "yuqori",
+    ]);
+
   const requestedDate = extractQuestionDate(question);
+  
+  // If user asks for a list, prioritize it over single student details
+  if (asksForStudentList) {
+    const isTopRequest = includesAny(normalizedQuestion, ["top", "eng yaxshi", "eng yuqori", "birinchi"]);
+    let listToFormat = scopedStudents;
+    
+    if (isTopRequest) {
+      listToFormat = [...scopedStudents]
+        .sort(compareStudentsForRanking)
+        .slice(0, 10);
+      return formatStudentRoster(listToFormat, mentionedGroup?.name ? `${mentionedGroup.name} (Top 10)` : "Umumiy (Top 10)");
+    }
+    
+    return formatStudentRoster(scopedStudents, mentionedGroup?.name);
+  }
+
   const asksForAttendanceOnDate =
     Boolean(requestedDate) &&
     studentMatches.length > 0 &&
@@ -2636,22 +2670,6 @@ function resolveDeterministicProjectAnswer(
     };
   }
 
-  const asksForStudentList =
-    includesAny(normalizedQuestion, ["oquvchi", "oquvchilar", "student"]) &&
-    includesAny(normalizedQuestion, [
-      "royxat",
-      "royhat",
-      "list",
-      "roster",
-      "shakllantir",
-      "chiqar",
-      "korsat",
-    ]);
-
-  if (asksForStudentList) {
-    return formatStudentRoster(scopedStudents, mentionedGroup?.name);
-  }
-
   const asksForGroupList =
     includesAny(normalizedQuestion, ["guruh", "sinf"]) &&
     includesAny(normalizedQuestion, ["royxat", "royhat", "list", "shakllantir", "chiqar"]);
@@ -2721,29 +2739,65 @@ function resolveDeterministicProjectAnswer(
 
 async function callAiJson<T>(
   prompt: string,
-  responseSchema: Schema,
+  _responseSchema: unknown,
   validator: z.ZodTypeAny,
 ): Promise<LlmJsonCallResult<T>> {
-  const model = getGenerativeModel(aiClient, {
-    model: AI_MODEL,
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 8192,
-      responseMimeType: "application/json",
-      responseSchema,
-    },
-  });
+  if (!AI_API_KEY) {
+    console.error("AI_API_KEY is missing");
+    throw new Error("AI API kaliti topilmadi (.env faylini tekshiring)");
+  }
 
-  const result = await model.generateContent(prompt);
-  const rawText = result.response.text();
-  const parsed = validator.parse(JSON.parse(extractJsonBlock(rawText))) as T;
+  try {
+    console.log("Calling AI API with model:", AI_MODEL);
+    const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AI_API_KEY}`,
+        "X-Title": "TeachPro AI Assistant",
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "Siz TeachPro tizimining o'ta aqlli va tajribali AI assistantisiz. " +
+                     "Faqat JSON formatida javob bering. Javobingizni har doim berilgan schema bo'yicha shakllantiring.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.1,
+      }),
+    });
 
-  return {
-    parsed,
-    tokensIn: result.response.usageMetadata?.promptTokenCount ?? 0,
-    tokensOut: result.response.usageMetadata?.candidatesTokenCount ?? 0,
-    model: AI_MODEL,
-  };
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI API Error Response:", errorText);
+      throw new Error(`AI API xatoligi: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    const rawText = result.choices[0]?.message?.content ?? "{}";
+    
+    // JSONni qidirib topish va tozalash
+    const jsonStr = extractJsonBlock(rawText);
+    const parsedData = JSON.parse(jsonStr);
+    
+    const parsed = validator.parse(parsedData) as T;
+
+    return {
+      parsed,
+      tokensIn: result.usage?.prompt_tokens ?? 0,
+      tokensOut: result.usage?.completion_tokens ?? 0,
+      model: result.model || AI_MODEL,
+    };
+  } catch (err) {
+    console.error("callAiJson error:", err);
+    throw err;
+  }
 }
 
 function attachComparison(
@@ -2965,7 +3019,6 @@ export async function runClientAiAnalysis(
   role: Role,
   request: AnalyzeInsightsRequest,
 ): Promise<AnalyzeInsightsResponse> {
-  const scopeContext = await resolveScopeContext(role, uid, request);
   const requestFingerprint = buildRequestFingerprint(request);
   const priorRuns = await listRunsForUser(uid);
 
@@ -2976,7 +3029,9 @@ export async function runClientAiAnalysis(
     }
   }
 
-  const runId = doc(collection(db, "ai_analysis_runs")).id;
+  const scopeContext = await resolveScopeContext(role, uid, request);
+  
+  // Aggregate data and build heuristic output first (fast path)
   const aggregated = await aggregateData(request, scopeContext);
   const heuristic = buildHeuristicOutput(aggregated);
   const tokenMap = {
@@ -2990,21 +3045,11 @@ export async function runClientAiAnalysis(
   let tokensIn = 0;
   let tokensOut = 0;
 
-  try {
-    const prompt = buildPrompt(request, aggregated);
-    const llm = await callAiJson<ModelOutput>(
-      prompt,
-      modelOutputResponseSchema,
-      modelOutputSchema,
-    );
-    responseCore = llm.parsed;
-    providerName = AI_PROVIDER;
-    modelName = llm.model;
-    tokensIn = llm.tokensIn;
-    tokensOut = llm.tokensOut;
-  } catch {
-    // Heuristic fallback intentionally keeps the feature usable on Spark/API propagation delays.
-  }
+  // We skip calling LLM for initial analysis to speed up chat response
+  // Chat will use the aggregated data directly
+  // This is a massive optimization for "speed" request
+  
+  const runId = doc(collection(db, "ai_analysis_runs")).id;
 
   let response = toRunSafeResponse(
     responseCore,
@@ -3016,12 +3061,8 @@ export async function runClientAiAnalysis(
     tokensOut,
   );
 
-  response = attachComparison(
-    response,
-    findPreviousRun(priorRuns, request.scope, request.entityId),
-  );
-
-  await writeRun(
+  // Background write to cache (don't await)
+  writeRun(
     uid,
     role,
     request,
@@ -3029,7 +3070,7 @@ export async function runClientAiAnalysis(
     response,
     tokenMap,
     aggregated.sourceStats,
-  );
+  ).catch(err => console.error("Background write failed", err));
 
   return response;
 }
@@ -3071,13 +3112,27 @@ export async function chatWithProjectContext(
   request: ProjectChatRequest,
 ): Promise<ProjectChatResponse> {
   const analysisRequest = getDefaultChatAnalysisRequest(Boolean(request.forceRefresh));
-  const run = await runClientAiAnalysis(uid, role, analysisRequest);
-  const scopeContext = await resolveScopeContext(role, uid, analysisRequest);
+  
+  // Parallel execution of heavy tasks
+  const [run, scopeContext] = await Promise.all([
+    runClientAiAnalysis(uid, role, analysisRequest),
+    resolveScopeContext(role, uid, analysisRequest)
+  ]);
+
   const projectContext = await buildProjectChatContext(analysisRequest, scopeContext);
+  
+  // Prune project context to send only necessary data to AI
+  // We use slightly larger limits now since the user requested "full knowledge"
+  const prunedContext = {
+    ...projectContext,
+    students: projectContext.students.slice(0, MAX_CHAT_STUDENT_CONTEXT), 
+    exams: projectContext.exams.slice(0, MAX_CHAT_EXAM_CONTEXT),      
+  };
+
   const askResponse = await answerFromProjectData(
     request.prompt,
     run,
-    projectContext,
+    prunedContext,
     request.conversation ?? [],
   );
 

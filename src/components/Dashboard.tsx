@@ -282,6 +282,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             role="teacher"
             teacherId={teacherId}
             currentUserId={teacherId}
+            teacherName={teacherName}
           />
         );
       case "archive":

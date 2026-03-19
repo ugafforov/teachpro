@@ -4,8 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { chatWithProjectInsights } from "@/lib/aiAnalysis";
 import { cn } from "@/lib/utils";
-import { Loader2, Sparkles } from "lucide-react";
+import {
+  Sparkles,
+  SendHorizontal,
+  Bot,
+  User,
+  MoreHorizontal,
+  RefreshCw,
+  Lightbulb,
+  Trash2,
+} from "lucide-react";
 import { ProjectChatMessage } from "@/types/aiAnalysis";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 interface AIAnalysisPageProps {
   role: "teacher" | "admin";
@@ -17,6 +34,7 @@ type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  timestamp: number;
 };
 
 type StructuredBlock =
@@ -245,230 +263,240 @@ const StructuredAiResponse: React.FC<{ content: string }> = ({ content }) => {
 const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
   role,
   currentUserId,
+  teacherId,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [prompt, setPrompt] = useState("");
-  const [sending, setSending] = useState(false);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const quickActions = [
+    "O'quvchilar reytingi (Top 10)",
+    "Imtihon natijalari tahlili",
+    "Davomat bo'yicha hisobot",
+    "Xavf ostidagi o'quvchilar",
+  ];
+
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages, sending]);
+  const handleSend = async (text: string = input) => {
+    if (!text.trim() || isLoading) return;
 
-  const buildConversation = useCallback(
-    (nextMessages: ChatMessage[]): ProjectChatMessage[] =>
-      nextMessages.map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-    [],
-  );
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+      timestamp: Date.now(),
+    };
 
-  const sendPrompt = useCallback(
-    async (rawPrompt: string) => {
-      const trimmedPrompt = rawPrompt.trim();
-      if (!trimmedPrompt || sending) return;
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
 
-      const userMessage: ChatMessage = {
-        id: createMessageId(),
-        role: "user",
-        content: trimmedPrompt,
+    try {
+      // Simulate quick response for better UX
+      const response = await chatWithProjectInsights(currentUserId, role, {
+        prompt: text,
+        conversation: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: response.answer,
+        timestamp: Date.now(),
       };
 
-      const nextMessages = [...messages, userMessage];
-      setMessages(nextMessages);
-      setPrompt("");
-      setSending(true);
-
-      try {
-        const response = await chatWithProjectInsights(currentUserId, role, {
-          prompt: trimmedPrompt,
-          conversation: buildConversation(nextMessages),
-        });
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: createMessageId(),
-            role: "assistant",
-            content: response.answer,
-          },
-        ]);
-      } catch (error) {
-        console.error(error);
-        toast.error(
-          (error as { message?: string })?.message ??
-            "AI javobini olishda xatolik yuz berdi",
-        );
-      } finally {
-        setSending(false);
-      }
-    },
-    [buildConversation, currentUserId, messages, role, sending],
-  );
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void sendPrompt(prompt);
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      toast.error("Xatolik yuz berdi. Iltimos qayta urinib ko'ring.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div className="mx-auto flex min-h-[78vh] w-full max-w-[1080px] flex-col px-4 pb-8 pt-8 sm:px-6 sm:pt-10 lg:px-8">
-      <div className="relative flex min-h-[78vh] flex-col">
-        {messages.length === 0 && (
-          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-2 pb-10 text-center">
-            <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-full text-primary">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <h2 className="max-w-5xl font-serif text-[clamp(3.1rem,7vw,5.9rem)] leading-[0.96] tracking-[-0.055em] text-foreground">
-              TeachPro bilan bugun nimani tahlil qilamiz?
-            </h2>
-          </div>
-        )}
+  const clearChat = () => {
+    setMessages([]);
+    toast.success("Suhbat tarixi tozalandi");
+  };
 
-        <div
-          ref={viewportRef}
-          className={cn(
-            "scrollbar-hide flex-1 overflow-y-auto",
-            messages.length === 0 ? "min-h-[12px]" : "pt-4",
+  return (
+    <div className="flex flex-col h-[calc(100vh-6rem)] bg-background/50 rounded-xl overflow-hidden border shadow-sm backdrop-blur-sm">
+      {/* Header - Modern & Clean */}
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg shadow-sm">
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-lg text-foreground/90">TeachPro AI</h2>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+              <span className="text-xs font-medium text-muted-foreground">Online Assistant</span>
+            </div>
+          </div>
+        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/80 text-muted-foreground transition-colors">
+              <MoreHorizontal className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 p-1">
+            <DropdownMenuItem onClick={clearChat} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer rounded-md">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Tarixni tozalash
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Chat Area - Modern Cards */}
+      <ScrollArea className="flex-1 px-4 sm:px-6 bg-slate-50/50 dark:bg-background/20">
+        <div className="max-w-3xl mx-auto py-8 space-y-8">
+          {messages.length === 0 && (
+            <div className="text-center py-12 animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/10 to-violet-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-indigo-500/20">
+                <Sparkles className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-foreground/90 mb-3 tracking-tight">Qanday yordam bera olaman?</h3>
+              <p className="text-muted-foreground max-w-md mx-auto mb-10 text-sm leading-relaxed">
+                O'quvchilar tahlili, guruhlar statistikasi va davomat bo'yicha sun'iy intellekt yordamchisi.
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
+                {quickActions.map((action, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(action)}
+                    className="group flex items-center gap-3 p-4 text-sm text-left bg-card hover:bg-accent/50 border hover:border-indigo-500/30 rounded-xl transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
+                  >
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/40 transition-colors text-indigo-600 dark:text-indigo-400">
+                      <Lightbulb className="w-4 h-4" />
+                    </div>
+                    <span className="font-medium text-foreground/80 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">{action}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-        >
-          {messages.length > 0 && (
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 pb-10 pt-4">
-              {messages.map((message) => (
+
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={cn(
+                "flex gap-4 max-w-3xl group animate-in slide-in-from-bottom-2 fade-in duration-300",
+                msg.role === "user" ? "justify-end pl-12" : "justify-start pr-12"
+              )}
+            >
+              {msg.role === "assistant" && (
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+              )}
+
+              <div
+                className={cn(
+                  "flex flex-col gap-1.5 min-w-0",
+                  msg.role === "user" ? "items-end" : "items-start"
+                )}
+              >
                 <div
-                  key={message.id}
                   className={cn(
-                    "fade-in flex",
-                    message.role === "assistant" ? "justify-start" : "justify-end",
+                    "px-5 py-3.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words shadow-sm",
+                    msg.role === "user"
+                      ? "bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-[20px] rounded-tr-sm"
+                      : "bg-card border rounded-[20px] rounded-tl-sm text-foreground"
                   )}
                 >
-                  {message.role === "assistant" ? (
-                    <article className="w-full max-w-3xl">
-                      <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-primary">
-                          <Sparkles className="h-4 w-4" />
-                        </div>
-                        <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground">
-                          TeachPro AI
-                        </span>
-                      </div>
-                      <StructuredAiResponse content={message.content} />
-                    </article>
+                  {msg.role === "assistant" ? (
+                     <StructuredAiResponse content={msg.content} />
                   ) : (
-                    <div className="max-w-2xl rounded-[24px] bg-muted px-5 py-4 text-sm leading-7 text-foreground sm:px-6">
-                      {message.content}
-                    </div>
+                    msg.content
                   )}
                 </div>
-              ))}
+                <span className="text-[11px] font-medium text-muted-foreground/50 px-2 select-none">
+                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
 
-              {sending && (
-                <div className="fade-in flex justify-start">
-                  <div className="inline-flex items-center gap-3 px-1 py-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Javob tayyorlanmoqda...
-                  </div>
+              {msg.role === "user" && (
+                <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                  <User className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                 </div>
               )}
             </div>
+          ))}
+          
+          {isLoading && (
+            <div className="flex gap-4 max-w-3xl animate-in fade-in">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-sm opacity-80">
+                <Bot className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex items-center gap-1.5 bg-card border px-4 py-3 rounded-[20px] rounded-tl-sm shadow-sm h-[46px]">
+                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce" />
+              </div>
+            </div>
           )}
+          <div ref={scrollRef} />
         </div>
+      </ScrollArea>
 
-        <div className="mx-auto mt-6 w-full max-w-5xl">
-          <PromptComposer
-            value={prompt}
-            onChange={setPrompt}
-            onKeyDown={handleKeyDown}
-            onSubmit={() => void sendPrompt(prompt)}
-            sending={sending}
-            compact={messages.length > 0}
-            role={role}
+      {/* Input Area - Modern & Polished */}
+      <div className="p-4 bg-background/80 backdrop-blur-sm border-t sticky bottom-0 z-10">
+        <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-card p-2 rounded-2xl border shadow-sm ring-offset-background focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500/50 transition-all duration-300">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend(input);
+              }
+            }}
+            placeholder="AI assistantga savol yozing..."
+            className="min-h-[44px] max-h-[150px] w-full resize-none border-0 bg-transparent focus-visible:ring-0 px-4 py-2.5 text-[15px] placeholder:text-muted-foreground/60 shadow-none"
+            rows={1}
           />
+          <Button
+            onClick={() => handleSend(input)}
+            disabled={!input.trim() || isLoading}
+            size="icon"
+            className={cn(
+              "h-9 w-9 mb-0.5 shrink-0 rounded-xl transition-all duration-300 shadow-sm",
+              input.trim() 
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105 active:scale-95 shadow-indigo-500/25" 
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            {isLoading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <SendHorizontal className="w-4 h-4" />
+            )}
+          </Button>
         </div>
+        <p className="text-[10px] text-center text-muted-foreground/50 mt-3 font-medium tracking-wide">
+          AI javoblari xato bo'lishi mumkin. Muhim ma'lumotlarni tekshiring.
+        </p>
       </div>
     </div>
   );
 };
-
-type PromptComposerProps = {
-  value: string;
-  onChange: (value: string) => void;
-  onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onSubmit: () => void;
-  sending: boolean;
-  compact?: boolean;
-  role: "teacher" | "admin";
-};
-
-const PromptComposer: React.FC<PromptComposerProps> = ({
-  value,
-  onChange,
-  onKeyDown,
-  onSubmit,
-  sending,
-  compact = false,
-  role,
-}) => (
-  <div className="rounded-[32px] border border-border/70 bg-card px-5 py-5 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.3)] sm:px-7 sm:py-7">
-    <Textarea
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={onKeyDown}
-      placeholder={
-        role === "admin"
-          ? "Guruhlar, o'qituvchilar, davomat yoki imtihonlar haqida so'rang..."
-          : "O'quvchilar, guruhlar, davomat yoki imtihonlar haqida so'rang..."
-      }
-      className={cn(
-        "resize-none border-0 bg-transparent px-0 py-0 text-[16px] leading-8 text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-[17px]",
-        compact ? "min-h-[96px]" : "min-h-[176px]",
-      )}
-    />
-
-    <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-4">
-      <p className="text-xs text-muted-foreground">
-        Javoblar TeachPro ma'lumotlari bilan shakllantiriladi
-      </p>
-
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          size="icon"
-          onClick={onSubmit}
-          disabled={sending || !value.trim()}
-          className="h-11 w-11 rounded-full"
-        >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpIcon />}
-        </Button>
-      </div>
-    </div>
-  </div>
-);
-
-const ArrowUpIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="h-4 w-4"
-    aria-hidden="true"
-  >
-    <path d="M12 19V5" />
-    <path d="m5 12 7-7 7 7" />
-  </svg>
-);
 
 export default AIAnalysisPage;

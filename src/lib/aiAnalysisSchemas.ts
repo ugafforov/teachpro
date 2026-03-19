@@ -1,4 +1,3 @@
-import { Schema } from "firebase/ai";
 import { z } from "zod";
 
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -101,105 +100,8 @@ export const storedAnalyzeResponseSchema = z.object({
   comparison: comparisonSchema,
 });
 
-const stringSchema = () => Schema.string();
-const numberSchema = () => Schema.number();
-const integerSchema = () => Schema.integer();
-const booleanSchema = () => Schema.boolean();
+// Since we are not using firebase/ai anymore, we can remove the Schema related code
+// and modelOutputResponseSchema which was used for GoogleAIBackend
+export const modelOutputResponseSchema = {}; 
+export const askOutputResponseSchema = {};
 
-const objectSchema = (
-  properties: Record<string, Schema>,
-  optionalProperties: string[] = [],
-) =>
-  Schema.object({
-    properties,
-    optionalProperties,
-  });
-
-const arraySchema = (items: Schema) => Schema.array({ items });
-
-export const modelOutputResponseSchema = objectSchema(
-  {
-    summary: stringSchema(),
-    riskAlerts: arraySchema(
-      objectSchema({
-        id: stringSchema(),
-        level: stringSchema(),
-        reason: stringSchema(),
-        confidence: numberSchema(),
-        affectedCount: integerSchema(),
-      }),
-    ),
-    anomalies: arraySchema(
-      objectSchema({
-        metric: stringSchema(),
-        current: numberSchema(),
-        baseline: numberSchema(),
-        deltaPct: numberSchema(),
-        explanation: stringSchema(),
-      }),
-    ),
-    forecasts: arraySchema(
-      objectSchema({
-        metric: stringSchema(),
-        horizonDays: integerSchema(),
-        points: arraySchema(
-          objectSchema({
-            date: stringSchema(),
-            value: numberSchema(),
-          }),
-        ),
-        confidence: numberSchema(),
-      }),
-    ),
-    whatIf: arraySchema(
-      objectSchema({
-        scenario: stringSchema(),
-        expectedDeltaPct: numberSchema(),
-        confidence: numberSchema(),
-        assumptions: stringSchema(),
-      }),
-    ),
-    interventions: arraySchema(
-      objectSchema({
-        title: stringSchema(),
-        priority: integerSchema(),
-        owner: stringSchema(),
-        dueInDays: integerSchema(),
-        expectedImpact: stringSchema(),
-        steps: stringSchema(),
-      }),
-    ),
-    weeklyPlan: arraySchema(
-      objectSchema({
-        day: stringSchema(),
-        task: stringSchema(),
-      }),
-    ),
-    comparison: objectSchema(
-      {
-        previousRunId: stringSchema(),
-        attendanceDeltaPct: numberSchema(),
-        examDeltaPct: numberSchema(),
-        highRiskDelta: integerSchema(),
-        summary: stringSchema(),
-      },
-      [
-        "previousRunId",
-        "attendanceDeltaPct",
-        "examDeltaPct",
-        "highRiskDelta",
-        "summary",
-      ],
-    ),
-  },
-  ["comparison"],
-);
-
-export const askOutputResponseSchema = objectSchema({
-  answer: stringSchema(),
-  citations: arraySchema(stringSchema()),
-});
-
-export const aiFallbackAvailabilitySchema = objectSchema({
-  ok: booleanSchema(),
-});
