@@ -1964,28 +1964,13 @@ function buildAskPrompt(
     "Siz TeachPro platformasining o'ta aqlli va yordamga tayyor AI assistantisiz.",
     "Faqat O'zbek tilida, xushmuomala, professional va tushunarli javob bering.",
     "Sizda o'quvchilarning davomati, baholari, imtihonlari va intizomi bo'yicha tahliliy ma'lumotlar bor.",
-    "",
-    "### ASOSIY QOIDALAR:",
-    "1. **Aniq faktlar**: Faqat berilgan ma'lumotlar asosida javob bering. Uydirma ma'lumot yoki tahminiy javob bermang.",
-    "2. **Raqamlar bilan isbotlash**: Har bir tavsiya yoki xulosaga raqamli dalil bilan javob bering. Masalan: 'Ablayev Malik 40% davomat - ko'rish zarur!'.",
-    "3. **Kontekst ishlash**: Suhbat tarixiga (recentConversation) e'tibor bering. Agar o'qituvchi avvalgi savollarda o'quvchi haqida so'rasa, yangi savol shu o'quvchi haqida bo'lishi mumkin.",
-    "4. **Jadvallar va ro'yxatlar**: Javobda har doim markdown jadval yoki bullet point ishlating. Statistika ro'yxatini tartibli ko'rsating.",
-    "5. **Harakat rejasi**: 'Tavsiya' bo'limida konkret harakatlar yozing. Masalan: 'Ushbu 3 ta o'quvchiga SMS yuborib, ota-onalari bilan aloqa qiling'.",
-    "6. **Noto'g'ri savol**: Agar savol noto'g'ri yoki ma'lumot mavjud bo'lmasa, ehtiyotkorlik bilan ayting va yordam taklif qiling.",
-    "7. **Format**: Javobni FAQAT JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
-    "",
-    "### MAVZU BO'YICHA BOSH QAYDALAR:",
-    "- **Davomat haqida**: Tushib ketish trends, yo'qolish sabablari, eng past davomat bo'yicha o'quvchilar.",
-    "- **Imtihon haqida**: O'rtacha baho, eng past va eng yuqori balllar, natija trendlari.",
-    "- **Reyting haqida**: Top 3, bottom 3, o'zgarishlar, sabablari bilan.",
-    "- **Muammolar haqida**: Nima muammo, kim, miqdor, tavsiya.",
-    "",
-    "### TAHLIL NAMUNASI:",
-    "Agar savol 'Eng zayif o'quvchilar' bo'lsa:",
-    "1. RiskAlerts'da 'high' darajadagi o'quvchilar ro'yxatini ko'rish.",
-    "2. Ularning davomati, bahosi, jarimasini jadval ko'rinishida taqdim etish.",
-    "3. Konkret tavsiya: 'Quyidagi 5 ta o'quvchi bilan shaxsan suhbat zarur'.",
-    "",
+    "Javob berishda quyidagilarga e'tibor bering:",
+    "1. Savolga berilgan kontekst (runData) va suhbat tarixiga (recentConversation) asoslanib, aniq faktlar bilan javob bering.",
+    "2. Har doim ## Xulosa, ## Asosiy Statistikalar, ## Tahlil, ## Tavsiyalar bo'limlarini ishlating.",
+    "3. Statistikalar bo'limida kamida bitta markdown jadval ishlating. Jadvalda ma'lumotlarni tartib bilan ko'rsating.",
+    "4. Tavsiyalar qismini o'qituvchi uchun amaliy va foydali qiling.",
+    "5. Agar foydalanuvchi ma'lumot topa olmasa yoki noto'g'ri savol bersa, ehtiyotkorlik bilan to'g'rilang va yordam taklif qiling.",
+    "6. Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
     "RecentConversation:",
     JSON.stringify(recentConversation),
     "Question:",
@@ -2014,27 +1999,13 @@ function buildProjectChatPrompt(
     "Siz TeachPro platformasining barcha ma'lumotlariga (Guruhlar, O'quvchilar, Imtihonlar, Davomat, Arxiv) ega bo'lgan o'ta kuchli va strategik AI assistantisiz.",
     "Faqat O'zbek tilida, xushmuomala, lekin o'ta aniq (data-driven) javob bering.",
     "Sizning vazifangiz - o'qituvchiga o'z o'quvchilari va guruhlari bo'yicha har qanday murakkab savollarga javob berish va tahlil qilish.",
-    "",
-    "### ASOSIY QOIDALAR:",
-    "1. **Yangilik qiling**: ProjectContext'da real o'quvchilar ismlari, guruhlar nomlari va barcha statistikalar bor. Savolga javob berishda aynan shu ma'lumotlardan foydalaning.",
-    "2. **Ball formulasi**: 'reyting', 'ball' yoki 'kim eng yaxshi' haqida savol bo'lsa, DOIM 'attendancePoints + mukofotPoints - jarimaPoints' formulasiga ko'ra hisob qiling.",
-    "3. **Taqqoslash**: O'quvchi yoki guruh haqida savol bo'lsa, uning davomati, baholari, jarimasini boshqalarning o'rtachasiga taqqoslang.",
-    "4. **Format**: Markdown jadvallar, bold (**text**), bullet points (-), raqamli ro'yxatlar (#1, #2, #3) ishlating.",
-    "5. **Amaliylik**: Har bir tavsiya konkret bo'lsin. 'Yaxshi emas' emas, balki '40% davomat - qo'ng'iroq qiling'.",
-    "6. **Kontekst suhbati**: Suhbat tarixiga (recentConversation) e'tibor bering. Agar o'qituvchi 'Matematika' haqida so'rasa, yangi savol ham uning haqida bo'lishi mumkin.",
-    "7. **Nega-qismi**: Javobingizda 'nima muammo' va 'nega muammo' bo'limlarini qo'shing. Trendlarni o'zbek tilida izohlang.",
-    "8. **Format**: Javobni FAQAT JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
-    "",
-    "### MISOLLAR:",
-    "**Savol**: 'Qaysi o'quvchilar xavf ostida?'",
-    "**Javob jadval**:",
-    "| O'quvchi | Davomat | Baho | Ball | Status |",
-    "|---|---|---|---|---|",
-    "| Ablayev | 35% | 3.2 | -5 | HIGH RISK |",
-    "| Botira | 52% | 2.8 | 10 | MEDIUM RISK |",
-    "Tavsiya: Ablayev va Botira bilan DARHOL aloqa qiling. Ablayev 35% davomat - ota-onalari bilan telefon orqali gaplashing.",
-    "",
     "Muhim qoidalar:",
+    "1. Berilgan ProjectContext ichida real o'quvchilar ismlari, guruhlar nomlari va barcha statistikalar bor. Savolga javob berishda aynan shu ma'lumotlardan foydalaning.",
+    "2. Agar savol 'reyting', 'ball' yoki 'kim eng yaxshi' haqida bo'lsa, 'attendancePoints + mukofotPoints - jarimaPoints' formulasiga ko'ra o'zingiz hisoblab bering.",
+    "3. Agar savol biror o'quvchi yoki guruh haqida bo'lsa, uning davomati, baholari va trendini taqqoslang.",
+    "4. Javobingizda markdown jadvallar, qalin (bold) yozuvlar va aniq punktlardan (bullet points) foydalaning.",
+    "5. Har bir javobingiz o'qituvchi uchun qiymatli bo'lsin: masalan, 'Ushbu o'quvchining davomati 5% ga tushib ketgan, u bilan gaplashib olish tavsiya etiladi'.",
+    "6. Javobni faqat JSON formatida qaytaring: {\"answer\": string, \"citations\": string[] }.",
     "RecentConversation:",
     JSON.stringify(recentConversation),
     "Question:",
@@ -2750,77 +2721,6 @@ function resolveDeterministicProjectAnswer(
     return formatRiskRoster(highRiskStudents, "Yuqori xavfdagi o'quvchilar");
   }
 
-  const asksForTopStudents =
-    includesAny(normalizedQuestion, ["eng yaxshi", "top", "yaxshi", "raiting", "eng yuqori", "leaderboard"]) &&
-    includesAny(normalizedQuestion, ["oquvchi", "oquvchilar", "student", "kim", "qaysi"]);
-
-  if (asksForTopStudents) {
-    const topStudents = [...scopedStudents].sort(compareStudentsForRanking).slice(0, 10);
-    return formatStudentRoster(
-      topStudents,
-      mentionedGroup ? `${mentionedGroup.name} (Top 10)` : "Top 10 o'quvchilar",
-    );
-  }
-
-  const asksForBottomStudents =
-    includesAny(normalizedQuestion, ["eng yomon", "past", "kam", "yomon", "worst"]) &&
-    includesAny(normalizedQuestion, ["oquvchi", "oquvchilar", "student", "kim", "qaysi"]);
-
-  if (asksForBottomStudents) {
-    const bottomStudents = [...scopedStudents]
-      .sort((a, b) => compareStudentsForRanking(b, a))
-      .slice(0, 10);
-
-    return formatStudentRoster(
-      bottomStudents,
-      mentionedGroup ? `${mentionedGroup.name} (Past 10)` : "Past 10 o'quvchilar",
-    );
-  }
-
-  const asksForAverageAttendance =
-    includesAny(normalizedQuestion, ["o'rtacha", "average", "mean"]) &&
-    includesAny(normalizedQuestion, ["davomat", "attendance"]);
-
-  if (asksForAverageAttendance) {
-    const averageAttendance =
-      scopedStudents.length > 0
-        ? scopedStudents.reduce((sum, s) => sum + s.attendancePct, 0) / scopedStudents.length
-        : 0;
-
-    return {
-      answer: [
-        "## Xulosa",
-        `O'rtacha davomat: ${averageAttendance.toFixed(1)}%.`,
-        "",
-        "## Tavsiya",
-        "Eng past davomatli o'quvchilarni aniqlang va ularni takomillashtirish uchun individual reja tuzing.",
-      ].join("\n"),
-      citations: ["students", "attendance_records"],
-    };
-  }
-
-  const asksForAverageExamScore =
-    includesAny(normalizedQuestion, ["o'rtacha", "average", "mean"]) &&
-    includesAny(normalizedQuestion, ["baho", "ball", "score", "imtihon"]);
-
-  if (asksForAverageExamScore) {
-    const averageExam =
-      scopedStudents.length > 0
-        ? scopedStudents.reduce((sum, s) => sum + (s.avgExamScore || 0), 0) / scopedStudents.length
-        : 0;
-
-    return {
-      answer: [
-        "## Xulosa",
-        `O'rtacha imtihon balli: ${averageExam.toFixed(1)}.`,
-        "",
-        "## Tavsiya",
-        "Eng past baholi o'quvchilarni aniqlang va qo'shimcha darslar rejasini tuzing.",
-      ].join("\n"),
-      citations: ["students", "exam_results"],
-    };
-  }
-
   const asksForLowAttendance =
     includesAny(normalizedQuestion, ["davomat"]) &&
     includesAny(normalizedQuestion, ["past", "kam", "yomon", "pas"]) &&
@@ -2837,7 +2737,6 @@ function resolveDeterministicProjectAnswer(
   return null;
 }
 
-
 async function callAiJson<T>(
   prompt: string,
   _responseSchema: unknown,
@@ -2850,36 +2749,27 @@ async function callAiJson<T>(
 
   try {
     console.log("Calling AI API with model:", AI_MODEL);
-    
-    // Gemini API endpoint format
-    const endpoint = `${AI_BASE_URL}/models/${AI_MODEL}:generateContent?key=${AI_API_KEY}`;
-    
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${AI_API_KEY}`,
         "X-Title": "TeachPro AI Assistant",
       },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{
-            text: "Siz TeachPro tizimining o'ta aqlli va tajribali AI assistantisiz. " +
-                   "Faqat JSON formatida javob bering. Javobingizni har doim berilgan schema bo'yicha shakllantiring.",
-          }],
-        },
-        contents: [
+        model: AI_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "Siz TeachPro tizimining o'ta aqlli va tajribali AI assistantisiz. " +
+                     "Faqat JSON formatida javob bering. Javobingizni har doim berilgan schema bo'yicha shakllantiring.",
+          },
           {
             role: "user",
-            parts: [{
-              text: prompt,
-            }],
+            content: prompt,
           },
         ],
-        generationConfig: {
-          temperature: 0.1,
-          topP: 1.0,
-          topK: 1,
-        },
+        temperature: 0.1,
       }),
     });
 
@@ -2890,7 +2780,7 @@ async function callAiJson<T>(
     }
 
     const result = await response.json();
-    const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const rawText = result.choices[0]?.message?.content ?? "{}";
     
     // JSONni qidirib topish va tozalash
     const jsonStr = extractJsonBlock(rawText);
@@ -2900,9 +2790,9 @@ async function callAiJson<T>(
 
     return {
       parsed,
-      tokensIn: result.usageMetadata?.prompt_token_count ?? 0,
-      tokensOut: result.usageMetadata?.candidates_token_count ?? 0,
-      model: AI_MODEL,
+      tokensIn: result.usage?.prompt_tokens ?? 0,
+      tokensOut: result.usage?.completion_tokens ?? 0,
+      model: result.model || AI_MODEL,
     };
   } catch (err) {
     console.error("callAiJson error:", err);
@@ -3149,11 +3039,11 @@ export async function runClientAiAnalysis(
     groups: aggregated.groupIdToToken,
   };
 
-  const responseCore: ModelOutput = heuristic;
-  const providerName = "heuristic";
-  const modelName = "fallback-local";
-  const tokensIn = 0;
-  const tokensOut = 0;
+  let responseCore: ModelOutput = heuristic;
+  let providerName = "heuristic";
+  let modelName = "fallback-local";
+  let tokensIn = 0;
+  let tokensOut = 0;
 
   // We skip calling LLM for initial analysis to speed up chat response
   // Chat will use the aggregated data directly
@@ -3161,7 +3051,7 @@ export async function runClientAiAnalysis(
   
   const runId = doc(collection(db, "ai_analysis_runs")).id;
 
-  const response = toRunSafeResponse(
+  let response = toRunSafeResponse(
     responseCore,
     runId,
     "ok",

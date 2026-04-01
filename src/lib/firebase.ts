@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { getFunctions } from "firebase/functions";
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User, Auth } from "firebase/auth";
+import { getFunctions, Functions } from "firebase/functions";
 import {
   getFirestore,
   collection,
@@ -15,8 +15,37 @@ import {
   orderBy,
   Timestamp,
   DocumentData,
+  Firestore,
   QueryConstraint
 } from "firebase/firestore";
+
+// Validate Firebase configuration
+function validateFirebaseConfig() {
+  const requiredVars = [
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_STORAGE_BUCKET',
+    'VITE_FIREBASE_MESSAGING_SENDER_ID',
+    'VITE_FIREBASE_APP_ID'
+  ];
+
+  const missingVars = requiredVars.filter(varName => {
+    const value = import.meta.env[varName as keyof ImportMeta['env']];
+    return !value || (typeof value === 'string' && value.trim() === '');
+  });
+
+  if (missingVars.length > 0) {
+    const errorMsg = `Firebase configuration error: Missing required environment variables: ${missingVars.join(', ')}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  return true;
+}
+
+// Validate configuration before initializing
+validateFirebaseConfig();
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -27,11 +56,23 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
-export const functionsClient = getFunctions(app, functionsRegion);
+// Initialize with error handling
+export let app: FirebaseApp;
+export let auth: Auth;
+export let db: Firestore;
+export let functionsClient: Functions;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+  functionsClient = getFunctions(app, functionsRegion);
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  throw new Error(`Failed to initialize Firebase: ${errorMessage}`);
+}
 
 // Auth helpers
 export const firebaseSignIn = (email: string, password: string) =>
