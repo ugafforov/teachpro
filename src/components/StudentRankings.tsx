@@ -242,10 +242,19 @@ const StudentRankings: React.FC<StudentRankingsProps> = ({ teacherId }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-6 flex-shrink-0">
-                    <div className="hidden md:flex items-center gap-4 text-[11px]">
-                      <div className="text-blue-600 dark:text-blue-400 font-medium text-right w-16">{student.attendance_points.toFixed(1)} <span className="text-muted-foreground">dav</span></div>
-                      <div className="text-green-600 dark:text-emerald-400 font-medium text-right w-16">+{student.mukofot_points.toFixed(1)} <span className="text-muted-foreground">muk</span></div>
-                      <div className="text-red-600 dark:text-red-400 font-medium text-right w-16">-{student.jarima_points.toFixed(1)} <span className="text-muted-foreground">jar</span></div>
+                    <div className="hidden md:flex items-center gap-6 text-[11px] justify-center">
+                      <div className="flex flex-col items-center">
+                        <span className="text-blue-600 dark:text-blue-400 font-bold">{student.attendance_points.toFixed(1)}</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">Davomat</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-green-600 dark:text-emerald-400 font-bold">+{student.mukofot_points.toFixed(1)}</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">Mukofot</span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-red-600 dark:text-red-400 font-bold">-{student.jarima_points.toFixed(1)}</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">Jarima</span>
+                      </div>
                     </div>
                     <Badge className={`${getScoreColor(student.total_score)} text-white min-w-[50px] sm:min-w-[60px] justify-center text-xs sm:text-sm h-6 sm:h-7`}>{student.total_score.toFixed(1)}</Badge>
                   </div>

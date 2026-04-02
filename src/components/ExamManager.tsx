@@ -6,33 +6,6 @@ import React, {
   useRef,
 } from "react";
 import { logError } from "@/lib/errorUtils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import {
@@ -48,76 +21,28 @@ import {
   getDoc,
   writeBatch,
 } from "firebase/firestore";
-import {
-  Plus,
-  FileText,
-  Archive,
-  Edit2,
-  Search,
-  Calendar,
-  Users,
-  BookOpen,
-  Download,
-  FileSpreadsheet,
-} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { examSchema, formatValidationError } from "@/lib/validations";
 import { z } from "zod";
-import { Badge } from "@/components/ui/badge";
 import { formatDateUz, getTashkentToday, getTashkentDate } from "@/lib/utils";
 import ConfirmDialog from "./ConfirmDialog";
-import StudentProfileLink from "./StudentProfileLink";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+import { Group, Student, ExamType, Exam, ExamResult } from "./exam/types";
+import { ExamAnalysis } from "./exam/ExamAnalysis";
+import { ExamList } from "./exam/ExamList";
+import { ExamStats } from "./exam/ExamStats";
+import { ExamFilters } from "./exam/ExamFilters";
+import { CreateExamDialog } from "./exam/CreateExamDialog";
+import { ResultEntryDialog } from "./exam/ResultEntryDialog";
+import { ExamDetailsDialog } from "./exam/ExamDetailsDialog";
+import { EditResultDialog } from "./exam/EditResultDialog";
+
 interface ExamManagerProps {
   teacherId: string;
 }
-
-interface Group {
-  id: string;
-  name: string;
-}
-
-interface Student {
-  id: string;
-  name: string;
-  group_name?: string;
-  group_id?: string;
-  join_date?: string;
-  left_date?: string;
-}
-
-interface ExamType {
-  id: string;
-  name: string;
-}
-
-interface Exam {
-  id: string;
-  exam_name: string;
-  exam_date: string;
-  group_id: string;
-  exam_type_id?: string;
-}
-
-interface ExamResult {
-  id: string;
-  exam_id: string;
-  student_id: string;
-  score: number;
-  notes?: string;
-  student_name: string;
-  group_name: string;
-}
-
-type AnalysisRow = {
-  studentName: string;
-  groupName: string;
-  examDate: string;
-  score: number;
-};
 
 const sanitizeFileName = (name: string) => {
   return name
@@ -125,397 +50,6 @@ const sanitizeFileName = (name: string) => {
     .replace(/[\\/:*?"<>|]+/g, "-")
     .replace(/\s+/g, " ")
     .slice(0, 120);
-};
-
-const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
-  if (chunkSize <= 0) return [items];
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += chunkSize) {
-    chunks.push(items.slice(i, i + chunkSize));
-  }
-  return chunks;
-};
-
-interface ExamAnalysisProps {
-  teacherId: string;
-  exams: Exam[];
-  groups: Group[];
-}
-
-const ExamAnalysis: React.FC<ExamAnalysisProps> = ({
-  teacherId,
-  exams,
-  groups,
-}) => {
-  const exportAnalysis = (format: "excel" | "pdf") => {
-    if (!selectedExamName || Object.keys(analysisData).length === 0) return;
-
-    const selectedGroupName =
-      selectedAnalysisGroup === "all"
-        ? "Barcha guruhlar"
-        : groups.find((g) => g.id === selectedAnalysisGroup)?.name || "";
-
-    const fileBase = sanitizeFileName(`${selectedExamName}_tahlil`);
-    const title = `${selectedExamName} - Natijalar tahlili`;
-
-    const headers = [
-      "O'quvchi",
-      "Guruh",
-      ...allDates.map((d) => formatDateUz(d, "short")),
-      "O'rtacha",
-    ];
-
-    const rows = Object.values(analysisData)
-      .map((results) => {
-        const avgScore =
-          results.reduce((sum, r) => sum + r.score, 0) / results.length;
-        const scoresByDate = new Map(
-          results.map((r) => [r.examDate, r.score] as const),
-        );
-
-        return [
-          results[0]?.studentName || "",
-          results[0]?.groupName || "",
-          ...allDates.map((d) => {
-            const score = scoresByDate.get(d);
-            return score === undefined ? "" : String(score);
-          }),
-          avgScore.toFixed(1),
-        ];
-      })
-      .sort((a, b) => Number(b[b.length - 1]) - Number(a[a.length - 1]));
-
-    const exportedAt = formatDateUz(getTashkentToday());
-
-    if (format === "excel") {
-      const metaRows: (string | number)[][] = [
-        [title],
-        ["Guruh:", selectedGroupName],
-        ["Export sanasi:", exportedAt],
-        [],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet([...metaRows, headers, ...rows]);
-      const wb = XLSX.utils.book_new();
-
-      const totalCols = headers.length;
-      if (totalCols > 1) {
-        (ws as any)["!merges"] = [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
-        ];
-      }
-
-      (ws as any)["!cols"] = Array.from({ length: totalCols }, (_, idx) => {
-        if (idx === 0) return { wch: 24 };
-        if (idx === 1) return { wch: 16 };
-        return { wch: 10 };
-      });
-
-      XLSX.utils.book_append_sheet(wb, ws, "Analysis");
-      XLSX.writeFile(wb, `${fileBase}.xlsx`);
-      return;
-    }
-
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(14);
-    doc.text(title, 14, 14);
-
-    doc.setFontSize(10);
-    doc.text(`Guruh: ${selectedGroupName}`, 14, 22);
-    doc.text(`Export sanasi: ${exportedAt}`, 14, 28);
-
-    autoTable(doc, {
-      head: [headers],
-      body: rows,
-      startY: 34,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [17, 24, 39] },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-    });
-
-    doc.save(`${fileBase}.pdf`);
-  };
-  const [selectedExamName, setSelectedExamName] = useState<string>("");
-  const [selectedAnalysisGroup, setSelectedAnalysisGroup] =
-    useState<string>("all");
-  const [analysisData, setAnalysisData] = useState<
-    Record<string, AnalysisRow[]>
-  >({});
-  const [loading, setLoading] = useState(false);
-
-  const uniqueExamNames = useMemo(() => {
-    return [...new Set(exams.map((e) => e.exam_name))].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" }),
-    );
-  }, [exams]);
-
-  const allDates = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(analysisData).forEach((rows) => {
-      rows.forEach((r) => {
-        if (r.examDate) set.add(r.examDate);
-      });
-    });
-    return [...set].sort(
-      (a, b) => new Date(a).getTime() - new Date(b).getTime(),
-    );
-  }, [analysisData]);
-
-  const fetchAnalysisData = useCallback(async () => {
-    if (!selectedExamName) {
-      setAnalysisData({});
-      return;
-    }
-
-    setLoading(true);
-    try {
-      let examsQ = query(
-        collection(db, "exams"),
-        where("teacher_id", "==", teacherId),
-        where("exam_name", "==", selectedExamName),
-      );
-
-      if (selectedAnalysisGroup && selectedAnalysisGroup !== "all") {
-        examsQ = query(examsQ, where("group_id", "==", selectedAnalysisGroup));
-      }
-
-      const examsSnap = await getDocs(examsQ);
-      const examIds = examsSnap.docs.map((d) => d.id);
-      const examIdToDate = new Map(
-        examsSnap.docs.map((d) => {
-          const data = d.data() as { exam_date?: string };
-          return [d.id, data.exam_date ?? ""] as const;
-        }),
-      );
-
-      if (examIds.length === 0) {
-        setAnalysisData({});
-        return;
-      }
-
-      // Firestore `in` query supports max 10 values. Chunk to avoid failures.
-      const examIdChunks = chunkArray(examIds, 10);
-      const resultsSnaps = await Promise.all(
-        examIdChunks.map((ids) => {
-          const resultsQ = query(
-            collection(db, "exam_results"),
-            where("teacher_id", "==", teacherId),
-            where("exam_id", "in", ids),
-          );
-          return getDocs(resultsQ);
-        }),
-      );
-
-      const grouped: Record<string, AnalysisRow[]> = {};
-      resultsSnaps
-        .flatMap((s) => s.docs)
-        .forEach((docSnap) => {
-          const data = docSnap.data() as {
-            student_id?: string;
-            student_name?: string;
-            group_name?: string;
-            exam_id?: string;
-            score?: number;
-          };
-
-          const studentId = data.student_id;
-          if (!studentId) return;
-
-          if (!grouped[studentId]) grouped[studentId] = [];
-          grouped[studentId].push({
-            studentName: data.student_name ?? "",
-            groupName: data.group_name ?? "",
-            examDate: data.exam_id
-              ? (examIdToDate.get(data.exam_id) ?? "")
-              : "",
-            score: data.score ?? 0,
-          });
-        });
-
-      Object.keys(grouped).forEach((studentId) => {
-        grouped[studentId].sort(
-          (a, b) =>
-            new Date(a.examDate).getTime() - new Date(b.examDate).getTime(),
-        );
-      });
-
-      setAnalysisData(grouped);
-    } catch (error) {
-      logError("ExamManager:fetchAnalysis", error);
-      setAnalysisData({});
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedExamName, selectedAnalysisGroup, teacherId]);
-
-  useEffect(() => {
-    void fetchAnalysisData();
-  }, [fetchAnalysisData]);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <Label>Imtihon turi</Label>
-          <Select value={selectedExamName} onValueChange={setSelectedExamName}>
-            <SelectTrigger>
-              <SelectValue placeholder="Imtihon turini tanlang" />
-            </SelectTrigger>
-            <SelectContent>
-              {uniqueExamNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1">
-          <Label>Guruh (ixtiyoriy)</Label>
-          <Select
-            value={selectedAnalysisGroup}
-            onValueChange={setSelectedAnalysisGroup}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Barcha guruhlar" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha guruhlar</SelectItem>
-              {groups.map((group) => (
-                <SelectItem key={group.id} value={group.id}>
-                  {group.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {loading && (
-        <div className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      )}
-
-      {!loading &&
-        selectedExamName &&
-        Object.keys(analysisData).length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            Tahlil uchun natijalar topilmadi
-          </div>
-        )}
-
-      {!loading && selectedExamName && Object.keys(analysisData).length > 0 && (
-        <Card className="p-4 sm:p-6 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <h3 className="text-base sm:text-lg font-semibold">
-              {selectedExamName} - Natijalar tahlili
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => exportAnalysis("excel")}
-                className="h-8 text-xs flex-1 sm:flex-none"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => exportAnalysis("pdf")}
-                className="h-8 text-xs flex-1 sm:flex-none"
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" /> PDF
-              </Button>
-            </div>
-          </div>
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <Table className="min-w-[600px] sm:min-w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-4 sm:pl-2 min-w-[150px]">O'quvchi</TableHead>
-                  <TableHead className="min-w-[100px]">Guruh</TableHead>
-                  {allDates.map((date) => (
-                    <TableHead key={date} className="text-center min-w-[80px]">
-                      {formatDateUz(date, "short")}
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-center min-w-[70px] pr-4 sm:pr-2">
-                    O'rtacha
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(analysisData)
-                  .sort(([, aRes], [, bRes]) => {
-                    const aAvg =
-                      aRes.reduce((sum, r) => sum + r.score, 0) / aRes.length;
-                    const bAvg =
-                      bRes.reduce((sum, r) => sum + r.score, 0) / bRes.length;
-                    return bAvg - aAvg;
-                  })
-                  .map(([studentId, results]) => {
-                    const avgScore = (
-                      results.reduce((sum, r) => sum + r.score, 0) /
-                      results.length
-                    ).toFixed(1);
-                    const scoresByDate = new Map(
-                      results.map((r) => [r.examDate, r.score]),
-                    );
-                    return (
-                      <TableRow key={studentId}>
-                        <TableCell className="font-medium pl-4 sm:pl-2">
-                          <StudentProfileLink
-                            studentId={studentId}
-                            className="text-inherit hover:text-primary"
-                          >
-                            {results[0]?.studentName}
-                          </StudentProfileLink>
-                        </TableCell>
-                        <TableCell className="text-xs sm:text-sm text-muted-foreground">
-                          {results[0]?.groupName}
-                        </TableCell>
-                        {allDates.map((date) => {
-                          const score = scoresByDate.get(date);
-                          return (
-                            <TableCell
-                              key={`${studentId}-${date}`}
-                              className="text-center p-2"
-                            >
-                              {score !== undefined ? (
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                                    score >= 90
-                                      ? "bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300"
-                                      : score >= 70
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300"
-                                        : score >= 50
-                                          ? "bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300"
-                                          : "bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300"
-                                  }`}
-                                >
-                                  {score}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                        <TableCell className="text-center font-bold text-primary pr-4 sm:pr-2">
-                          {avgScore}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
 };
 
 const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
@@ -563,7 +97,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     examName: "",
   });
 
-  // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterGroup, setFilterGroup] = useState<string>("all");
   const [filterExamType, setFilterExamType] = useState<string>("all");
@@ -680,16 +213,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     };
   }, [teacherId]);
 
-  useEffect(() => {
-    if (selectedGroup) {
-      fetchStudents(selectedGroup);
-    }
-    // fetchStudents stays intentionally outside dependencies here because it is
-    // a local async helper coupled to dialog state; re-creating the effect on
-    // every render causes unnecessary refetch churn.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
-
   const setScoreInputRef = useCallback((studentId: string) => {
     return (el: HTMLInputElement | null) => {
       scoreInputRefs.current[studentId] = el;
@@ -705,7 +228,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       el.focus();
       try {
         el.select();
-      } catch {
+      } catch (e) {
         // ignore
       }
     },
@@ -737,11 +260,9 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
   }, [showResultsDialog, students.length, focusScoreInputAtIndex]);
 
   useEffect(() => {
-    // Reset pagination whenever filters change
     setVisibleExamsLimit(DEFAULT_VISIBLE_EXAMS);
   }, [searchQuery, filterGroup, filterExamType, dateFilter]);
 
-  // Filtered and grouped exams
   const filteredExams = useMemo(() => {
     return exams.filter((exam) => {
       if (
@@ -865,22 +386,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     return `${uzbekMonths[parseInt(month) - 1]}, ${year}`;
   };
 
-  const fetchGroups = async () => {
-    try {
-      const q = query(
-        collection(db, "groups"),
-        where("teacher_id", "==", teacherId),
-        where("is_active", "==", true),
-      );
-      const snapshot = await getDocs(q);
-      setGroups(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Group),
-      );
-    } catch (error) {
-      logError("ExamManager:fetchGroups", error);
-    }
-  };
-
   const fetchAttendanceForExamDate = async (date: string) => {
     try {
       const q = query(
@@ -900,7 +405,7 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     }
   };
 
-  const fetchStudents = async (groupId: string, examDate?: string) => {
+  const fetchStudents = useCallback(async (groupId: string, examDate?: string) => {
     try {
       const q = query(
         collection(db, "students"),
@@ -912,7 +417,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         (doc) => ({ id: doc.id, ...doc.data() }) as Student,
       );
 
-      // If exam date is provided, filter students who were active on that date
       if (examDate) {
         const examDateObj = new Date(examDate);
         allStudents = allStudents.filter((student) => {
@@ -934,41 +438,13 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     } catch (error) {
       logError("ExamManager:fetchStudents", error);
     }
-  };
+  }, [teacherId]);
 
-  const fetchExamTypes = async () => {
-    try {
-      const q = query(
-        collection(db, "exam_types"),
-        where("teacher_id", "==", teacherId),
-      );
-      const snapshot = await getDocs(q);
-      setExamTypes(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as ExamType),
-      );
-    } catch (error) {
-      logError("ExamManager:fetchExamTypes", error);
+  useEffect(() => {
+    if (selectedGroup) {
+      void fetchStudents(selectedGroup);
     }
-  };
-
-  const fetchExams = async () => {
-    try {
-      const q = query(
-        collection(db, "exams"),
-        where("teacher_id", "==", teacherId),
-      );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }) as Exam)
-        .sort(
-          (a, b) =>
-            new Date(b.exam_date).getTime() - new Date(a.exam_date).getTime(),
-        );
-      setExams(data);
-    } catch (error) {
-      logError("ExamManager:fetchExams", error);
-    }
-  };
+  }, [selectedGroup, fetchStudents]);
 
   const createExam = async () => {
     if (creatingExam) return;
@@ -1257,20 +733,15 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
     setLoadingExamDetails(true);
 
     try {
-      // Fetch exam data to get exam date and group
       const examDoc = await getDoc(doc(db, "exams", examId));
       if (!examDoc.exists()) {
         throw new Error("Imtihon topilmadi");
       }
       const examData = examDoc.data() as Exam;
 
-      // Fetch attendance for exam date
       await fetchAttendanceForExamDate(examData.exam_date);
-
-      // Fetch students for that group and exam date
       await fetchStudents(examData.group_id, examData.exam_date);
 
-      // Fetch existing exam results
       const q = query(
         collection(db, "exam_results"),
         where("exam_id", "==", examId),
@@ -1286,7 +757,6 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
         });
       });
 
-      // Create results for ALL students (including those without results)
       const allResults: ExamResult[] = students
         .map((student) => {
           const existing = existingResults.get(student.id);
@@ -1374,630 +844,136 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-sm text-muted-foreground animate-pulse">Imtihonlar yuklanmoqda...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Imtihonlar</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Imtihonlar</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             O'quvchilar imtihon natijalarini boshqaring va tahlil qiling
           </p>
         </div>
 
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto h-9 sm:h-10 text-sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Yangi imtihon
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Yangi imtihon yaratish</DialogTitle>
-              <DialogDescription>
-                Guruh, imtihon nomi va sanani tanlang.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label>Guruh</Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Guruhni tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Imtihon turi</Label>
-                <Select
-                  value={selectedExamType}
-                  onValueChange={(v) => {
-                    setSelectedExamType(v);
-                    setCustomExamName("");
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Imtihon turini tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {examTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Yoki yangi nom kiriting</Label>
-                <Input
-                  value={customExamName}
-                  onChange={(e) => {
-                    setCustomExamName(e.target.value);
-                    setSelectedExamType("");
-                  }}
-                  placeholder="Masalan: Oraliq nazorat"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Imtihon sanasi</Label>
-                <Input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                />
-              </div>
-              <Button
-                onClick={createExam}
-                className="w-full"
-                disabled={
-                  creatingExam ||
-                  !selectedGroup ||
-                  (!selectedExamType && !customExamName) ||
-                  !examDate
-                }
-              >
-                {creatingExam ? "Yaratilmoqda..." : "Davom etish"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CreateExamDialog
+          showCreateDialog={showCreateDialog}
+          setShowCreateDialog={setShowCreateDialog}
+          selectedGroup={selectedGroup}
+          setSelectedGroup={setSelectedGroup}
+          selectedExamType={selectedExamType}
+          setSelectedExamType={setSelectedExamType}
+          customExamName={customExamName}
+          setCustomExamName={setCustomExamName}
+          examDate={examDate}
+          setExamDate={setExamDate}
+          groups={groups}
+          examTypes={examTypes}
+          creatingExam={creatingExam}
+          createExam={createExam}
+        />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3 shadow-sm border rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg text-blue-600 dark:text-blue-400">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Jami</p>
-              <h3 className="text-lg sm:text-xl font-bold text-foreground leading-none mt-0.5">{stats.total}</h3>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-3 shadow-sm border rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-50 dark:bg-purple-500/10 rounded-lg text-purple-600 dark:text-purple-400">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Bu oy</p>
-              <h3 className="text-lg sm:text-xl font-bold text-foreground leading-none mt-0.5">{stats.thisMonth}</h3>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-3 shadow-sm border rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-lg text-amber-600 dark:text-amber-400">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Turlar</p>
-              <h3 className="text-lg sm:text-xl font-bold text-foreground leading-none mt-0.5">{stats.uniqueTypes}</h3>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-3 shadow-sm border rounded-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Guruhlar</p>
-              <h3 className="text-lg sm:text-xl font-bold text-foreground leading-none mt-0.5">{stats.groupsWithExams}</h3>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <ExamStats stats={stats} />
 
-      <Card className="p-3 sm:p-4">
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          <div className="col-span-2 lg:col-span-2 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Qidiring..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
-          </div>
-          <Select value={filterGroup} onValueChange={setFilterGroup}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Guruh" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha guruhlar</SelectItem>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterExamType} onValueChange={setFilterExamType}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Imtihon turi" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha turlar</SelectItem>
-              {uniqueExamNames.map((n) => (
-                <SelectItem key={n} value={n}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Sana" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barcha sanalar</SelectItem>
-              <SelectItem value="today">Bugun</SelectItem>
-              <SelectItem value="week">So'nggi hafta</SelectItem>
-              <SelectItem value="month">So'nggi oy</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearchQuery("");
-              setFilterGroup("all");
-              setFilterExamType("all");
-              setDateFilter("all");
-            }}
-            className="h-9 text-sm col-span-2 sm:col-span-1 lg:col-span-1"
+      <ExamFilters
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        filterGroup={filterGroup}
+        setFilterGroup={setFilterGroup}
+        filterExamType={filterExamType}
+        setFilterExamType={setFilterExamType}
+        dateFilter={dateFilter}
+        setDateFilter={setDateFilter}
+        groups={groups}
+        uniqueExamNames={uniqueExamNames}
+      />
+
+      <ResultEntryDialog
+        showResultsDialog={showResultsDialog}
+        setShowResultsDialog={setShowResultsDialog}
+        students={students}
+        attendanceOnExamDate={attendanceOnExamDate}
+        examResults={examResults}
+        setExamResults={setExamResults}
+        saveExamResults={saveExamResults}
+        savingResults={savingResults}
+        setScoreInputRef={setScoreInputRef}
+        handleScoreKeyDown={handleScoreKeyDown}
+      />
+
+      <Tabs defaultValue="list" className="space-y-6">
+        <TabsList className="w-full justify-start overflow-x-auto hide-scrollbar bg-transparent p-0 border-b border-zinc-200 dark:border-zinc-800 rounded-none h-auto gap-4">
+          <TabsTrigger 
+            value="list" 
+            className="flex-1 sm:flex-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2.5 text-sm font-medium transition-all"
           >
-            Tozalash
-          </Button>
-        </div>
-      </Card>
-
-      <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle>Imtihon natijalarini kiriting</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="overflow-x-auto -mx-4 sm:mx-0 border rounded-md sm:border-0">
-              <Table className="min-w-[400px] sm:min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-4 sm:pl-2">O'quvchi</TableHead>
-                    <TableHead className="w-[150px] pr-4 sm:pr-2">Ball</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map((student, idx) => {
-                    const attendanceStatus = attendanceOnExamDate.get(student.id);
-                    const wasAbsent =
-                      attendanceStatus === "absent_with_reason" ||
-                      attendanceStatus === "absent_without_reason";
-
-                    return (
-                      <TableRow
-                        key={student.id}
-                        className={wasAbsent ? "bg-muted/50" : ""}
-                      >
-                        <TableCell className="pl-4 sm:pl-2">
-                          <StudentProfileLink
-                            studentId={student.id}
-                            className="text-inherit hover:text-primary font-medium"
-                          >
-                            {student.name}
-                            {wasAbsent && (
-                              <span className="ml-2 text-destructive text-xs sm:text-sm">
-                                (Kelmagan)
-                              </span>
-                            )}
-                          </StudentProfileLink>
-                        </TableCell>
-                        <TableCell className="pr-4 sm:pr-2">
-                          {wasAbsent ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground text-xs sm:text-sm whitespace-nowrap">
-                                Qatnashmadi
-                              </span>
-                              <Input
-                                ref={setScoreInputRef(student.id)}
-                                type="number"
-                                inputMode="decimal"
-                                enterKeyHint="next"
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={examResults[student.id] || ""}
-                                onKeyDown={handleScoreKeyDown(idx)}
-                                onChange={(e) =>
-                                  setExamResults({
-                                    ...examResults,
-                                    [student.id]: e.target.value,
-                                  })
-                                }
-                                placeholder="Ball"
-                                className="w-20 h-8 text-sm"
-                              />
-                            </div>
-                          ) : (
-                            <Input
-                              ref={setScoreInputRef(student.id)}
-                              type="number"
-                              inputMode="decimal"
-                              enterKeyHint="next"
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={examResults[student.id] || ""}
-                              onKeyDown={handleScoreKeyDown(idx)}
-                              onChange={(e) =>
-                                setExamResults({
-                                  ...examResults,
-                                  [student.id]: e.target.value,
-                                })
-                              }
-                              placeholder="Ball"
-                              className="h-9"
-                            />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            <Button
-              onClick={saveExamResults}
-              className="w-full h-10"
-              disabled={savingResults}
-            >
-              {savingResults ? "Saqlanmoqda..." : "Saqlash"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Tabs defaultValue="list" className="space-y-4">
-        <TabsList className="w-full justify-start overflow-x-auto hide-scrollbar">
-          <TabsTrigger value="list" className="flex-1 sm:flex-none">Imtihonlar ro'yxati</TabsTrigger>
-          <TabsTrigger value="analysis" className="flex-1 sm:flex-none">Tahlil</TabsTrigger>
+            Imtihonlar ro'yxati
+          </TabsTrigger>
+          <TabsTrigger 
+            value="analysis" 
+            className="flex-1 sm:flex-none data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 py-2.5 text-sm font-medium transition-all"
+          >
+            Natijalar tahlili
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list">
-          <div className="space-y-6">
-            {monthKeys.map((monthKey) => {
-              const monthExams = groupedExams[monthKey] || [];
-              return (
-                <div key={monthKey} className="space-y-3">
-                  <h3 className="text-sm font-semibold capitalize text-muted-foreground pl-1 sticky top-0 bg-background/95 backdrop-blur z-10 py-2">
-                    {getMonthName(monthKey)}
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                    {monthExams.map((exam) => (
-                      <Card
-                        key={exam.id}
-                        className="hover:shadow-md transition-shadow border-l-4 border-l-primary/20"
-                      >
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-4">
-                          <CardTitle
-                            className="text-sm sm:text-base font-semibold truncate pr-2"
-                            title={exam.exam_name}
-                          >
-                            {exam.exam_name}
-                          </CardTitle>
-                          <Badge variant="secondary" className="shrink-0 text-xs">
-                            {groupNameById.get(exam.group_id) || "-"}
-                          </Badge>
-                        </CardHeader>
-                        <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
-                          <div className="space-y-3">
-                            <div className="flex items-center text-xs sm:text-sm text-muted-foreground">
-                              <Calendar className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              {formatDateUz(exam.exam_date)}
-                            </div>
-                            <div className="flex justify-end space-x-2 pt-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => fetchExamDetails(exam.id)}
-                                className="h-8 text-xs sm:text-sm"
-                              >
-                                <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" /> Natijalar
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  handleAction(exam.id, exam.exam_name)
-                                }
-                                className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                              >
-                                <Archive className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-
-            {filteredExams.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                Imtihonlar topilmadi
-              </div>
-            )}
-
-            {filteredExams.length > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                <div className="text-xs sm:text-sm text-muted-foreground">
-                  Ko'rsatilmoqda:{" "}
-                  {Math.min(visibleExams.length, filteredExams.length)}/
-                  {filteredExams.length}
-                </div>
-                {hasMoreExams && (
-                  <div className="text-xs sm:text-sm text-muted-foreground">
-                    Pastga tushsangiz avtomatik yuklanadi
-                  </div>
-                )}
-              </div>
-            )}
-
-            {hasMoreExams && (
-              <div
-                ref={loadMoreRef}
-                className="flex items-center justify-center py-6"
-              >
-                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary"></div>
-              </div>
-            )}
-          </div>
+        <TabsContent value="list" className="mt-6 focus-visible:outline-none focus-visible:ring-0">
+          <ExamList
+            groupedExams={groupedExams}
+            monthKeys={monthKeys}
+            filteredExams={filteredExams}
+            visibleExams={visibleExams}
+            hasMoreExams={hasMoreExams}
+            loadMoreRef={loadMoreRef}
+            groupNameById={groupNameById}
+            getMonthName={getMonthName}
+            fetchExamDetails={fetchExamDetails}
+            handleAction={handleAction}
+          />
         </TabsContent>
 
-        <TabsContent value="analysis">
+        <TabsContent value="analysis" className="mt-6 focus-visible:outline-none focus-visible:ring-0">
           <ExamAnalysis teacherId={teacherId} exams={exams} groups={groups} />
         </TabsContent>
       </Tabs>
 
-      <Dialog
-        open={showExamDetailsDialog}
-        onOpenChange={(open) => {
-          setShowExamDetailsDialog(open);
-          if (!open) {
-            setExamDetailsData([]);
-            setExamDetailsExamId("");
-            setLoadingExamDetails(false);
-          }
-        }}
-      >
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <DialogTitle>Imtihon natijalari</DialogTitle>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => exportExamDetails("excel")}
-                  disabled={loadingExamDetails || examDetailsData.length === 0}
-                  className="h-8 text-xs"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => exportExamDetails("pdf")}
-                  disabled={loadingExamDetails || examDetailsData.length === 0}
-                  className="h-8 text-xs"
-                >
-                  <Download className="w-3.5 h-3.5 mr-1.5" /> PDF
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
+      <ExamDetailsDialog
+        showExamDetailsDialog={showExamDetailsDialog}
+        setShowExamDetailsDialog={setShowExamDetailsDialog}
+        loadingExamDetails={loadingExamDetails}
+        examDetailsData={examDetailsData}
+        attendanceOnExamDate={attendanceOnExamDate}
+        exportExamDetails={exportExamDetails}
+        setEditingResult={setEditingResult}
+        setEditScore={setEditScore}
+        setEditReason={setEditReason}
+      />
 
-          {loadingExamDetails ? (
-            <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : examDetailsData.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Natijalar topilmadi
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <Table className="min-w-[600px] sm:min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-4 sm:pl-2">O'quvchi</TableHead>
-                    <TableHead>Ball</TableHead>
-                    <TableHead>Izoh</TableHead>
-                    <TableHead className="w-[100px] pr-4 sm:pr-2">Amallar</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                {examDetailsData.map((result) => {
-                  const attendanceStatus = attendanceOnExamDate.get(
-                    result.student_id,
-                  );
-                  const wasAbsent =
-                    attendanceStatus === "absent_with_reason" ||
-                    attendanceStatus === "absent_without_reason";
-                  const hasNoResult = result.id.toString().startsWith("temp_");
-
-                  return (
-                    <TableRow
-                      key={result.id}
-                      className={wasAbsent || hasNoResult ? "bg-muted/50" : ""}
-                    >
-                      <TableCell className="font-medium">
-                        {result.student_id ? (
-                          <StudentProfileLink
-                            studentId={result.student_id}
-                            className="text-inherit hover:text-primary"
-                          >
-                            {result.student_name}
-                            {wasAbsent && (
-                              <span className="ml-2 text-destructive text-sm">
-                                (Kelmagan)
-                              </span>
-                            )}
-                            {hasNoResult && !wasAbsent && (
-                              <span className="ml-2 text-orange-500 text-sm">
-                                (Natija yo'q)
-                              </span>
-                            )}
-                          </StudentProfileLink>
-                        ) : (
-                          <>
-                            {result.student_name}
-                            {wasAbsent && (
-                              <span className="ml-2 text-destructive text-sm">
-                                (Kelmagan)
-                              </span>
-                            )}
-                            {hasNoResult && !wasAbsent && (
-                              <span className="ml-2 text-orange-500 text-sm">
-                                (Natija yo'q)
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-block px-2 py-1 rounded text-sm font-semibold ${
-                            wasAbsent
-                              ? "bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300"
-                              : result.score >= 90
-                                ? "bg-green-100 text-green-700 dark:bg-emerald-500/25 dark:text-emerald-300"
-                                : result.score >= 70
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300"
-                                  : result.score >= 50
-                                    ? "bg-yellow-100 text-yellow-700 dark:bg-amber-500/25 dark:text-amber-300"
-                                    : "bg-gray-100 text-gray-700 dark:bg-muted dark:text-muted-foreground"
-                          }`}
-                        >
-                          {wasAbsent ? "Kelmadi" : result.score}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {result.notes || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingResult({
-                              id: result.id,
-                              studentName: result.student_name,
-                              currentScore: result.score,
-                            });
-                            setEditScore(result.score.toString());
-                            setEditReason(result.notes || "");
-                          }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!editingResult}
-        onOpenChange={() => setEditingResult(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Natijani tahrirlash</DialogTitle>
-            <DialogDescription>{editingResult?.studentName}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Ball</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                max={100}
-                step={1}
-                value={editScore}
-                onChange={(e) => setEditScore(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Izoh (sabab)</Label>
-              <Input
-                value={editReason}
-                onChange={(e) => setEditReason(e.target.value)}
-                placeholder="O'zgartirish sababi..."
-              />
-            </div>
-            <Button
-              onClick={updateExamResult}
-              className="w-full"
-              disabled={updatingResult}
-            >
-              {updatingResult ? "Saqlanmoqda..." : "Saqlash"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EditResultDialog
+        editingResult={editingResult}
+        setEditingResult={setEditingResult}
+        editScore={editScore}
+        setEditScore={setEditScore}
+        editReason={editReason}
+        setEditReason={setEditReason}
+        updateExamResult={updateExamResult}
+        updatingResult={updatingResult}
+      />
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
         onConfirm={executeAction}
         title="Imtihonni arxivlash"
-        description={`"${confirmDialog.examName}" ni arxivlashga ishonchingiz komilmi?`}
+        description={`"${confirmDialog.examName}" ni arxivlashga ishonchingiz komilmi? Bu amalni ortga qaytarib bo'lmaydi.`}
         confirmText="Arxivlash"
         variant="warning"
       />

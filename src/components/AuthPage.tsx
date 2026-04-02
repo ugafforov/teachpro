@@ -8,7 +8,7 @@ import { getTashkentDate } from '@/lib/utils';
 import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { firebaseSignIn, firebaseSignUp, db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { sanitizeError, logError } from '@/lib/errorUtils';
 
 const AuthPage: React.FC = () => {
@@ -89,8 +89,8 @@ const AuthPage: React.FC = () => {
           institution_address: formData.institution_address,
           verification_status: 'pending',
           is_approved: false,
-          created_at: now,
-          requested_at: now
+          created_at: serverTimestamp(),
+          requested_at: serverTimestamp()
         });
 
         toast({

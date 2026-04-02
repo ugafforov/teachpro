@@ -2242,7 +2242,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
                           O'quvchi
                         </TableHead>
                         <TableHead className="text-center px-1 sm:px-3 w-[52px] sm:w-[72px]">
-                          Dav.
+                          Davomat
                         </TableHead>
                         <TableHead className="text-center px-1 sm:px-4 hidden sm:table-cell">
                           Mukofot/Jarima

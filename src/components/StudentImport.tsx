@@ -151,8 +151,8 @@ const StudentImport: React.FC<StudentImportProps> = ({
           className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 text-xs sm:text-sm"
         >
           <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-          <span className="hidden sm:inline">Import qilish</span>
-          <span className="sm:hidden">Import</span>
+          <span className="hidden sm:inline">O'quvchi qo'shish</span>
+          <span className="sm:hidden">O'quvchi qo'shish</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl w-[95vw] sm:w-auto">

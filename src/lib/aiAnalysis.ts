@@ -6,6 +6,7 @@ import {
   getDocs,
   query,
   where,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   askAboutStoredRun,
@@ -96,7 +97,7 @@ export const submitAnalysisFeedback = async (
     createdBy,
     feedback,
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    createdAt: new Date(),
+    created_at: serverTimestamp(),
   });
 };
 

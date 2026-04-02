@@ -140,16 +140,19 @@ const GroupRankingSidebar: React.FC<GroupRankingSidebarProps> = ({
                           {student.name}
                         </StudentProfileLink>
                       </p>
-                      <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[9px] sm:text-[10px] leading-4">
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">
-                          {(student.attendancePoints || 0).toFixed(1)} dav.
-                        </span>
-                        <span className="text-green-600 dark:text-emerald-400 font-medium">
-                          +{(student.mukofotScore || 0).toFixed(1)}
-                        </span>
-                        <span className="text-red-600 dark:text-red-400 font-medium">
-                          -{(student.jarimaScore || 0).toFixed(1)}
-                        </span>
+                      <div className="flex items-center gap-3 sm:gap-4 mt-1">
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-blue-600 dark:text-blue-400 text-[10px] font-bold">{(student.attendancePoints || 0).toFixed(1)}</span>
+                          <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">Davomat</span>
+                        </div>
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-green-600 dark:text-emerald-400 text-[10px] font-bold">+{(student.mukofotScore || 0).toFixed(1)}</span>
+                          <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">Mukofot</span>
+                        </div>
+                        <div className="flex flex-col items-center leading-none">
+                          <span className="text-red-600 dark:text-red-400 text-[10px] font-bold">-{(student.jarimaScore || 0).toFixed(1)}</span>
+                          <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">Jarima</span>
+                        </div>
                       </div>
                     </div>
                   </div>

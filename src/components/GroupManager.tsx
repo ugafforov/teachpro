@@ -432,7 +432,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         name: newGroup.name.trim(),
         description: newGroup.description.trim() || null,
         is_active: true,
-        created_at: getTashkentDate().toISOString(),
+        created_at: serverTimestamp(),
       });
 
       void onStatsUpdate();

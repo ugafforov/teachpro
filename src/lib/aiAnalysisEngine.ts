@@ -3039,11 +3039,11 @@ export async function runClientAiAnalysis(
     groups: aggregated.groupIdToToken,
   };
 
-  let responseCore: ModelOutput = heuristic;
-  let providerName = "heuristic";
-  let modelName = "fallback-local";
-  let tokensIn = 0;
-  let tokensOut = 0;
+  const responseCore: ModelOutput = heuristic;
+  const providerName = "heuristic";
+  const modelName = "fallback-local";
+  const tokensIn = 0;
+  const tokensOut = 0;
 
   // We skip calling LLM for initial analysis to speed up chat response
   // Chat will use the aggregated data directly
@@ -3051,7 +3051,7 @@ export async function runClientAiAnalysis(
   
   const runId = doc(collection(db, "ai_analysis_runs")).id;
 
-  let response = toRunSafeResponse(
+  const response = toRunSafeResponse(
     responseCore,
     runId,
     "ok",

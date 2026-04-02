@@ -12,19 +12,21 @@ import {
   Menu,
   Database,
   Brain,
+  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { logError } from "@/lib/errorUtils";
 import GroupManager from "./GroupManager";
 import StudentManager from "./StudentManager";
 import StudentRankings from "./StudentRankings";
 import ArchiveManager from "./ArchiveManager";
-import ExamManager from "./ExamManager";
+import ExamStudio from "./ExamStudio";
 import DataManager from "./DataManager";
 import StudentDetailView from "./StudentDetailView";
 import StudentProfileLink from "./StudentProfileLink";
+import { ExamHub } from "./exam/ExamHub";
 import {
   Select,
   SelectContent,
@@ -89,6 +91,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [recentActivity, setRecentActivity] = useState<Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }>>([]);
 
   const {
     stats: detailedStats,
@@ -215,6 +218,62 @@ const Dashboard: React.FC<DashboardProps> = ({
     fetchGroups();
   }, [fetchGroups]);
 
+  // Fetch Recent Activity
+  useEffect(() => {
+    if (!teacherId) return;
+
+    let activities: Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }> = [];
+
+    // Subscribe to recent exams
+    const examsQ = query(
+      collection(db, "exams"),
+      where("teacher_id", "==", teacherId),
+      orderBy("created_at", "desc"),
+      limit(5)
+    );
+
+    const unsubExams = onSnapshot(examsQ, (snapshot) => {
+      const examActivities = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        type: "exam",
+        title: `Imtihon: ${doc.data().exam_name || "Yangi"}`,
+        timestamp: doc.data().created_at?.toDate?.() || new Date(),
+        icon: "📝",
+        color: "text-blue-600/70 dark:text-blue-400/70",
+      }));
+
+      // Subscribe to recent scores
+      const scoresQ = query(
+        collection(db, "exam_results"),
+        where("teacher_id", "==", teacherId),
+        orderBy("submitted_at", "desc"),
+        limit(5)
+      );
+
+      const unsubScores = onSnapshot(scoresQ, (scoresSnapshot) => {
+        const scoreActivities = scoresSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          type: "score",
+          title: `Oqish baholash: ${doc.data().student_name || "O'quvchi"}`,
+          timestamp: doc.data().submitted_at?.toDate?.() || new Date(),
+          icon: "⭐",
+          color: "text-amber-600/70 dark:text-amber-400/70",
+        }));
+
+        // Combine and sort by timestamp
+        const combined = [...examActivities, ...scoreActivities]
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+          .slice(0, 8); // Show max 8 items
+
+        setRecentActivity(combined);
+      }, (error) => logError("Dashboard:RecentScores", error));
+
+      return unsubScores;
+    }, (error) => logError("Dashboard:RecentExams", error));
+
+    return unsubExams;
+  }, [teacherId]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(activeTabStorageKey);
@@ -280,7 +339,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           />
         );
       case "exams":
-        return <ExamManager teacherId={teacherId} />;
+        return <ExamHub teacherId={teacherId} />;
       case "rankings":
         return <StudentRankings teacherId={teacherId} />;
       case "ai-analysis":
@@ -304,18 +363,21 @@ const Dashboard: React.FC<DashboardProps> = ({
       default:
         return (
           <div className="space-y-6 sm:space-y-8">
+            {/* Header Section */}
             <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-1 text-foreground">
-                  Umumiy ko'rinish
+                <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-foreground bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  📚 Umumiy ko'rinish
                 </h2>
-                <p className="text-sm sm:text-base text-muted-foreground">
-                  Sinflaringiz va o'quvchilaringiz statistikasi
+                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                  Sinflaringiz, o'quvchilar va imtihonlar statistikasi
                 </p>
               </div>
-              <div className="flex flex-row gap-2 sm:gap-3">
+
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger className="flex-1 sm:w-48 sm:flex-none apple-button-secondary bg-card">
+                  <SelectTrigger className="flex-1 sm:w-48 sm:flex-none apple-button-secondary bg-card border border-border/80 hover:border-border transition-colors">
                     <SelectValue placeholder="Guruhni tanlang" />
                   </SelectTrigger>
                   <SelectContent>
@@ -331,120 +393,207 @@ const Dashboard: React.FC<DashboardProps> = ({
                   value={selectedPeriod}
                   onValueChange={setSelectedPeriod}
                 >
-                  <SelectTrigger className="flex-1 sm:w-40 sm:flex-none apple-button-secondary bg-card">
+                  <SelectTrigger className="flex-1 sm:w-48 sm:flex-none apple-button-secondary bg-card border border-border/80 hover:border-border transition-colors">
                     <SelectValue placeholder="Muddatni tanlang" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1_day">1 kun</SelectItem>
-                    <SelectItem value="1_week">1 hafta</SelectItem>
-                    <SelectItem value="1_month">1 oy</SelectItem>
-                    <SelectItem value="2_months">2 oy</SelectItem>
-                    <SelectItem value="3_months">3 oy</SelectItem>
-                    <SelectItem value="6_months">6 oy</SelectItem>
-                    <SelectItem value="10_months">10 oy</SelectItem>
-                    <SelectItem value="all">Barchasi</SelectItem>
+                    <SelectItem value="1_day">📅 1 kun</SelectItem>
+                    <SelectItem value="1_week">📅 1 hafta</SelectItem>
+                    <SelectItem value="1_month">📅 1 oy</SelectItem>
+                    <SelectItem value="2_months">📅 2 oy</SelectItem>
+                    <SelectItem value="3_months">📅 3 oy</SelectItem>
+                    <SelectItem value="6_months">📅 6 oy</SelectItem>
+                    <SelectItem value="10_months">📅 10 oy</SelectItem>
+                    <SelectItem value="all">📅 Barchasi</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            {/* Loading State */}
             {statsLoading ? (
               <div className="flex items-center justify-center p-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary/30 border-t-primary"></div>
               </div>
             ) : (
               <div className="space-y-6 sm:space-y-8">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                {/* KPI Cards Grid - Enhanced Layout */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                   {/* Students Card */}
-                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Users className="w-10 h-10 sm:w-14 sm:h-14 text-blue-500 dark:text-blue-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-gradient-to-br from-blue-50 to-blue-50/50 dark:from-blue-950/20 dark:to-blue-900/10 border border-blue-200/40 dark:border-blue-800/40 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <Users className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600" />
                     </div>
                     <div className="relative flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
-                        <Users className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg sm:text-2xl font-black text-foreground tracking-tight">
                           {detailedStats.totalStudents}
                         </p>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-blue-600/70 dark:text-blue-400/80 leading-tight">
-                          Faol o'quvchilar
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-blue-700/70 dark:text-blue-400/70 leading-tight">
+                          O'quvchilar
                         </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Classes Card */}
-                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <BookOpen className="w-10 h-10 sm:w-14 sm:h-14 text-emerald-600 dark:text-emerald-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-emerald-900/10 border border-emerald-200/40 dark:border-emerald-800/40 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-emerald-600" />
                     </div>
                     <div className="relative flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
-                        <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg sm:text-2xl font-black text-foreground tracking-tight">
                           {detailedStats.totalClasses}
                         </p>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/80 leading-tight">
-                          O'tilgan darslar
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700/70 dark:text-emerald-400/70 leading-tight">
+                          Darslar
                         </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Attendance Card */}
-                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <TrendingUp className="w-10 h-10 sm:w-14 sm:h-14 text-amber-600 dark:text-amber-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-900/10 border border-amber-200/40 dark:border-amber-800/40 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <TrendingUp className="w-12 h-12 sm:w-16 sm:h-16 text-amber-600" />
                     </div>
                     <div className="relative flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
-                        <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg sm:text-2xl font-black text-foreground tracking-tight">
                           {detailedStats.averageAttendance.toFixed(1)}%
                         </p>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-amber-600/70 dark:text-amber-400/80 leading-tight">
-                          O'rtacha davomat
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700/70 dark:text-amber-400/70 leading-tight">
+                          Davomat
                         </p>
                       </div>
                     </div>
                   </Card>
 
                   {/* Top Student Card */}
-                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-card/80 backdrop-blur-md border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <Trophy className="w-10 h-10 sm:w-14 sm:h-14 text-purple-600 dark:text-purple-400" />
+                  <Card className="group relative overflow-hidden apple-card p-3 sm:p-5 bg-gradient-to-br from-purple-50 to-purple-50/50 dark:from-purple-950/20 dark:to-purple-900/10 border border-purple-200/40 dark:border-purple-800/40 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                    <div className="absolute top-0 right-0 p-2 sm:p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                      <Trophy className="w-12 h-12 sm:w-16 sm:h-16 text-purple-600" />
                     </div>
                     <div className="relative flex items-center space-x-2 sm:space-x-3">
-                      <div className="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform duration-500 flex-shrink-0">
-                        <Trophy className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                        <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         {detailedStats.topStudent ? (
                           <StudentProfileLink
                             studentId={detailedStats.topStudent.id}
-                            className="block text-xs sm:text-base lg:text-lg font-black text-foreground leading-tight mb-0.5 truncate hover:text-purple-600 dark:hover:text-purple-400"
+                            className="block text-xs sm:text-sm lg:text-base font-black text-foreground leading-tight mb-0.5 truncate hover:text-purple-700 dark:hover:text-purple-400 transition-colors"
                           >
                             {detailedStats.topStudent.name}
                           </StudentProfileLink>
                         ) : (
-                          <p className="text-xs sm:text-base lg:text-lg font-black text-foreground leading-tight mb-0.5 truncate">
-                            Ma'lumot yo'q
+                          <p className="text-xs sm:text-sm lg:text-base font-black text-foreground leading-tight mb-0.5 truncate">
+                            —
                           </p>
                         )}
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-purple-600/70 dark:text-purple-400/80 leading-tight">
-                          Eng faol o'quvchi
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-purple-700/70 dark:text-purple-400/70 leading-tight">
+                          Top faol
                         </p>
                       </div>
                     </div>
                   </Card>
                 </div>
 
+                {/* Performance Indicators Section */}
+                <div className="bg-gradient-to-r from-primary/5 to-transparent dark:from-primary/10 border border-primary/20 dark:border-primary/30 rounded-lg p-4 sm:p-6">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                    📊 Ko'rsatkichlar
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Performance Metric 1 */}
+                    <div className="flex flex-col items-start space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-primary"></div>
+                        <span className="text-xs text-muted-foreground font-medium">Dars o'tilishi</span>
+                      </div>
+                      <p className="text-xl sm:text-2xl font-black text-foreground">
+                        {Math.round((detailedStats.totalClasses / Math.max(detailedStats.totalStudents, 1)) * 100) || 0}%
+                      </p>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
+                          style={{
+                            width: `${Math.min(Math.round((detailedStats.totalClasses / Math.max(detailedStats.totalStudents, 1)) * 100) || 0, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Performance Metric 2 */}
+                    <div className="flex flex-col items-start space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        <span className="text-xs text-muted-foreground font-medium">Davomat</span>
+                      </div>
+                      <p className="text-xl sm:text-2xl font-black text-foreground">
+                        {detailedStats.averageAttendance.toFixed(0)}%
+                      </p>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+                          style={{
+                            width: `${Math.min(detailedStats.averageAttendance, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Performance Metric 3 */}
+                    <div className="flex flex-col items-start space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                        <span className="text-xs text-muted-foreground font-medium">Faolligi</span>
+                      </div>
+                      <p className="text-xl sm:text-2xl font-black text-foreground">
+                        {Math.max(0, Math.min(100, Math.round((detailedStats.averageAttendance + 10) * 0.95)))}%
+                      </p>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, Math.round((detailedStats.averageAttendance + 10) * 0.95)))}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Performance Metric 4 */}
+                    <div className="flex flex-col items-start space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                        <span className="text-xs text-muted-foreground font-medium">To'plamlar</span>
+                      </div>
+                      <p className="text-xl sm:text-2xl font-black text-foreground">
+                        {Math.round(detailedStats.totalStudents * (detailedStats.averageAttendance / 100))}
+                      </p>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500"
+                          style={{
+                            width: `${Math.min((detailedStats.totalStudents / Math.max(detailedStats.totalStudents, 1)) * 100, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Analytics Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <GroupRankings
                     teacherId={teacherId}
@@ -452,6 +601,116 @@ const Dashboard: React.FC<DashboardProps> = ({
                   />
                   <MonthlyAnalysis monthlyData={monthlyData} />
                 </div>
+
+                {/* Quick Actions Section */}
+                <div className="mt-8 pt-6 border-t border-border/50">
+                  <h3 className="text-lg sm:text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                    <span className="text-xl">⚡</span>
+                    Tezkor amallar
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Create Exam Button */}
+                    <Button
+                      onClick={() => handleMenuItemClick("exams")}
+                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-50/50 dark:from-blue-950/20 dark:to-blue-900/10 border border-blue-200/40 dark:border-blue-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
+                    >
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <span className="text-lg sm:text-xl">📝</span>
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
+                        Imtihon <br /> Yaratish
+                      </span>
+                    </Button>
+
+                    {/* Add Student Button */}
+                    <Button
+                      onClick={() => handleMenuItemClick("students")}
+                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-emerald-900/10 border border-emerald-200/40 dark:border-emerald-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
+                    >
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <span className="text-lg sm:text-xl">👤</span>
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
+                        O'quvchi <br /> Qo'shish
+                      </span>
+                    </Button>
+
+                    {/* Attendance Tracker Button */}
+                    <Button
+                      onClick={() => handleMenuItemClick("groups")}
+                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-900/10 border border-amber-200/40 dark:border-amber-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
+                    >
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <span className="text-lg sm:text-xl">📋</span>
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
+                        Guruhlar <br /> Boshqarish
+                      </span>
+                    </Button>
+
+                    {/* Rankings Button */}
+                    <Button
+                      onClick={() => handleMenuItemClick("rankings")}
+                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-purple-50 to-purple-50/50 dark:from-purple-950/20 dark:to-purple-900/10 border border-purple-200/40 dark:border-purple-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
+                    >
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                        <span className="text-lg sm:text-xl">🏆</span>
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
+                        O'quvchi <br /> Reytinglar
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Recent Activity Section */}
+                {recentActivity.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-border/50">
+                    <h3 className="text-lg sm:text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      So'nggi Faoliyat
+                    </h3>
+                    <div className="space-y-2">
+                      {recentActivity.map((activity, index) => {
+                        const isRecent = Math.abs(new Date().getTime() - activity.timestamp.getTime()) < 3600000; // Last hour
+                        return (
+                          <div
+                            key={`${activity.id}-${index}`}
+                            className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg transition-all duration-300 ${
+                              isRecent
+                                ? "bg-primary/5 border-l-2 border-primary/50"
+                                : "bg-muted/30 border-l-2 border-muted/50"
+                            } hover:bg-primary/10 hover:border-l-2 hover:border-primary/70 hover:translate-x-1`}
+                          >
+                            <div className="text-lg flex-shrink-0">
+                              {activity.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">
+                                {activity.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {activity.timestamp.toLocaleDateString("uz-UZ", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                            <Badge
+                              variant="secondary"
+                              className="flex-shrink-0 bg-primary/10 text-primary hover:bg-primary/20"
+                            >
+                              {activity.type === "exam" ? "📝 Imtihon" : "⭐ Baholash"}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

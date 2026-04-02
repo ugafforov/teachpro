@@ -776,7 +776,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
         phone: newStudent.phone.trim() || null,
         group_name: newStudent.group_name,
         is_active: true,
-        created_at: getTashkentDate().toISOString(),
+        created_at: serverTimestamp(),
       });
       if (onStatsUpdate) {
         void onStatsUpdate();
@@ -998,17 +998,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button
-            size="sm"
-            onClick={() => setIsAddDialogOpen(true)}
-            className="flex-1 sm:flex-none h-8 gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Qo'shish</span>
-          </Button>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu>            <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 gap-1.5 flex-1 sm:flex-none">
                 <Download className="w-3.5 h-3.5" />
                 <span className="sm:inline">Yuklash</span>

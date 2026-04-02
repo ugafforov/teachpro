@@ -443,108 +443,190 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold">Davomat olish</h2>
-          <p className="text-sm text-muted-foreground">
-            O'quvchilar davomatini samarali boshqaring
-          </p>
+      {/* Header */}
+      <div>
+        <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+          📋 Davomat Olish
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          O'quvchilar davomatini samarali boshqaring va statistika ko'ring
+        </p>
+      </div>
+
+      {/* Filters & Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Sana</label>
+          <div className="relative">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? (
+                    format(parseISO(selectedDate), "d-MMMM, yyyy", {
+                      locale: uz,
+                    })
+                  ) : (
+                    <span>Sana tanlang</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={parseISO(selectedDate)}
+                  onSelect={(date) =>
+                    date && setSelectedDate(format(date, "yyyy-MM-dd"))
+                  }
+                  initialFocus
+                  locale={uz}
+                  modifiers={{ hasAttendance: attendanceDates }}
+                  modifiersStyles={{
+                    hasAttendance: {
+                      backgroundColor: "#22c55e",
+                      color: "white",
+                      borderRadius: "50%",
+                    },
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <Button
-            onClick={exportToCSV}
-            variant="outline"
-            size="sm"
-            className="sm:size-auto"
-          >
-            <Download className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">CSV export</span>
-          </Button>
-          <Button onClick={markAllPresent} size="sm" className="sm:size-auto">
-            <Users className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">
-              Barchani kelgan deb belgilash
-            </span>
-            <span className="sm:hidden">Barchasi keldi</span>
-          </Button>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Guruh</label>
+          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+            <SelectTrigger>
+              <SelectValue placeholder="Guruhni tanlang" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Barcha guruhlar</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group} value={group}>
+                  {group}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Tezkor Amallar</label>
+          <div className="flex gap-2">
+            <Button
+              onClick={markAllPresent}
+              size="sm"
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              title="Barcha o'quvchilarni kelgan deb belgilash"
+            >
+              <Check className="w-4 h-4 mr-1" />
+              Barchasi Keldi
+            </Button>
+            <Button
+              onClick={exportToCSV}
+              variant="outline"
+              size="sm"
+              title="CSV formatida export qilish"
+            >
+              <Download className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Sana</label>
-            <div className="relative">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedDate && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? (
-                      format(parseISO(selectedDate), "d-MMMM, yyyy", {
-                        locale: uz,
-                      })
-                    ) : (
-                      <span>Sana tanlang</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={parseISO(selectedDate)}
-                    onSelect={(date) =>
-                      date && setSelectedDate(format(date, "yyyy-MM-dd"))
-                    }
-                    initialFocus
-                    locale={uz}
-                    modifiers={{ hasAttendance: attendanceDates }}
-                    modifiersStyles={{
-                      hasAttendance: {
-                        backgroundColor: "#22c55e",
-                        color: "white",
-                        borderRadius: "50%",
-                      },
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
+      {/* Statistics Cards */}
+      {filteredStudents.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {(() => {
+            const presentCount = filteredStudents.filter(
+              (s) => getAttendanceStatus(s.id) === "present"
+            ).length;
+            const lateCount = filteredStudents.filter(
+              (s) => getAttendanceStatus(s.id) === "late"
+            ).length;
+            const absentCount = filteredStudents.filter(
+              (s) =>
+                getAttendanceStatus(s.id)?.startsWith("absent")
+            ).length;
+            const notMarkedCount =
+              filteredStudents.length - presentCount - lateCount - absentCount;
+            const attendancePercent = Math.round(
+              ((presentCount + lateCount) / filteredStudents.length) * 100
+            );
+
+            return (
+              <>
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200/50 dark:border-green-800/50">
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-green-600">
+                      {presentCount}
+                    </div>
+                    <p className="text-xs font-semibold text-green-700/70 mt-1">
+                      ✓ Kelgan
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-orange-200/50 dark:border-orange-800/50">
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {lateCount}
+                    </div>
+                    <p className="text-xs font-semibold text-orange-700/70 mt-1">
+                      🕐 Kechikkan
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20 border-red-200/50 dark:border-red-800/50">
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-red-600">
+                      {absentCount}
+                    </div>
+                    <p className="text-xs font-semibold text-red-700/70 mt-1">
+                      ✗ Kelmagan
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200/50 dark:border-blue-800/50">
+                  <CardContent className="pt-4">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {attendancePercent}%
+                    </div>
+                    <p className="text-xs font-semibold text-blue-700/70 mt-1">
+                      📊 Davomat
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Students List */}
+      <Card>
+        <div className="p-6 border-b bg-muted/30">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">
+                {selectedGroup === "all"
+                  ? "👥 Barcha o'quvchilar"
+                  : `📌 Guruh: ${selectedGroup}`}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatDateUz(selectedDate)} • {filteredStudents.length} o'quvchi
+              </p>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Guruh</label>
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Guruhni tanlang" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Barcha guruhlar</SelectItem>
-                {groups.map((group) => (
-                  <SelectItem key={group} value={group}>
-                    {group}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">
-            {selectedGroup === "all"
-              ? "Barcha o'quvchilar"
-              : `Guruh: ${selectedGroup}`}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {formatDateUz(selectedDate)}
-          </p>
         </div>
 
         {filteredStudents.length === 0 ? (
@@ -553,41 +635,55 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
             <h3 className="text-lg font-medium mb-2">O'quvchilar topilmadi</h3>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y max-h-[600px] overflow-y-auto">
             {filteredStudents.map((student) => {
               const status = normalizeStatus(getAttendanceStatus(student.id));
               return (
                 <div
                   key={student.id}
-                  className="p-3 sm:p-4 flex items-center justify-between gap-2"
+                  className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium">
-                        {student.name[0]}
-                      </span>
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div
+                      className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 font-medium text-white",
+                        status === "present"
+                          ? "bg-green-600"
+                          : status === "late"
+                            ? "bg-orange-600"
+                            : status?.startsWith("absent")
+                              ? "bg-red-600"
+                              : "bg-muted"
+                      )}
+                    >
+                      {student.name[0]}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold truncate">
                         <StudentProfileLink
                           studentId={student.id}
-                          className="text-inherit hover:text-blue-600"
+                          className="text-inherit hover:text-primary transition-colors"
                         >
                           {student.name}
                         </StudentProfileLink>
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {student.group_name}
                         </p>
                         {status && (
                           <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(status)}`}
+                            className={cn(
+                              "px-2 py-0.5 rounded-full text-xs font-semibold flex items-center space-x-1",
+                              status === "present"
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                : status === "late"
+                                  ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            )}
                           >
                             {getStatusIcon(status)}
-                            <span className="hidden xs:inline">
-                              {getStatusText(status)}
-                            </span>
+                            <span>{getStatusText(status)}</span>
                           </span>
                         )}
                       </div>
@@ -595,50 +691,48 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant={status === "present" ? "default" : "outline"}
-                        onClick={() => markAttendance(student.id, "present")}
-                        className="w-8 h-8 p-0"
-                        title="Keldi"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={status === "late" ? "default" : "outline"}
-                        onClick={() => markAttendance(student.id, "late")}
-                        className="w-8 h-8 p-0"
-                        title="Kechikdi"
-                      >
-                        <Clock className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={
-                          status?.startsWith("absent") ? "default" : "outline"
-                        }
-                        onClick={() => {
-                          setShowReasonInput(false);
-                          setAbsentReason("");
-                          setShowAbsentDialog(student.id);
-                        }}
-                        className="w-8 h-8 p-0"
-                        title="Kelmadi"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowRewardDialog(student.id)}
-                        className="w-8 h-8 p-0"
-                        title="Mukofot/Jarima"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant={status === "present" ? "default" : "outline"}
+                      onClick={() => markAttendance(student.id, "present")}
+                      className="w-9 h-9 p-0"
+                      title="Keldi"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={status === "late" ? "default" : "outline"}
+                      onClick={() => markAttendance(student.id, "late")}
+                      className="w-9 h-9 p-0"
+                      title="Kechikdi"
+                    >
+                      <Clock className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={
+                        status?.startsWith("absent") ? "default" : "outline"
+                      }
+                      onClick={() => {
+                        setShowReasonInput(false);
+                        setAbsentReason("");
+                        setShowAbsentDialog(student.id);
+                      }}
+                      className="w-9 h-9 p-0"
+                      title="Kelmadi"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowRewardDialog(student.id)}
+                      className="w-9 h-9 p-0"
+                      title="Mukofot/Jarima"
+                    >
+                      <Gift className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               );
