@@ -48,11 +48,11 @@ interface Student {
   student_id?: string;
   group_name: string;
   teacher_id: string;
-  created_at: any;
+  created_at: string | Timestamp;
   join_date?: string;
   left_date?: string;
   is_active?: boolean;
-  archived_at?: any;
+  archived_at?: string | Timestamp;
 }
 
 interface AttendanceRecord {
@@ -165,9 +165,9 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
         return getTashkentDate(new Date(student.archived_at))
           .toISOString()
           .split("T")[0];
-      } else if (typeof student.archived_at?.seconds === "number") {
+      } else if (typeof student.archived_at === 'object' && student.archived_at !== null && 'seconds' in student.archived_at && typeof (student.archived_at as { seconds: number }).seconds === 'number') {
         return format(
-          getTashkentDate(new Date(student.archived_at.seconds * 1000)),
+          getTashkentDate(new Date((student.archived_at as { seconds: number }).seconds * 1000)),
           "yyyy-MM-dd",
         );
       }
@@ -460,7 +460,7 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={filterMode}
-              onValueChange={(v) => setFilterMode(v as any)}
+              onValueChange={(v) => setFilterMode(v as "all" | "month" | "range")}
             >
               <SelectTrigger className="w-[110px] xs:w-[140px] sm:w-[160px] text-xs sm:text-sm h-8 sm:h-9">
                 <SelectValue placeholder="Filtr" />

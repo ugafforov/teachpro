@@ -5,17 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getTashkentDate } from '@/lib/utils';
-import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin } from 'lucide-react';
+import { Eye, EyeOff, User, School, Mail, Phone, Building2, MapPin, Trophy } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { firebaseSignIn, firebaseSignUp, db } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { sanitizeError, logError } from '@/lib/errorUtils';
+import { useNavigate } from 'react-router-dom';
 
 const AuthPage: React.FC = () => {
+  const navigate = useNavigate();
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showRankings, setShowRankings] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -132,6 +135,15 @@ const AuthPage: React.FC = () => {
             }
           </p>
         </div>
+
+        <Button
+          variant="outline"
+          onClick={() => navigate('/rankings')}
+          className="w-full mb-6 bg-muted/50 hover:bg-muted border-border"
+        >
+          <Trophy className="w-4 h-4 mr-2" />
+          Reytingni ko'rish
+        </Button>
 
         <div className="flex mb-6 bg-muted rounded-xl p-1">
           <button

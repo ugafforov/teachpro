@@ -574,7 +574,7 @@ export const ExamAnalyticsDashboard: React.FC<ExamAnalyticsDashboardProps> = ({
 
         <div>
           <Label className="text-xs mb-2 block">Davr</Label>
-          <Select value={dateRange} onValueChange={(v) => setDateRange(v as any)}>
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as "all" | "week" | "month" | "semester")}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
             </SelectTrigger>

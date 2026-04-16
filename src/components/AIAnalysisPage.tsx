@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { logError } from "@/lib/errorUtils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { chatWithProjectInsights } from "@/lib/aiAnalysis";
@@ -320,7 +321,7 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (error) {
-      console.error("Chat error:", error);
+      logError("AIAnalysisPage.chat", error);
       toast.error("Xatolik yuz berdi. Iltimos qayta urinib ko'ring.");
     } finally {
       setIsLoading(false);

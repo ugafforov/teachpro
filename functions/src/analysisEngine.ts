@@ -1056,7 +1056,11 @@ async function callOpenAIJson<T>(
 ): Promise<LlmJsonCallResult<T>> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY topilmadi. Functions env ga API key kiriting.");
+    throw new Error("OPENAI_API_KEY topilmadi. Functions environment variables ga API key kiriting yoki Firebase Secrets ishlating.");
+  }
+
+  if (apiKey.length < 10) {
+    throw new Error("OPENAI_API_KEY noto'g'ri formatda. API keyni tekshiring.");
   }
 
   const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
@@ -1108,8 +1112,12 @@ async function callGeminiJson<T>(
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "GEMINI_API_KEY topilmadi. Google AI Studio key ni Functions env ga kiriting.",
+      "GEMINI_API_KEY topilmadi. Google AI Studio key ni Functions environment variables ga kiriting yoki Firebase Secrets ishlating.",
     );
+  }
+
+  if (apiKey.length < 10) {
+    throw new Error("GEMINI_API_KEY noto'g'ri formatda. API keyni tekshiring.");
   }
 
   const baseUrl = (
@@ -1496,8 +1504,9 @@ export async function runAiAnalysis(
       tokensIn = llm.tokensIn;
       tokensOut = llm.tokensOut;
     }
-  } catch {
-    // Heuristic fallback is intentionally silent to keep user flow stable.
+  } catch (error) {
+    // Log error but continue with heuristic fallback to keep user flow stable
+    console.error("[AI Analysis] LLM call failed, using heuristic fallback:", error instanceof Error ? error.message : String(error));
   }
 
   let response = toRunSafeResponse(responseCore, runId, "ok", providerName, modelName, tokensIn, tokensOut);
@@ -1572,8 +1581,9 @@ export async function askAboutRun(
     if (parsed.success) {
       return parsed.data;
     }
-  } catch {
-    // fallback below
+  } catch (error) {
+    // Log error but continue with fallback
+    console.error("[AI Analysis] Ask about run LLM call failed, using fallback:", error instanceof Error ? error.message : String(error));
   }
 
   return fallbackAskAnswer(request.question, response);

@@ -223,14 +223,21 @@ export const ExamAnalysis: React.FC<ExamAnalysisProps> = ({
       const ws = XLSX.utils.aoa_to_sheet([...metaRows, headers, ...rows]);
       const wb = XLSX.utils.book_new();
 
+      interface WorksheetProperties {
+        "!cols"?: Array<{ wch: number }>;
+        "!merges"?: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }>;
+      }
+
       const totalCols = headers.length;
+      const worksheetProps = ws as WorksheetProperties;
+      
       if (totalCols > 1) {
-        (ws as any)["!merges"] = [
+        worksheetProps["!merges"] = [
           { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
         ];
       }
 
-      (ws as any)["!cols"] = Array.from({ length: totalCols }, (_, idx) => {
+      worksheetProps["!cols"] = Array.from({ length: totalCols }, (_, idx) => {
         if (idx === 0) return { wch: 24 };
         if (idx === 1) return { wch: 16 };
         return { wch: 10 };

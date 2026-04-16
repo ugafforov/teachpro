@@ -11,9 +11,9 @@ import {
   where,
 } from "firebase/firestore";
 
-type FilterValue = string | number | boolean | null;
-type FirestoreRecord = Record<string, unknown>;
-type FirestoreCollectionData = Record<string, unknown[]>;
+export type FilterValue = string | number | boolean | null;
+export type FirestoreRecord = Record<string, unknown>;
+export type FirestoreCollectionData = Record<string, unknown[]>;
 
 interface ImportPayload {
   version?: string;

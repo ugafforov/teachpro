@@ -89,7 +89,7 @@ export interface StudentWithScore {
   id: string;
   name: string;
   group_name: string;
-  created_at: any;
+  created_at: Timestamp | string;
   join_date?: string; // O'quvchi qo'shilgan sana (YYYY-MM-DD format)
   score: StudentScoreResult;
 }
@@ -101,7 +101,7 @@ export async function calculateStudentScore(
   studentId: string,
   teacherId: string,
   groupName: string,
-  studentCreatedAt: any,
+  studentCreatedAt: Timestamp | string,
   studentJoinDateStr?: string,
   studentLeaveDateStr?: string | null
 ): Promise<StudentScoreResult> {
@@ -185,7 +185,7 @@ export async function calculateStudentScore(
   let jarimaPoints = 0;
   let bahoCount = 0;
 
-  const relevantRewards = rewardData.filter((record: any) =>
+  const relevantRewards = rewardData.filter((record: { date?: string; points?: number | string; type?: string }) =>
     record?.date &&
     record.date >= studentJoinDate &&
     (!studentLeaveDate || record.date <= studentLeaveDate)
@@ -251,7 +251,7 @@ export async function calculateAllStudentScores(
   const studentsSnap = await getDocs(studentsQ);
   if (studentsSnap.empty) return [];
 
-  const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+  const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; name: string; group_name: string; created_at: Timestamp | string; join_date?: string }));
 
   const attendanceQ = query(
     collection(db, 'attendance_records'),

@@ -162,13 +162,6 @@ firebase.json → Firebase configuration
 | `VITE_FIREBASE_STORAGE_BUCKET` | teachproo.firebasestorage.app |
 | `VITE_FIREBASE_FUNCTIONS_REGION` | us-central1 |
 
-### AI Configuration
-| Variable | Value |
-|----------|-------|
-| `VITE_AI_API_KEY` | AIzaSyArnNwaT0X... |
-| `VITE_AI_MODEL` | gemini-3.1-flash-lite-preview |
-| `VITE_AI_BASE_URL` | https://generativelanguage.googleapis.com/v1beta |
-
 ---
 
 ## 📚 Firestore Collections (25 Total)

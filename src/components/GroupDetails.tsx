@@ -103,7 +103,7 @@ interface Student {
   phone?: string;
   group_name: string;
   teacher_id: string;
-  created_at: any;
+  created_at: Timestamp | string;
   join_date?: string; // O'quvchi qo'shilgan sana (YYYY-MM-DD format)
   left_date?: string; // O'quvchi ketgan sana (YYYY-MM-DD format)
   is_active?: boolean;
@@ -115,7 +115,7 @@ interface Student {
   mukofotScore?: number;
   jarimaScore?: number;
   attendancePoints?: number;
-  archived_at?: any; // Sana o'quvchi arxivlandi
+  archived_at?: Timestamp | string; // Sana o'quvchi arxivlandi
   archiveDocId?: string; // ID of the document in archived_students collection
 }
 
@@ -201,15 +201,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     >
   >({});
   const [attendanceDates, setAttendanceDates] = useState<Date[]>([]);
-  // TODO: Kelajakda bu period ni props orqali Dashboard dan olish kerak
-  // Hozircha har bir guruh o'zining alohida period ni saqlaydi
+  // Har bir guruh o'zining alohida period ni saqlaydi
   const [selectedPeriod, setSelectedPeriod] = useState<string>("all");
 
   // Keyingi dars uchun eslatmalar (bitta darsda bir nechta bo'lishi mumkin)
   type LessonNote = {
     id: string;
     note: string;
-    created_at: any;
+    created_at: Timestamp | string;
     created_date: string;
   };
   const [lessonNotes, setLessonNotes] = useState<LessonNote[]>([]);
@@ -259,6 +258,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
     loadGroupData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadGroupData defined inline, fetchStudents/fetchLessonNotes are stable functions
   }, [groupName, teacherId, selectedPeriod]);
 
   useEffect(() => {
@@ -404,6 +404,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       pendingTasks.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Complex cleanup with many dependencies, functions are stable
   }, [teacherId, groupName, selectedPeriod, selectedDate]);
 
   // 2. Load daily data when date or students change (no global loading)
@@ -418,6 +419,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     };
     void loadDailyData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // loadDailyData defined inline, functions are stable
   }, [selectedDate, teacherId, students]);
 
   // 3. Load calendar highlights when students change
@@ -426,10 +428,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       fetchAttendanceDates();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // fetchAttendanceDates is a stable function
   }, [students]);
 
   // Eslatma funksiyalari
-  const normalizeToYMD = (value: any): string => {
+  const normalizeToYMD = (value: string | Timestamp): string => {
     if (!value) return getTashkentToday();
 
     if (typeof value === "string") {
@@ -441,43 +444,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       return format(value.toDate(), "yyyy-MM-dd");
     }
 
-    if (typeof value === "object" && typeof value?.seconds === "number") {
-      return format(new Date(value.seconds * 1000), "yyyy-MM-dd");
-    }
-
-    if (typeof value?.toDate === "function") {
-      const d = value.toDate();
-      if (d instanceof Date && !isNaN(d.getTime())) {
-        return format(d, "yyyy-MM-dd");
-      }
-    }
-
-    try {
-      const d = new Date(value);
-      if (!isNaN(d.getTime())) {
-        return format(d, "yyyy-MM-dd");
-      }
-    } catch {
-      // ignore
-    }
-
     return getTashkentToday();
   };
 
-  const toMillisSafe = (value: any): number => {
+  const toMillisSafe = (value: string | Timestamp | { seconds: number } | { toMillis: () => number } | { toDate: () => Date }): number => {
     if (!value) return 0;
     if (value instanceof Timestamp) return value.toMillis();
-    if (typeof value === "object" && typeof value?.seconds === "number")
+    if (typeof value === "object" && "seconds" in value && typeof value.seconds === "number")
       return value.seconds * 1000;
-    if (typeof value?.toMillis === "function") return value.toMillis();
-    if (typeof value?.toDate === "function") {
+    if (typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") return value.toMillis();
+    if (typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
       const d = value.toDate();
       if (d instanceof Date && !isNaN(d.getTime())) return d.getTime();
     }
-    const d = new Date(value);
+    const d = new Date(value as string);
     return isNaN(d.getTime()) ? 0 : d.getTime();
   };
 
+  /**
+   * Fetches lesson notes for the current group from Firestore
+   * Uses indexed query with fallback to collection scan
+   */
   const fetchLessonNotes = async () => {
     // Primary path: indexed query (fast)
     try {
@@ -492,7 +479,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       const snapshot = await getDocs(q);
       const notes = snapshot.docs.map((d) => {
-        const data = d.data() as any;
+        const data = d.data() as { note: string; created_at: Timestamp | string; created_date?: Timestamp | string };
         const createdDate = normalizeToYMD(
           data.created_date ?? data.created_at,
         );
@@ -505,12 +492,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       });
       setLessonNotes(notes);
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Fallback path: avoid relying on a composite index (works even if index isn't deployed)
+      const err = error as { code?: string; message?: string };
       if (
-        error?.code !== "failed-precondition" &&
-        error?.code !== "permission-denied" &&
-        !error?.message?.includes("index")
+        err?.code !== "failed-precondition" &&
+        err?.code !== "permission-denied" &&
+        !err?.message?.includes("index")
       ) {
         logError("GroupDetails.fetchLessonNotes", error);
       }
@@ -523,7 +511,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       );
       const snapshot = await getDocs(fallbackQ);
       const rows = snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as any)
+        .map((d) => ({ id: d.id, ...d.data() }) as { id: string; note: string; created_at: Timestamp | string; created_date?: Timestamp | string; group_name: string; is_active?: boolean })
         .filter((r) => r.group_name === groupName && r.is_active === true);
 
       const sorted = [...rows]
@@ -540,8 +528,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         } as LessonNote;
       });
       setLessonNotes(notes);
-    } catch (fallbackError: any) {
-      if (fallbackError?.code !== "permission-denied") {
+    } catch (fallbackError: unknown) {
+      const err = fallbackError as { code?: string };
+      if (err?.code !== "permission-denied") {
         logError("GroupDetails.fetchLessonNotes.fallback", fallbackError);
       }
       setLessonNotes([]);
@@ -644,6 +633,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     (n) => selectedDate === n.created_date,
   );
 
+  /**
+   * Fetches all unique dates where attendance was recorded for the current group
+   * Used for calendar highlights
+   */
   const fetchAttendanceDates = async () => {
     try {
       const q = query(
@@ -668,6 +661,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
+  /**
+   * Fetches students for the current group from Firestore
+   * @param showLoading - Whether to show loading indicator
+   */
   const fetchStudents = async (showLoading = false) => {
     if (!teacherId || !groupName) return;
     if (showLoading) {
@@ -735,8 +732,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       const studentIds = Array.from(new Set(allStudentsData.map((s) => s.id)));
       if (studentIds.length > 0) {
-        let historyData: any[] = [];
-        let attendanceData: any[] = [];
+        let historyData: { student_id: string; points: number; type: string; date: string }[] = [];
+        let attendanceData: { student_id: string; status: string; date: string }[] = [];
 
         try {
           [historyData, attendanceData] = await Promise.all([
@@ -853,6 +850,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
+  /**
+   * Fetches attendance records for a specific date
+   * @param date - Date string in YYYY-MM-DD format
+   */
   const fetchAttendanceForDate = async (date: string) => {
     try {
       const q = query(
@@ -878,6 +879,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     }
   };
 
+  /**
+   * Fetches daily scores for students on a specific date
+   * @param date - Date string in YYYY-MM-DD format
+   */
   const fetchDailyScores = async (date: string) => {
     try {
       const currentStudents = studentsRef.current;
@@ -903,7 +908,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       > = {};
 
       snapshot.docs.forEach((d) => {
-        const record = { id: d.id, ...d.data() } as any;
+        const record = { id: d.id, ...d.data() } as { id: string; student_id: string; type: string; points: number; reason: string; date: string; created_at: Timestamp | string };
         if (studentIds.includes(record.student_id)) {
           const student = currentStudents.find(
             (s) => s.id === record.student_id,
@@ -1119,7 +1124,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
       const groupStudentIds = new Set(students.map((s) => s.id));
       snapshot.docs.forEach((d) => {
-        const data = d.data() as any;
+        const data = d.data() as { student_id: string };
         if (groupStudentIds.has(data.student_id)) {
           batch.delete(d.ref);
         }
@@ -1462,11 +1467,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         return student.archived_at.toDate().toISOString().split("T")[0];
       } else if (typeof student.archived_at === "string") {
         return student.archived_at.split("T")[0];
-      } else if (typeof student.archived_at?.seconds === "number") {
-        return format(
-          getTashkentDate(new Date(student.archived_at.seconds * 1000)),
-          "yyyy-MM-dd",
-        );
       }
     }
     return null;

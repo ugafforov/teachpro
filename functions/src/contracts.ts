@@ -122,6 +122,121 @@ export const askInsightsResponseSchema = z.object({
   citations: z.array(z.string()),
 });
 
+// Model output schema (without runtime metadata)
+export const modelOutputSchema = analyzeInsightsResponseSchema.omit({
+  runId: true,
+  status: true,
+  generatedAt: true,
+  modelMeta: true,
+  language: true,
+});
+
+// JSON schema for Gemini structured output
+export type JsonSchema = Record<string, unknown>;
+const jsonStringSchema = { type: "string" } as const;
+const jsonNumberSchema = { type: "number" } as const;
+const jsonIntegerSchema = { type: "integer" } as const;
+
+function jsonArraySchema(items: JsonSchema): JsonSchema {
+  return { type: "array", items };
+}
+
+function jsonObjectSchema(
+  properties: Record<string, JsonSchema>,
+  required: string[] = [],
+): JsonSchema {
+  return {
+    type: "object",
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+  };
+}
+
+export const modelOutputResponseJsonSchema = jsonObjectSchema(
+  {
+    summary: jsonStringSchema,
+    riskAlerts: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          id: jsonStringSchema,
+          level: jsonStringSchema,
+          reason: jsonStringSchema,
+          confidence: jsonNumberSchema,
+          affectedCount: jsonIntegerSchema,
+        },
+        ["id", "level", "reason", "confidence", "affectedCount"]
+      )
+    ),
+    anomalies: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          metric: jsonStringSchema,
+          current: jsonNumberSchema,
+          baseline: jsonNumberSchema,
+          deltaPct: jsonNumberSchema,
+          explanation: jsonStringSchema,
+        },
+        ["metric", "current", "baseline", "deltaPct", "explanation"]
+      )
+    ),
+    forecasts: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          metric: jsonStringSchema,
+          horizonDays: jsonIntegerSchema,
+          points: jsonArraySchema(
+            jsonObjectSchema(
+              { date: jsonStringSchema, value: jsonNumberSchema },
+              ["date", "value"]
+            )
+          ),
+          confidence: jsonNumberSchema,
+        },
+        ["metric", "horizonDays", "points", "confidence"]
+      )
+    ),
+    whatIf: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          scenario: jsonStringSchema,
+          expectedDeltaPct: jsonNumberSchema,
+          confidence: jsonNumberSchema,
+          assumptions: jsonStringSchema,
+        },
+        ["scenario", "expectedDeltaPct", "confidence", "assumptions"]
+      )
+    ),
+    interventions: jsonArraySchema(
+      jsonObjectSchema(
+        {
+          title: jsonStringSchema,
+          priority: jsonIntegerSchema,
+          owner: jsonStringSchema,
+          dueInDays: jsonIntegerSchema,
+          expectedImpact: jsonStringSchema,
+          steps: jsonStringSchema,
+        },
+        ["title", "priority", "owner", "dueInDays", "expectedImpact", "steps"]
+      )
+    ),
+    weeklyPlan: jsonArraySchema(
+      jsonObjectSchema(
+        { day: jsonStringSchema, task: jsonStringSchema },
+        ["day", "task"]
+      )
+    ),
+  },
+  ["summary", "riskAlerts", "anomalies", "forecasts", "whatIf", "interventions", "weeklyPlan"]
+);
+
+export const askInsightsResponseJsonSchema = jsonObjectSchema(
+  {
+    answer: jsonStringSchema,
+    citations: jsonArraySchema(jsonStringSchema),
+  },
+  ["answer", "citations"]
+);
+
 export type AnalysisScope = z.infer<typeof analysisScopeSchema>;
 export type InsightModule = z.infer<typeof insightModuleSchema>;
 export type AnalyzeInsightsRequest = z.infer<typeof analyzeInsightsRequestSchema>;

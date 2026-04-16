@@ -1,4 +1,5 @@
 import { serverTimestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore";
 
 export interface Group {
   id: string;
@@ -25,7 +26,7 @@ export interface Exam {
   exam_date: string;
   group_id: string;
   exam_type_id?: string;
-  created_at?: any;
+  created_at?: Timestamp | string;
 }
 
 export interface ExamResult {
@@ -36,7 +37,7 @@ export interface ExamResult {
   notes?: string;
   student_name: string;
   group_name: string;
-  submitted_at?: any;
+  submitted_at?: Timestamp | string;
   teacher_id?: string;
 }
 

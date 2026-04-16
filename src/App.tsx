@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 const Index = lazy(() => import("./pages/Index"));
 const StudentProfile = lazy(() => import("./pages/StudentProfile"));
+const PublicRankings = lazy(() => import("./components/PublicRankings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="students/:studentId" element={<StudentProfile />} />
               </Route>
               <Route path="/students/:studentId" element={<StudentProfile />} />
+              <Route path="/rankings" element={<PublicRankings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

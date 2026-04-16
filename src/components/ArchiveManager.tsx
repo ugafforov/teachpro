@@ -36,7 +36,7 @@ interface ArchivedStudent {
   group_name: string;
   email?: string;
   phone?: string;
-  archived_at: any;
+  archived_at: string | Timestamp;
 }
 
 interface ArchivedGroup {
@@ -45,7 +45,7 @@ interface ArchivedGroup {
   teacher_id: string;
   name: string;
   description?: string;
-  archived_at: any;
+  archived_at: string | Timestamp;
 }
 
 interface ArchivedExam {
@@ -56,8 +56,8 @@ interface ArchivedExam {
   exam_date: string;
   group_name: string;
   group_id?: string;
-  archived_at: any;
-  results_data?: any;
+  archived_at: string | Timestamp;
+  results_data?: Record<string, unknown>[];
 }
 
 interface ArchiveManagerProps {
@@ -104,17 +104,20 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
       setLoading(true);
 
       // Helper function to get time from various date formats
-      const getTime = (val: any) => {
+      const getTime = (val: string | number | Date | { seconds: number }): number => {
         if (!val) return 0;
-        if (typeof val.getTime === 'function') return val.getTime() / 1000;
-        if (val.seconds !== undefined) return val.seconds;
+        if (val instanceof Date && typeof val.getTime === 'function') return val.getTime() / 1000;
+        if (typeof val === 'object' && 'seconds' in val && typeof val.seconds === 'number') return val.seconds;
         if (typeof val === 'number') return val > 1e11 ? val / 1000 : val;
-        try {
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? 0 : d.getTime() / 1000;
-        } catch (e) {
-          return 0;
+        if (typeof val === 'string') {
+          try {
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? 0 : d.getTime() / 1000;
+          } catch (e) {
+            return 0;
+          }
         }
+        return 0;
       };
 
       // Fetch students
@@ -173,15 +176,16 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
     void fetchArchivedData();
   }, [fetchArchivedData]);
 
-  const filterData = (data: any[]) => {
+  const filterData = (data: ArchivedStudent[] | ArchivedGroup[] | ArchivedExam[]) => {
     if (!searchTerm) return data;
     const term = searchTerm.toLowerCase();
-    return data.filter(item =>
-      (item.name?.toLowerCase().includes(term)) ||
-      (item.exam_name?.toLowerCase().includes(term)) ||
-      (item.group_name?.toLowerCase().includes(term)) ||
-      (item.student_id?.toLowerCase().includes(term))
-    );
+    return data.filter(item => {
+      if ('name' in item && item.name?.toLowerCase().includes(term)) return true;
+      if ('exam_name' in item && item.exam_name?.toLowerCase().includes(term)) return true;
+      if ('group_name' in item && item.group_name?.toLowerCase().includes(term)) return true;
+      if ('student_id' in item && item.student_id?.toLowerCase().includes(term)) return true;
+      return false;
+    });
   };
 
   const handleRestore = (itemType: 'student' | 'group' | 'exam', itemId: string, itemName: string) => {
@@ -310,7 +314,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
 
       if (archivedExam.results_data && Array.isArray(archivedExam.results_data)) {
         const batch = writeBatch(db);
-        archivedExam.results_data.forEach((r: any) => {
+        archivedExam.results_data?.forEach((r: Record<string, unknown>) => {
           const newResultRef = doc(collection(db, 'exam_results'));
           batch.set(newResultRef, {
             teacher_id: teacherId,
@@ -364,7 +368,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(student => (
+            {(filtered as ArchivedStudent[]).map(student => (
               <Card key={student.id} className="p-4">
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">
@@ -409,7 +413,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(group => (
+            {(filtered as ArchivedGroup[]).map(group => (
               <Card key={group.id} className="p-4">
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">
@@ -445,7 +449,7 @@ const ArchiveManager: React.FC<ArchiveManagerProps> = ({ teacherId, onStatsUpdat
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(exam => (
+            {(filtered as ArchivedExam[]).map(exam => (
               <Card key={exam.id} className="p-4">
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center space-x-3">

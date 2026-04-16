@@ -1,73 +1,210 @@
-# Welcome to your Lovable project
+# TeachPro CRM
 
-## Project info
+A comprehensive teacher management system built with React, TypeScript, and Firebase.
 
-**URL**: https://lovable.dev/projects/d0945f27-1002-42b6-9a72-92aba57aae32
+## Project Overview
 
-## How can I edit this code?
+TeachPro CRM is a full-featured classroom management application that helps teachers:
+- Manage student information and groups
+- Track attendance records
+- Create and manage exams
+- Calculate student scores and rankings
+- Generate AI-powered analysis reports
+- Archive and restore data
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **UI Components**: shadcn/ui
+- **Styling**: Tailwind CSS
+- **Backend**: Firebase (Firestore, Authentication, Cloud Functions)
+- **AI Integration**: Google Gemini API
+- **State Management**: React Query
+- **PDF Generation**: jsPDF
+- **Excel Export**: xlsx
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d0945f27-1002-42b6-9a72-92aba57aae32) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm
+- Firebase project with Firestore enabled
+- Google Gemini API key
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd TeachProCopy
 
-Follow these steps:
+# Install dependencies
+npm install
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your Firebase and API keys
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Create a `.env` file with the following variables:
 
-**Use GitHub Codespaces**
+```
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_FUNCTIONS_REGION=us-central1
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Development
 
-## What technologies are used for this project?
+```bash
+# Start development server
+npm run dev
 
-This project is built with:
+# Run TypeScript compiler
+npm run type-check
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Run linter
+npm run lint
 
-## How can I deploy this project?
+# Run tests
+npm test
+```
 
-Simply open [Lovable](https://lovable.dev/projects/d0945f27-1002-42b6-9a72-92aba57aae32) and click on Share -> Publish.
+### Deployment
 
-## Can I connect a custom domain to my Lovable project?
+```bash
+# Build for production
+npm run build
 
-Yes, you can!
+# Preview production build
+npm run preview
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Firebase Setup
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Enable Firestore Database
+3. Enable Authentication (Email/Password)
+4. Create a web app and copy the configuration
+5. Deploy Firestore rules from `firestore.rules`
+6. Deploy Cloud Functions from the `functions/` directory
+
+### Cloud Functions Setup
+
+```bash
+cd functions
+npm install
+cp .env.example .env
+# Add your GEMINI_API_KEY to .env
+cd ..
+firebase deploy --only functions
+```
+
+## Security
+
+This project implements comprehensive security measures:
+- Firebase Authentication for user access
+- Firestore security rules for data protection
+- Server-side AI API calls via Cloud Functions
+- Rate limiting on critical operations
+- Audit logging for admin actions
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for detailed security analysis.
+
+## Features
+
+### Student Management
+- Add, edit, and delete students
+- Student profiles with detailed information
+- Import students from Excel
+- Export student data
+
+### Group Management
+- Create and manage student groups
+- Group-specific attendance tracking
+- Group statistics and analytics
+
+### Attendance Tracking
+- Daily attendance recording
+- Multiple attendance statuses (present, late, absent)
+- Attendance history and statistics
+- Attendance journal view
+
+### Exam Management
+- Create exams with custom parameters
+- Record exam results
+- Exam analytics and reports
+- Export exam data to Excel
+
+### AI Analysis
+- AI-powered student performance analysis
+- Automated insights generation
+- Natural language queries
+- Visual analytics dashboards
+
+### Data Management
+- Full data backup/restore
+- Archive old records
+- Soft-delete with recovery
+- Data export in JSON format
+
+## Testing
+
+```bash
+# Run unit tests with Vitest
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+## Project Structure
+
+```
+src/
+├── components/        # React components
+│   ├── exam/         # Exam-related components
+│   ├── ui/           # shadcn/ui components
+│   └── ...           # Other components
+├── lib/              # Utility functions and helpers
+│   ├── firebase.ts   # Firebase configuration
+│   ├── errorUtils.ts # Error handling utilities
+│   └── ...
+├── hooks/            # Custom React hooks
+├── pages/            # Page components
+└── App.tsx           # Main app component
+
+functions/            # Firebase Cloud Functions
+├── src/
+│   └── index.ts      # Functions entry point
+└── package.json
+
+tests/               # E2E tests (Playwright)
+vitest.config.ts     # Vitest configuration
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+This project is proprietary software.
+
+## Support
+
+For issues and questions, please contact the development team.

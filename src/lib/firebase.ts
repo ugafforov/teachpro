@@ -1,6 +1,7 @@
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User, Auth } from "firebase/auth";
 import { getFunctions, Functions } from "firebase/functions";
+import { logError } from "./errorUtils";
 import {
   getFirestore,
   collection,
@@ -19,8 +20,8 @@ import {
   QueryConstraint
 } from "firebase/firestore";
 
-// Validate Firebase configuration
-function validateFirebaseConfig() {
+// Validate Firebase configuration with graceful fallback
+function validateFirebaseConfig(): { isValid: boolean; missingVars: string[] } {
   const requiredVars = [
     'VITE_FIREBASE_API_KEY',
     'VITE_FIREBASE_AUTH_DOMAIN',
@@ -37,15 +38,20 @@ function validateFirebaseConfig() {
 
   if (missingVars.length > 0) {
     const errorMsg = `Firebase configuration error: Missing required environment variables: ${missingVars.join(', ')}`;
-    console.error(errorMsg);
-    throw new Error(errorMsg);
+    logError('firebase.validateConfig', errorMsg);
+
+    // In development mode, throw error to alert developer
+    // In production, allow graceful degradation
+    if (import.meta.env.DEV) {
+      throw new Error(errorMsg);
+    }
   }
 
-  return true;
+  return { isValid: missingVars.length === 0, missingVars };
 }
 
 // Validate configuration before initializing
-validateFirebaseConfig();
+const configValidation = validateFirebaseConfig();
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -56,41 +62,72 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize with error handling
-export let app: FirebaseApp;
-export let auth: Auth;
-export let db: Firestore;
-export let functionsClient: Functions;
+// Initialize with graceful degradation
+export let app: FirebaseApp | null = null;
+export let auth: Auth | null = null;
+export let db: Firestore | null = null;
+export let functionsClient: Functions | null = null;
+export let isFirebaseInitialized = false;
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
-  functionsClient = getFunctions(app, functionsRegion);
-} catch (error) {
-  console.error('Firebase initialization failed:', error);
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  throw new Error(`Failed to initialize Firebase: ${errorMessage}`);
+if (configValidation.isValid) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || "us-central1";
+    functionsClient = getFunctions(app, functionsRegion);
+    isFirebaseInitialized = true;
+  } catch (error) {
+    logError('firebase.init', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    // In production, don't crash - just log and continue with null values
+    if (import.meta.env.DEV) {
+      throw new Error(`Failed to initialize Firebase: ${errorMessage}`);
+    }
+  }
+} else {
+  logError('firebase.init', 'Firebase not initialized due to missing configuration');
 }
 
-// Auth helpers
-export const firebaseSignIn = (email: string, password: string) =>
-  signInWithEmailAndPassword(auth, email, password);
+// Auth helpers with null checks
+export const firebaseSignIn = (email: string, password: string) => {
+  if (!auth) {
+    throw new Error('Firebase Auth is not initialized. Please check your configuration.');
+  }
+  return signInWithEmailAndPassword(auth, email, password);
+};
 
-export const firebaseSignUp = (email: string, password: string) =>
-  createUserWithEmailAndPassword(auth, email, password);
+export const firebaseSignUp = (email: string, password: string) => {
+  if (!auth) {
+    throw new Error('Firebase Auth is not initialized. Please check your configuration.');
+  }
+  return createUserWithEmailAndPassword(auth, email, password);
+};
 
-export const firebaseSignOut = () => signOut(auth);
+export const firebaseSignOut = () => {
+  if (!auth) {
+    return Promise.resolve();
+  }
+  return signOut(auth);
+};
 
-export const onAuthChange = (callback: (user: User | null) => void) =>
-  onAuthStateChanged(auth, callback);
+export const onAuthChange = (callback: (user: User | null) => void) => {
+  if (!auth) {
+    // If auth is not initialized, call callback with null immediately
+    callback(null);
+    return () => {};
+  }
+  return onAuthStateChanged(auth, callback);
+};
 
-// Firestore helpers
+// Firestore helpers with null checks
 export const getCollection = async <T extends DocumentData>(
   collectionName: string,
   ...queryConstraints: QueryConstraint[]
 ): Promise<(T & { id: string })[]> => {
+  if (!db) {
+    throw new Error('Firestore is not initialized. Please check your configuration.');
+  }
   const q = query(collection(db, collectionName), ...queryConstraints);
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T & { id: string }));
@@ -100,6 +137,9 @@ export const getDocument = async <T extends DocumentData>(
   collectionName: string,
   docId: string
 ): Promise<(T & { id: string }) | null> => {
+  if (!db) {
+    throw new Error('Firestore is not initialized. Please check your configuration.');
+  }
   const docRef = doc(db, collectionName, docId);
   const snapshot = await getDoc(docRef);
   if (!snapshot.exists()) return null;
@@ -110,6 +150,9 @@ export const addDocument = async <T extends DocumentData>(
   collectionName: string,
   data: T
 ): Promise<string> => {
+  if (!db) {
+    throw new Error('Firestore is not initialized. Please check your configuration.');
+  }
   const docRef = await addDoc(collection(db, collectionName), {
     ...data,
     created_at: Timestamp.now()
@@ -122,6 +165,9 @@ export const updateDocument = async <T extends Partial<DocumentData>>(
   docId: string,
   data: T
 ): Promise<void> => {
+  if (!db) {
+    throw new Error('Firestore is not initialized. Please check your configuration.');
+  }
   const docRef = doc(db, collectionName, docId);
   await updateDoc(docRef, data as DocumentData);
 };
@@ -130,6 +176,9 @@ export const deleteDocument = async (
   collectionName: string,
   docId: string
 ): Promise<void> => {
+  if (!db) {
+    throw new Error('Firestore is not initialized. Please check your configuration.');
+  }
   const docRef = doc(db, collectionName, docId);
   await deleteDoc(docRef);
 };

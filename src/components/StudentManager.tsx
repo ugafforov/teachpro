@@ -137,9 +137,9 @@ const formatValidationError = (error: z.ZodError) => {
 const calculateStats = (
   studentId: string,
   joinDateStr: string | undefined,
-  createdAt: any,
-  attendanceRecords: any[],
-  rewardRecords: any[],
+  createdAt: Timestamp | string,
+  attendanceRecords: { date: string; status: string; student_id: string }[],
+  rewardRecords: { date: string; points: number | string; type: string; student_id: string }[],
   groupDates: Set<string>,
 ): StudentScoreResult => {
   // Join date logic
@@ -192,7 +192,7 @@ const calculateStats = (
   let bahoScore = 0;
   let bahoCount = 0;
 
-  studentRewards.forEach((r: any) => {
+  studentRewards.forEach((r: { points: number | string; type: string }) => {
     const p = Number(r.points || 0);
     if (r.type === "Mukofot") mukofotPoints += p;
     else if (r.type === "Jarima") jarimaPoints += p;
@@ -247,6 +247,27 @@ interface Group {
   description?: string;
 }
 
+interface AttendanceRecord {
+  id?: string;
+  student_id: string;
+  teacher_id: string;
+  date: string;
+  status: "present" | "late" | "absent_with_reason" | "absent_without_reason";
+  notes?: string;
+  created_at?: string;
+}
+
+interface RewardPenaltyRecord {
+  id?: string;
+  student_id: string;
+  teacher_id: string;
+  date: string;
+  type: "Mukofot" | "Jarima";
+  points: number;
+  reason?: string;
+  created_at?: string;
+}
+
 interface StudentManagerProps {
   teacherId: string;
   onStatsUpdate?: () => Promise<void>;
@@ -260,8 +281,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
   const location = useLocation();
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
-  const [rewardRecords, setRewardRecords] = useState<any[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [rewardRecords, setRewardRecords] = useState<RewardPenaltyRecord[]>([]);
 
   // UI States
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
@@ -316,6 +337,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
 
   const { toast } = useToast();
 
+  /**
+   * Fetches all active students for the current teacher
+   */
   const fetchStudents = useCallback(async () => {
     const q = query(
       collection(db, "students"),
@@ -329,6 +353,9 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     setStudents(data);
   }, [teacherId]);
 
+  /**
+   * Fetches all active groups for the current teacher
+   */
   const fetchGroups = useCallback(async () => {
     const q = query(
       collection(db, "groups"),
@@ -342,23 +369,29 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     setGroups(data);
   }, [teacherId]);
 
+  /**
+   * Fetches all attendance records for the current teacher
+   */
   const fetchAttendance = useCallback(async () => {
     const q = query(
       collection(db, "attendance_records"),
       where("teacher_id", "==", teacherId),
     );
     const snapshot = await getDocs(q);
-    const data = snapshot.docs.map((doc) => ({ ...doc.data() }));
+    const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
     setAttendanceRecords(data);
   }, [teacherId]);
 
+  /**
+   * Fetches all reward/penalty records for the current teacher
+   */
   const fetchRewards = useCallback(async () => {
     const q = query(
       collection(db, "reward_penalty_history"),
       where("teacher_id", "==", teacherId),
     );
     const snapshot = await getDocs(q);
-    const data = snapshot.docs.map((doc) => ({ ...doc.data() }));
+    const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as RewardPenaltyRecord));
     setRewardRecords(data);
   }, [teacherId]);
 
@@ -638,8 +671,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({
     // Sorting
     if (sortConfig) {
       filtered.sort((a, b) => {
-        let aValue: any = a[sortConfig.key as keyof Student];
-        let bValue: any = b[sortConfig.key as keyof Student];
+        let aValue: string | number = a[sortConfig.key as keyof Student] as string | number;
+        let bValue: string | number = b[sortConfig.key as keyof Student] as string | number;
 
         // Handle nested stats keys
         if (sortConfig.key === "attendance") {

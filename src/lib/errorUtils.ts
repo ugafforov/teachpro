@@ -3,6 +3,8 @@
  * These functions sanitize error messages to prevent information leakage
  */
 
+import { logError as logToLogger } from './logger';
+
 // Map common database error codes to user-friendly messages
 const ERROR_CODE_MESSAGES: Record<string, string> = {
   // Firebase/Firestore error codes
@@ -115,19 +117,15 @@ export function sanitizeError(
 }
 
 /**
- * Logs errors only in development mode
+ * Logs errors using the structured logger
  */
 export function logError(context: string, error: unknown): void {
-  if (import.meta.env.DEV) {
-    console.error(`[${context}]`, error);
-  }
+  logToLogger(context, typeof error === 'string' ? error : error instanceof Error ? error.message : String(error), error);
 }
 
 /**
- * Safe error logger: only in development to avoid console in production
+ * Safe error logger: uses structured logger with proper level
  */
 export function safeLogError(context: string, error: unknown): void {
-  if (import.meta.env.DEV) {
-    console.error(`[${context}]`, error);
-  }
+  logToLogger(context, typeof error === 'string' ? error : error instanceof Error ? error.message : String(error), error);
 }

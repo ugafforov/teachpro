@@ -49,10 +49,10 @@ interface StudentDetails {
   group_name: string;
   email?: string;
   phone?: string;
-  created_at: any;
+  created_at: Timestamp | string;
   join_date?: string;
   left_date?: string;
-  archived_at?: any;
+  archived_at?: Timestamp | string;
 }
 
 interface StudentStats extends StudentScoreResult {
@@ -60,7 +60,7 @@ interface StudentStats extends StudentScoreResult {
   recentRewards: Array<{
     points: number;
     reason: string;
-    created_at: any;
+    created_at: Timestamp | string;
     type: string;
     date?: string;
   }>;
@@ -236,8 +236,16 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       fetchStudentDetails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // fetchStudentDetails defined below, depends on studentId and teacherId which are in deps
   }, [studentId, teacherId]);
 
+  /**
+   * Fetches recent reward/penalty records for a student
+   * @param id - Student ID
+   * @param joinDate - Student's join date (optional)
+   * @param leaveDate - Student's leave date (optional)
+   * @returns Array of recent reward/penalty records
+   */
   const fetchRecentRewards = async (id: string, joinDate?: string, leaveDate?: string | null): Promise<StudentStats['recentRewards']> => {
     try {
       // Composite index bo'lmasligi uchun alohida query qilamiz
@@ -247,7 +255,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         where('teacher_id', '==', teacherId)
       );
       const snapshot = await getDocs(q);
-      const rows = snapshot.docs.map(d => d.data() as any);
+      const rows = snapshot.docs.map(d => d.data() as { type: string; date: string; created_at: Timestamp | string; points: number; reason: string });
       
       // Filter by type, date range, and sort in memory
       const filtered = rows.filter(r => {
@@ -272,6 +280,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     }
   };
 
+  /**
+   * Fetches attendance history for a student
+   * @param id - Student ID
+   * @param joinDate - Student's join date (optional)
+   * @param leaveDate - Student's leave date (optional)
+   * @returns Array of attendance history records
+   */
   const fetchAttendanceHistory = async (id: string, joinDate?: string, leaveDate?: string | null): Promise<AttendanceHistoryRecord[]> => {
     try {
       const q = query(
@@ -280,7 +295,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         where('student_id', '==', id)
       );
       const snapshot = await getDocs(q);
-      const rows = snapshot.docs.map(d => d.data() as any);
+      const rows = snapshot.docs.map(d => d.data() as { date: string; status: AttendanceStatus; notes?: string });
       const filtered = rows.filter(r => {
         if (!r?.date) return false;
         if (joinDate && r.date < joinDate) return false;
@@ -298,6 +313,13 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     }
   };
 
+  /**
+   * Fetches exam results for a student
+   * @param id - Student ID
+   * @param joinDate - Student's join date (optional)
+   * @param leaveDate - Student's leave date (optional)
+   * @returns Array of exam result records
+   */
   const fetchExamResults = async (id: string, joinDate?: string, leaveDate?: string | null): Promise<ExamResultRecord[]> => {
     try {
       // First get exam results for this student
@@ -310,7 +332,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
       
       if (resultsSnap.empty) return [];
       
-      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      const resultsData = resultsSnap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; exam_id: string; score: number; notes?: string; student_name?: string; group_name?: string }));
       const examIds = [...new Set(resultsData.map(r => r.exam_id))];
       
       // Get exam details
@@ -353,6 +375,9 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     }
   };
 
+  /**
+   * Fetches detailed information for the current student including stats, attendance, and exam results
+   */
   const fetchStudentDetails = async () => {
     try {
       setLoading(true);
@@ -378,8 +403,8 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           if (typeof studentData.archived_at === 'string') {
             return getTashkentDate(new Date(studentData.archived_at)).toISOString().split('T')[0];
           }
-          if (typeof (studentData.archived_at as any)?.seconds === 'number') {
-            return getTashkentDate(new Date((studentData.archived_at as any).seconds * 1000)).toISOString().split('T')[0];
+          if (typeof studentData.archived_at === 'object' && studentData.archived_at !== null && 'seconds' in studentData.archived_at && typeof (studentData.archived_at as { seconds: number }).seconds === 'number') {
+            return getTashkentDate(new Date((studentData.archived_at as { seconds: number }).seconds * 1000)).toISOString().split('T')[0];
           }
         }
         return null;
@@ -414,14 +439,14 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     }
   };
 
-  const formatDateValue = (value: any) => {
+  const formatDateValue = (value: string | Timestamp) => {
     if (!value) return '';
     if (typeof value === 'string') return formatDateUz(value);
     if (value instanceof Timestamp) {
       return formatDateUz(value.toDate().toISOString());
     }
-    if (typeof (value as any)?.seconds === 'number') {
-      return formatDateUz(new Date((value as any).seconds * 1000).toISOString());
+    if (typeof value === 'object' && value !== null && 'seconds' in value && typeof (value as { seconds: number }).seconds === 'number') {
+      return formatDateUz(new Date((value as { seconds: number }).seconds * 1000).toISOString());
     }
     return '';
   };
@@ -499,7 +524,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
         styles: { fontSize: 8 }
       });
 
-      let finalY = (doc as any).lastAutoTable?.finalY || 32;
+      let finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 32;
 
       if (attendanceBody.length > 0) {
         autoTable(doc, {
@@ -508,7 +533,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
           startY: finalY + 8,
           styles: { fontSize: 7 }
         });
-        finalY = (doc as any).lastAutoTable?.finalY || finalY;
+        finalY = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || finalY;
       }
 
       if (rewardsBody.length > 0) {

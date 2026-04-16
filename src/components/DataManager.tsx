@@ -30,7 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { fetchAllRecordsForExport, calculateChecksum, validateImportData, logAuditEntry, ValidationResult } from '@/lib/firebaseHelpers';
+import { 
+  fetchAllRecordsForExport, 
+  calculateChecksum, 
+  validateImportData, 
+  logAuditEntry, 
+  ValidationResult,
+  FirestoreRecord 
+} from '@/lib/firebaseHelpers';
 
 interface DataManagerProps {
   teacherId: string;
@@ -48,25 +55,25 @@ interface UniversalExportData {
     recordCounts: Record<string, number>;
   };
   data: {
-    teachers: any[];
-    students: any[];
-    groups: any[];
-    attendance_records: any[];
-    reward_penalty_history: any[];
-    exams: any[];
-    exam_results: any[];
-    exam_types: any[];
-    student_scores: any[];
-    archived_students: any[];
-    archived_groups: any[];
-    archived_exams: any[];
-    deleted_students: any[];
-    deleted_groups: any[];
-    deleted_exams: any[];
-    deleted_attendance_records: any[];
-    deleted_reward_penalty_history: any[];
-    deleted_student_scores: any[];
-    deleted_exam_results: any[];
+    teachers: Record<string, unknown>[];
+    students: Record<string, unknown>[];
+    groups: Record<string, unknown>[];
+    attendance_records: Record<string, unknown>[];
+    reward_penalty_history: Record<string, unknown>[];
+    exams: Record<string, unknown>[];
+    exam_results: Record<string, unknown>[];
+    exam_types: Record<string, unknown>[];
+    student_scores: Record<string, unknown>[];
+    archived_students: Record<string, unknown>[];
+    archived_groups: Record<string, unknown>[];
+    archived_exams: Record<string, unknown>[];
+    deleted_students: Record<string, unknown>[];
+    deleted_groups: Record<string, unknown>[];
+    deleted_exams: Record<string, unknown>[];
+    deleted_attendance_records: Record<string, unknown>[];
+    deleted_reward_penalty_history: Record<string, unknown>[];
+    deleted_student_scores: Record<string, unknown>[];
+    deleted_exam_results: Record<string, unknown>[];
   };
 }
 
@@ -130,7 +137,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         'deleted_student_scores', 'deleted_exam_results',
       ];
 
-      const data: any = {};
+      const data: Record<string, Record<string, unknown>[]> = {};
       const recordCounts: Record<string, number> = {};
 
       for (let i = 0; i < tables.length; i++) {
@@ -138,7 +145,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
         setProgress(Math.round((i / tables.length) * 100));
         setProgressMessage(`${table} yuklanmoqda...`);
 
-        const tableData = await fetchAllRecordsForExport<any>(table, teacherId);
+        const tableData = await fetchAllRecordsForExport<FirestoreRecord>(table, teacherId);
         data[table] = tableData;
         recordCounts[table] = tableData.length;
       }
@@ -157,7 +164,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
           exportedBy: 'TeachPro v3.0',
           recordCounts
         },
-        data
+        data: data as UniversalExportData['data']
       };
 
       const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
@@ -167,7 +174,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
 
       // Format: teachpro_backup_2024-01-07T14-30-45_1234-records.json
       const timestamp = format(getTashkentDate(), "yyyy-MM-dd'T'HH-mm-ss");
-      const totalRecords = Object.values(data).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
+      const totalRecords = Object.values(data).reduce((sum: number, arr: Record<string, unknown>[]) => sum + (arr?.length || 0), 0);
       a.download = `teachpro_backup_${timestamp}_${totalRecords}-records.json`;
 
       document.body.appendChild(a);
@@ -226,14 +233,14 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const convertToTimestamp = (value: any) => {
+  const convertToTimestamp = (value: string | number | Date | { seconds: number; nanoseconds?: number } | null | undefined): Timestamp | import('firebase/firestore').FieldValue => {
     if (!value) return serverTimestamp();
     if (typeof value === 'string') {
       const date = getTashkentDate(new Date(value));
       return isNaN(date.getTime()) ? serverTimestamp() : Timestamp.fromDate(date);
     }
     if (value && typeof value === 'object') {
-      if (value.seconds !== undefined) return new Timestamp(value.seconds, value.nanoseconds || 0);
+      if ('seconds' in value && typeof value.seconds === 'number') return new Timestamp(value.seconds, value.nanoseconds || 0);
       if (value instanceof Date) return Timestamp.fromDate(value);
     }
     return serverTimestamp();
@@ -290,14 +297,14 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
             newRecord.teacher_id = teacherId;
 
             // Preserve timestamps
-            newRecord.created_at = convertToTimestamp(record.created_at);
-            if (record.updated_at) newRecord.updated_at = convertToTimestamp(record.updated_at);
+            newRecord.created_at = record.created_at && typeof record.created_at !== 'object' ? convertToTimestamp(record.created_at as string | number | Date | { seconds: number; nanoseconds?: number } | null | undefined) : serverTimestamp();
+            if (record.updated_at && typeof record.updated_at !== 'object') newRecord.updated_at = convertToTimestamp(record.updated_at as string | number | Date | { seconds: number; nanoseconds?: number } | null | undefined);
 
             // ID Mapping logic for ALL tables
-            if (newRecord.group_id && idMaps.groups[newRecord.group_id]) newRecord.group_id = idMaps.groups[newRecord.group_id];
-            if (newRecord.exam_type_id && idMaps.exam_types[newRecord.exam_type_id]) newRecord.exam_type_id = idMaps.exam_types[newRecord.exam_type_id];
-            if (newRecord.student_id && idMaps.students[newRecord.student_id]) newRecord.student_id = idMaps.students[newRecord.student_id];
-            if (newRecord.exam_id && idMaps.exams[newRecord.exam_id]) newRecord.exam_id = idMaps.exams[newRecord.exam_id];
+            if (newRecord.group_id && idMaps.groups[newRecord.group_id as string]) newRecord.group_id = idMaps.groups[newRecord.group_id as string];
+            if (newRecord.exam_type_id && idMaps.exam_types[newRecord.exam_type_id as string]) newRecord.exam_type_id = idMaps.exam_types[newRecord.exam_type_id as string];
+            if (newRecord.student_id && idMaps.students[newRecord.student_id as string]) newRecord.student_id = idMaps.students[newRecord.student_id as string];
+            if (newRecord.exam_id && idMaps.exams[newRecord.exam_id as string]) newRecord.exam_id = idMaps.exams[newRecord.exam_id as string];
 
             let newDocRef;
             if (table === 'attendance_records') {
@@ -310,10 +317,10 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
 
               // Store new ID for mapping if this table can be a parent
               if (originalId) {
-                if (table.includes('group')) idMaps.groups[originalId] = newDocRef.id;
-                else if (table.includes('exam_type')) idMaps.exam_types[originalId] = newDocRef.id;
-                else if (table.includes('student')) idMaps.students[originalId] = newDocRef.id;
-                else if (table.includes('exam') && !table.includes('result')) idMaps.exams[originalId] = newDocRef.id;
+                if (table.includes('group')) idMaps.groups[originalId as string] = newDocRef.id;
+                else if (table.includes('exam_type')) idMaps.exam_types[originalId as string] = newDocRef.id;
+                else if (table.includes('student')) idMaps.students[originalId as string] = newDocRef.id;
+                else if (table.includes('exam') && !table.includes('result')) idMaps.exams[originalId as string] = newDocRef.id;
               }
             }
           }

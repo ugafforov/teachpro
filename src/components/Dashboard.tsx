@@ -92,6 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([]);
   const [recentActivity, setRecentActivity] = useState<Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }>>([]);
+  const sidebarHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     stats: detailedStats,
@@ -307,11 +308,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [activeTab, activeTabStorageKey, selectedGroupStorageKey]);
 
   const handleGroupSelect = (groupName: string) => {
-    // Group selected
+    setSelectedGroup(groupName);
+    try {
+      localStorage.setItem(selectedGroupStorageKey, groupName);
+    } catch {
+      // ignore localStorage errors
+    }
   };
 
   const menuItems = [
-    { id: "overview", label: "Umumiy ko'rinish", icon: BookOpen },
+    { id: "overview", label: "Boshqaruv paneli", icon: BookOpen },
     { id: "groups", label: "Guruhlar", icon: Users },
     { id: "students", label: "O'quvchilar", icon: Users },
     { id: "exams", label: "Imtihonlar", icon: TrendingUp },
@@ -348,7 +354,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             role="teacher"
             teacherId={teacherId}
             currentUserId={teacherId}
-            teacherName={teacherName}
           />
         );
       case "archive":
@@ -364,10 +369,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         return (
           <div className="space-y-6 sm:space-y-8">
             {/* Header Section */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
               <div>
                 <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-foreground bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  📚 Umumiy ko'rinish
+                  📚 Boshqaruv paneli
                 </h2>
                 <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
                   Sinflaringiz, o'quvchilar va imtihonlar statistikasi
@@ -509,90 +514,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </Card>
                 </div>
 
-                {/* Performance Indicators Section */}
-                <div className="bg-gradient-to-r from-primary/5 to-transparent dark:from-primary/10 border border-primary/20 dark:border-primary/30 rounded-lg p-4 sm:p-6">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">
-                    📊 Ko'rsatkichlar
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                    {/* Performance Metric 1 */}
-                    <div className="flex flex-col items-start space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-primary"></div>
-                        <span className="text-xs text-muted-foreground font-medium">Dars o'tilishi</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-black text-foreground">
-                        {Math.round((detailedStats.totalClasses / Math.max(detailedStats.totalStudents, 1)) * 100) || 0}%
-                      </p>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
-                          style={{
-                            width: `${Math.min(Math.round((detailedStats.totalClasses / Math.max(detailedStats.totalStudents, 1)) * 100) || 0, 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Performance Metric 2 */}
-                    <div className="flex flex-col items-start space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <span className="text-xs text-muted-foreground font-medium">Davomat</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-black text-foreground">
-                        {detailedStats.averageAttendance.toFixed(0)}%
-                      </p>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
-                          style={{
-                            width: `${Math.min(detailedStats.averageAttendance, 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Performance Metric 3 */}
-                    <div className="flex flex-col items-start space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                        <span className="text-xs text-muted-foreground font-medium">Faolligi</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-black text-foreground">
-                        {Math.max(0, Math.min(100, Math.round((detailedStats.averageAttendance + 10) * 0.95)))}%
-                      </p>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, Math.round((detailedStats.averageAttendance + 10) * 0.95)))}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Performance Metric 4 */}
-                    <div className="flex flex-col items-start space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                        <span className="text-xs text-muted-foreground font-medium">To'plamlar</span>
-                      </div>
-                      <p className="text-xl sm:text-2xl font-black text-foreground">
-                        {Math.round(detailedStats.totalStudents * (detailedStats.averageAttendance / 100))}
-                      </p>
-                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500"
-                          style={{
-                            width: `${Math.min((detailedStats.totalStudents / Math.max(detailedStats.totalStudents, 1)) * 100, 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Analytics Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <GroupRankings
@@ -600,67 +521,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                     selectedPeriod={selectedPeriod}
                   />
                   <MonthlyAnalysis monthlyData={monthlyData} />
-                </div>
-
-                {/* Quick Actions Section */}
-                <div className="mt-8 pt-6 border-t border-border/50">
-                  <h3 className="text-lg sm:text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                    <span className="text-xl">⚡</span>
-                    Tezkor amallar
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {/* Create Exam Button */}
-                    <Button
-                      onClick={() => handleMenuItemClick("exams")}
-                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-50/50 dark:from-blue-950/20 dark:to-blue-900/10 border border-blue-200/40 dark:border-blue-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                        <span className="text-lg sm:text-xl">📝</span>
-                      </div>
-                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
-                        Imtihon <br /> Yaratish
-                      </span>
-                    </Button>
-
-                    {/* Add Student Button */}
-                    <Button
-                      onClick={() => handleMenuItemClick("students")}
-                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-emerald-900/10 border border-emerald-200/40 dark:border-emerald-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                        <span className="text-lg sm:text-xl">👤</span>
-                      </div>
-                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
-                        O'quvchi <br /> Qo'shish
-                      </span>
-                    </Button>
-
-                    {/* Attendance Tracker Button */}
-                    <Button
-                      onClick={() => handleMenuItemClick("groups")}
-                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-900/10 border border-amber-200/40 dark:border-amber-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                        <span className="text-lg sm:text-xl">📋</span>
-                      </div>
-                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
-                        Guruhlar <br /> Boshqarish
-                      </span>
-                    </Button>
-
-                    {/* Rankings Button */}
-                    <Button
-                      onClick={() => handleMenuItemClick("rankings")}
-                      className="h-auto flex flex-col items-center justify-center p-4 sm:p-6 rounded-lg bg-gradient-to-br from-purple-50 to-purple-50/50 dark:from-purple-950/20 dark:to-purple-900/10 border border-purple-200/40 dark:border-purple-800/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-foreground hover:text-primary group"
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                        <span className="text-lg sm:text-xl">🏆</span>
-                      </div>
-                      <span className="text-xs sm:text-sm font-bold text-center line-clamp-2">
-                        O'quvchi <br /> Reytinglar
-                      </span>
-                    </Button>
-                  </div>
                 </div>
 
                 {/* Recent Activity Section */}
@@ -803,12 +663,24 @@ const Dashboard: React.FC<DashboardProps> = ({
           ${mobileMenuOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0"}
           bg-card border-r border-border shadow-lg lg:shadow-none
           fixed lg:relative top-0 bottom-0 left-0 z-40
-          transition-all duration-300 ease-in-out
+          transition-all duration-100 ease
           flex flex-col
         `}
           style={{
             top: mobileMenuOpen ? "60px" : undefined,
             height: mobileMenuOpen ? "calc(100% - 60px)" : "100%",
+          }}
+          onMouseEnter={() => {
+            if (sidebarHoverTimeoutRef.current) {
+              clearTimeout(sidebarHoverTimeoutRef.current);
+              sidebarHoverTimeoutRef.current = null;
+            }
+            setSidebarCollapsed(false);
+          }}
+          onMouseLeave={() => {
+            sidebarHoverTimeoutRef.current = setTimeout(() => {
+              setSidebarCollapsed(true);
+            }, 150);
           }}
         >
           <nav className="flex flex-col h-full overflow-hidden">
@@ -823,7 +695,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       activeTab === item.id
                         ? "bg-primary/10 text-primary font-medium"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    } ${sidebarCollapsed ? "lg:justify-center lg:px-2" : ""}`}
+                    }`}
                     title={sidebarCollapsed ? item.label : ""}
                     aria-label={item.label}
                   >
@@ -831,7 +703,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       activeTab === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                     }`} />
                     <span
-                      className={`ml-3 truncate ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                      className={`ml-3 truncate transition-opacity duration-100 ${sidebarCollapsed ? "lg:opacity-0 lg:w-0 overflow-hidden" : "lg:opacity-100 lg:w-auto"}`}
                     >
                       {item.label}
                     </span>
@@ -843,15 +715,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="border-t border-border p-3">
               <button
                 onClick={onLogout}
-                className={`w-full flex items-center px-3 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg group ${
-                  sidebarCollapsed ? "lg:justify-center lg:px-2" : ""
-                }`}
+                className={`w-full flex items-center px-3 py-3 text-left transition-colors text-destructive hover:bg-destructive/10 rounded-lg group`}
                 title={sidebarCollapsed ? "Chiqish" : ""}
                 aria-label="Tizimdan chiqish"
               >
                 <LogOut className="w-5 h-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
                 <span
-                  className={`ml-3 font-medium truncate ${sidebarCollapsed ? "lg:hidden" : ""}`}
+                  className={`ml-3 font-medium truncate transition-opacity duration-100 ${sidebarCollapsed ? "lg:opacity-0 lg:w-0 overflow-hidden" : "lg:opacity-100 lg:w-auto"}`}
                 >
                   Chiqish
                 </span>

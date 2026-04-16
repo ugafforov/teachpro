@@ -27,7 +27,7 @@ const uzbekMonths = [
   'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'
 ];
 
-export function formatDateUz(date: any, style: 'short' | 'long' = 'long'): string {
+export function formatDateUz(date: Date | { seconds: number } | string, style: 'short' | 'long' = 'long'): string {
   if (!date) return style === 'short' ? '--.--.----' : "Sana yo'q";
 
   let d: Date;

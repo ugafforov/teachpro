@@ -197,7 +197,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         const studentsSnapshot = await getDocs(studentsQuery);
         const allStudents = studentsSnapshot.docs.map((d) => ({
           id: d.id,
-          ...(d.data() as any),
+          ...(d.data() as { id: string; name: string; group_name: string; student_id?: string; is_active?: boolean }),
         }));
 
         // 3. Fetch all attendance records for this teacher to calculate percentage
@@ -294,7 +294,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({
         (snapshot) => {
           studentsData = snapshot.docs.map((doc) => ({
             id: doc.id,
-            ...(doc.data() as any),
+            ...(doc.data() as { id: string; name: string; group_name: string; student_id?: string; is_active?: boolean }),
           }));
           scheduleRealtimeApply();
         },

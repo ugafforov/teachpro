@@ -100,8 +100,3 @@ export const storedAnalyzeResponseSchema = z.object({
   comparison: comparisonSchema,
 });
 
-// Since we are not using firebase/ai anymore, we can remove the Schema related code
-// and modelOutputResponseSchema which was used for GoogleAIBackend
-export const modelOutputResponseSchema = {}; 
-export const askOutputResponseSchema = {};
-

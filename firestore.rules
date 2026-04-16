@@ -11,20 +11,45 @@ service cloud.firestore {
     }
 
     function requestOwnedByCurrentUser() {
-      return isAuthenticated() && request.resource.data.get('teacher_id', '') == request.auth.uid;
+      return isAuthenticated() &&
+             request.resource.data.teacher_id is string &&
+             request.resource.data.teacher_id.size() > 0 &&
+             request.resource.data.teacher_id == request.auth.uid;
     }
 
     function resourceOwnedByCurrentUser() {
-      return isAuthenticated() && resource.data.get('teacher_id', '') == request.auth.uid;
+      return isAuthenticated() &&
+             resource.data.teacher_id is string &&
+             resource.data.teacher_id.size() > 0 &&
+             resource.data.teacher_id == request.auth.uid;
     }
 
     // Rate limiting helper
     function isWithinRateLimit(path, max_operations, window_ms) {
       let operations = firestore.query(path)
         .where('created_at', '>', request.time - duration.value(window_ms, 'ms'))
-        .where('created_by', '==', request.auth.uid)
+        .where('createdBy', '==', request.auth.uid)
         .count().read;
       return operations < max_operations;
+    }
+
+    // Apply rate limiting to critical write operations
+    // Limit to 100 writes per minute per user for most operations
+    function isWithinWriteLimit() {
+      return isWithinRateLimit(
+        /databases/$(database)/documents/ai_analysis_runs,
+        100,
+        60000
+      );
+    }
+
+    // Specific rate limit for AI analysis operations
+    function isWithinAIAnalysisLimit() {
+      return isWithinRateLimit(
+        /databases/$(database)/documents/ai_analysis_runs,
+        20,
+        60000
+      );
     }
 
     // Data validation helpers
@@ -57,27 +82,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Students collection
+    // Students collection (public read for rankings, restricted write)
     match /students/{studentId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
       allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
       allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Groups collection
+    // Groups collection (public read for rankings)
     match /groups/{groupId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
       allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
       allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Attendance records collection
+    // Attendance records collection (public read for rankings)
     match /attendance_records/{recordId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
       allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
@@ -93,9 +118,9 @@ service cloud.firestore {
       allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Reward and penalty history
+    // Reward and penalty history (public read for rankings)
     match /reward_penalty_history/{historyId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
       allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
@@ -111,9 +136,9 @@ service cloud.firestore {
       allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 
-    // Exam results collection
+    // Exam results collection (public read for rankings)
     match /exam_results/{resultId} {
-      allow read: if isAdmin() || resourceOwnedByCurrentUser();
+      allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
       allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
@@ -197,7 +222,10 @@ service cloud.firestore {
     // Audit logs (append-only)
     match /audit_logs/{logId} {
       allow create: if isAuthenticated() && (
-        isAdmin() || request.resource.data.get('teacher_id', '') == request.auth.uid
+        isAdmin() || 
+        (request.resource.data.teacher_id is string &&
+         request.resource.data.teacher_id.size() > 0 &&
+         request.resource.data.teacher_id == request.auth.uid)
       );
       allow read: if isAdmin();
       allow update, delete: if false;
@@ -206,16 +234,28 @@ service cloud.firestore {
     // AI analysis runs and feedback
     match /ai_analysis_runs/{runId} {
       allow read: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
       allow create: if isAuthenticated() && 
-                       request.resource.data.get('createdBy', '') == request.auth.uid &&
-                       hasValidTimestamp();
+                       request.resource.data.createdBy is string &&
+                       request.resource.data.createdBy.size() > 0 &&
+                       request.resource.data.createdBy == request.auth.uid &&
+                       hasValidTimestamp() &&
+                       isWithinAIAnalysisLimit();
       allow update: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
       allow delete: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
     }
 
@@ -227,17 +267,35 @@ service cloud.firestore {
     // AI analysis feedback
     match /ai_analysis_feedback/{feedbackId} {
       allow create: if isAuthenticated() && 
-                       request.resource.data.get('createdBy', '') == request.auth.uid &&
-                       hasValidTimestamp();
+                       request.resource.data.createdBy is string &&
+                       request.resource.data.createdBy.size() > 0 &&
+                       request.resource.data.createdBy == request.auth.uid &&
+                       hasValidTimestamp() &&
+                       isWithinAIAnalysisLimit();
       allow read: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
       allow update: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
       allow delete: if isAuthenticated() && (
-        isAdmin() || resource.data.get('createdBy', '') == request.auth.uid
+        isAdmin() || 
+        (resource.data.createdBy is string &&
+         resource.data.createdBy.size() > 0 &&
+         resource.data.createdBy == request.auth.uid)
       );
+    }
+
+    // Public student scores (read-only for everyone, write only for admins)
+    match /public_student_scores/{scoreId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

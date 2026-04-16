@@ -7,13 +7,13 @@ import {
   query,
   where,
   serverTimestamp,
+  orderBy,
+  limit,
 } from "firebase/firestore";
-import {
-  askAboutStoredRun,
-  chatWithProjectContext,
-  runClientAiAnalysis,
-} from "@/lib/aiAnalysisEngine";
-import { db } from "@/lib/firebase";
+import { functionsClient, db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { logError } from "./errorUtils";
+import { sanitizeError } from "./errorUtils";
 import {
   AnalysisHistoryItem,
   AnalyzeInsightsRequest,
@@ -28,22 +28,91 @@ export const analyzeInsights = async (
   currentUserId: string,
   role: "teacher" | "admin",
   request: AnalyzeInsightsRequest,
-): Promise<AnalyzeInsightsResponse> =>
-  runClientAiAnalysis(currentUserId, role, request);
+): Promise<AnalyzeInsightsResponse> => {
+  if (!functionsClient) {
+    throw new Error("Firebase Functions is not initialized. Please check your configuration.");
+  }
+
+  try {
+    const aiAnalyzeInsights = httpsCallable(functionsClient, 'aiAnalyzeInsights');
+    const result = await aiAnalyzeInsights(request);
+    return result.data as AnalyzeInsightsResponse;
+  } catch (error) {
+    logError('aiAnalysis.analyzeInsights', error);
+    const { message } = sanitizeError(error, 'fetch');
+    throw new Error(message);
+  }
+};
 
 export const askInsights = async (
   currentUserId: string,
   role: "teacher" | "admin",
   request: AskInsightsRequest,
-): Promise<AskInsightsResponse> =>
-  askAboutStoredRun(currentUserId, role, request);
+): Promise<AskInsightsResponse> => {
+  if (!functionsClient) {
+    throw new Error("Firebase Functions is not initialized. Please check your configuration.");
+  }
+
+  try {
+    const aiAskAboutInsights = httpsCallable(functionsClient, 'aiAskAboutInsights');
+    const result = await aiAskAboutInsights(request);
+    return result.data as AskInsightsResponse;
+  } catch (error) {
+    logError('aiAnalysis.askInsights', error);
+    const { message } = sanitizeError(error, 'fetch');
+    throw new Error(message);
+  }
+};
 
 export const chatWithProjectInsights = async (
   currentUserId: string,
   role: "teacher" | "admin",
   request: ProjectChatRequest,
-): Promise<ProjectChatResponse> =>
-  chatWithProjectContext(currentUserId, role, request);
+): Promise<ProjectChatResponse> => {
+  // Get the latest analysis run for this user
+  const historyQuery = query(
+    collection(db, "ai_analysis_runs"),
+    where("createdBy", "==", currentUserId),
+    orderBy("created_at", "desc"),
+    limit(1)
+  );
+
+  const snapshot = await getDocs(historyQuery);
+  
+  if (snapshot.empty) {
+    throw new Error(
+      "Avval ma'lumotlarni tahlil qiling. 'Tahlil' tugmasini bosib, keyin savol bering."
+    );
+  }
+
+  const latestRun = snapshot.docs[0];
+  const runId = latestRun.id;
+
+  // Use askInsights to get the answer
+  const askResponse = await askInsights(currentUserId, role, {
+    runId,
+    question: request.prompt,
+  });
+
+  // Return response in the expected format
+  const runData = latestRun.data() as { created_at?: { toDate?: () => Date } };
+  const generatedAt = runData.created_at?.toDate?.().toISOString() || new Date().toISOString();
+
+  return {
+    runId,
+    answer: askResponse.answer,
+    citations: askResponse.citations,
+    generatedAt,
+    sourceStatus: "cached",
+    sourceSummary: latestRun.data().summary as string || "",
+    modelMeta: {
+      provider: "firebase-functions",
+      model: "gemini",
+      tokensIn: 0,
+      tokensOut: 0,
+    },
+  };
+};
 
 export const fetchAnalysisHistory = async (
   currentUserId: string,

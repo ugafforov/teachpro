@@ -688,13 +688,19 @@ const ExamManager: React.FC<ExamManagerProps> = ({ teacherId }) => {
       const ws = XLSX.utils.aoa_to_sheet([...metaRows, headers, ...body]);
       const wb = XLSX.utils.book_new();
 
-      (ws as any)["!cols"] = [
+      interface WorksheetProperties {
+        "!cols"?: Array<{ wch: number }>;
+        "!merges"?: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }>;
+      }
+
+      const worksheetProps = ws as WorksheetProperties;
+      worksheetProps["!cols"] = [
         { wch: 26 },
         { wch: 18 },
         { wch: 8 },
         { wch: 32 },
       ];
-      (ws as any)["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+      worksheetProps["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
 
       XLSX.utils.book_append_sheet(wb, ws, "Results");
       XLSX.writeFile(wb, `${fileBase}.xlsx`);
