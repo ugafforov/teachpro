@@ -292,7 +292,7 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
     if (!text.trim() || isLoading) return;
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: createMessageId(),
       role: "user",
       content: text,
       timestamp: Date.now(),
@@ -313,7 +313,7 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
       });
 
       const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: createMessageId(),
         role: "assistant",
         content: response.answer,
         timestamp: Date.now(),

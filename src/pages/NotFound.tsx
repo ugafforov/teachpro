@@ -1,15 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Link } from "react-router-dom";
 
 const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.info("[NotFound] User attempted to access:", location.pathname);
-    }
-  }, [location.pathname]);
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center">

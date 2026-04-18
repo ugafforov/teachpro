@@ -34,16 +34,11 @@ const PublicRankings: React.FC = () => {
     try {
       setLoading(true);
 
-      console.log('Fetching public rankings...');
-      
       // Fetch all active students to get teacher IDs
       const studentsQ = query(collection(db, 'students'), where('is_active', '==', true));
       const studentsSnap = await getDocs(studentsQ);
-      
-      console.log('Students snapshot size:', studentsSnap.size);
-      
+
       if (studentsSnap.empty) {
-        console.log('No students found');
         setScoreRankings([]);
         setLoading(false);
         return;
@@ -51,22 +46,18 @@ const PublicRankings: React.FC = () => {
 
       // Get all unique teacher IDs
       const teacherIds = [...new Set(studentsSnap.docs.map(doc => doc.data().teacher_id))];
-      console.log('Teacher IDs:', teacherIds);
       
       // Fetch rankings from each teacher
       const allRankings: PublicStudentScore[] = [];
       
       for (const teacherId of teacherIds) {
         try {
-          console.log('Fetching for teacher:', teacherId);
           const studentScores = await calculateAllStudentScores(
             teacherId,
             selectedGroup !== 'all' ? selectedGroup : undefined,
             'all'
           );
-          
-          console.log('Student scores for teacher:', studentScores.length);
-          
+
           const rankings = studentScores.map(student => ({
             id: student.id,
             student_id: student.id,
@@ -82,13 +73,10 @@ const PublicRankings: React.FC = () => {
           
           allRankings.push(...rankings);
         } catch (error) {
-          console.error('Error fetching for teacher:', teacherId, error);
           logError('PublicRankings:fetchTeacherRankings', error);
           // Continue with next teacher if one fails
         }
       }
-
-      console.log('Total rankings:', allRankings.length);
 
       // Extract unique groups
       const uniqueGroups = [...new Set(allRankings.map(s => s.group_name).filter(Boolean))];
@@ -119,7 +107,6 @@ const PublicRankings: React.FC = () => {
 
       setScoreRankings(rankedData);
     } catch (error) {
-      console.error('Error in fetchPublicRankings:', error);
       logError('PublicRankings:fetchPublicRankings', error);
     } finally {
       setLoading(false);

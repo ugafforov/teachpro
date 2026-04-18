@@ -69,23 +69,54 @@ export const chatWithProjectInsights = async (
   role: "teacher" | "admin",
   request: ProjectChatRequest,
 ): Promise<ProjectChatResponse> => {
-  // Get the latest analysis run for this user
-  const historyQuery = query(
-    collection(db, "ai_analysis_runs"),
-    where("createdBy", "==", currentUserId),
-    orderBy("created_at", "desc"),
-    limit(1)
-  );
+  const getLatestRunDocs = async () => {
+    try {
+      // Preferred query (fast path when composite index exists).
+      const historyQuery = query(
+        collection(db, "ai_analysis_runs"),
+        where("createdBy", "==", currentUserId),
+        orderBy("created_at", "desc"),
+        limit(1),
+      );
+      const snapshot = await getDocs(historyQuery);
+      return snapshot.docs;
+    } catch (error) {
+      const message = String((error as { message?: string })?.message ?? "").toLowerCase();
+      const code = String((error as { code?: string })?.code ?? "");
+      const isIndexError =
+        code === "failed-precondition" ||
+        code === "permission-denied" ||
+        message.includes("requires an index") ||
+        message.includes("index");
 
-  const snapshot = await getDocs(historyQuery);
+      if (!isIndexError) {
+        throw error;
+      }
+
+      // Fallback query without orderBy to avoid blocking AI chat when index is missing.
+      // We sort in memory and take the latest run.
+      const fallbackQuery = query(
+        collection(db, "ai_analysis_runs"),
+        where("createdBy", "==", currentUserId),
+      );
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      return [...fallbackSnapshot.docs].sort((a, b) => {
+        const aDate = (a.data().created_at as { toDate?: () => Date } | undefined)?.toDate?.();
+        const bDate = (b.data().created_at as { toDate?: () => Date } | undefined)?.toDate?.();
+        return (bDate?.getTime() ?? 0) - (aDate?.getTime() ?? 0);
+      }).slice(0, 1);
+    }
+  };
+
+  const runDocs = await getLatestRunDocs();
   
-  if (snapshot.empty) {
+  if (runDocs.length === 0) {
     throw new Error(
       "Avval ma'lumotlarni tahlil qiling. 'Tahlil' tugmasini bosib, keyin savol bering."
     );
   }
 
-  const latestRun = snapshot.docs[0];
+  const latestRun = runDocs[0];
   const runId = latestRun.id;
 
   // Use askInsights to get the answer

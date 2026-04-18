@@ -17,6 +17,12 @@ interface EnvironmentConfig {
   };
 }
 
+function logInfo(context: string, message: string): void {
+  if (import.meta.env.DEV) {
+    console.info(`[${context}]`, message);
+  }
+}
+
 function validateFirebaseConfig(): { firebase: EnvironmentConfig['firebase'] } | null {
   const required = [
     'VITE_FIREBASE_API_KEY',
@@ -51,11 +57,11 @@ function validateFirebaseConfig(): { firebase: EnvironmentConfig['firebase'] } |
 export function validateProductionEnvironment(): EnvironmentConfig | null {
   if (import.meta.env.DEV) {
     // Development mode - log warnings but don't fail
-    logError('productionValidator.validate', 'Running in development mode - some validations skipped');
+    logInfo('productionValidator.validate', 'Running in development mode - some validations skipped');
     return null;
   }
 
-  logError('productionValidator.validate', 'Validating production environment configuration...');
+  logInfo('productionValidator.validate', 'Validating production environment configuration...');
 
   const firebaseConfig = validateFirebaseConfig();
   if (!firebaseConfig) {
@@ -67,7 +73,7 @@ export function validateProductionEnvironment(): EnvironmentConfig | null {
     ...firebaseConfig
   };
 
-  logError('productionValidator.validate', 'All environment variables validated successfully');
+  logInfo('productionValidator.validate', 'All environment variables validated successfully');
 
   // Additional checks
   validateProductionConstraints(config);
@@ -108,10 +114,10 @@ function validateProductionConstraints(config: EnvironmentConfig): void {
 
 export function logEnvironmentInfo(): void {
   if (import.meta.env.DEV) {
-    logError('productionValidator.info', 'Environment Information:');
-    logError('productionValidator.info', `Mode: ${import.meta.env.MODE}`);
-    logError('productionValidator.info', `Firebase Project: ${import.meta.env.VITE_FIREBASE_PROJECT_ID}`);
+    logInfo('productionValidator.info', 'Environment Information:');
+    logInfo('productionValidator.info', `Mode: ${import.meta.env.MODE}`);
+    logInfo('productionValidator.info', `Firebase Project: ${import.meta.env.VITE_FIREBASE_PROJECT_ID}`);
   } else {
-    logError('productionValidator.info', 'Production environment active');
+    logInfo('productionValidator.info', 'Production environment active');
   }
 }

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, onSnapshot, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { logError } from "@/lib/errorUtils";
 import GroupManager from "./GroupManager";
 import StudentManager from "./StudentManager";
@@ -223,56 +223,69 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     if (!teacherId) return;
 
-    let activities: Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }> = [];
+    let examActivities: Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }> = [];
+    let scoreActivities: Array<{ id: string; type: string; title: string; timestamp: Date; icon: string; color: string }> = [];
 
-    // Subscribe to recent exams
+    const syncRecentActivities = () => {
+      const combined = [...examActivities, ...scoreActivities]
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, 8);
+      setRecentActivity(combined);
+    };
+
+    // Avoid composite-index requirement by sorting in memory.
     const examsQ = query(
       collection(db, "exams"),
       where("teacher_id", "==", teacherId),
-      orderBy("created_at", "desc"),
-      limit(5)
     );
 
-    const unsubExams = onSnapshot(examsQ, (snapshot) => {
-      const examActivities = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        type: "exam",
-        title: `Imtihon: ${doc.data().exam_name || "Yangi"}`,
-        timestamp: doc.data().created_at?.toDate?.() || new Date(),
-        icon: "📝",
-        color: "text-blue-600/70 dark:text-blue-400/70",
-      }));
+    const scoresQ = query(
+      collection(db, "exam_results"),
+      where("teacher_id", "==", teacherId),
+    );
 
-      // Subscribe to recent scores
-      const scoresQ = query(
-        collection(db, "exam_results"),
-        where("teacher_id", "==", teacherId),
-        orderBy("submitted_at", "desc"),
-        limit(5)
-      );
-
-      const unsubScores = onSnapshot(scoresQ, (scoresSnapshot) => {
-        const scoreActivities = scoresSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          type: "score",
-          title: `Oqish baholash: ${doc.data().student_name || "O'quvchi"}`,
-          timestamp: doc.data().submitted_at?.toDate?.() || new Date(),
-          icon: "⭐",
-          color: "text-amber-600/70 dark:text-amber-400/70",
-        }));
-
-        // Combine and sort by timestamp
-        const combined = [...examActivities, ...scoreActivities]
+    const unsubExams = onSnapshot(
+      examsQ,
+      (snapshot) => {
+        examActivities = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            type: "exam",
+            title: `Imtihon: ${doc.data().exam_name || "Yangi"}`,
+            timestamp: doc.data().created_at?.toDate?.() || new Date(),
+            icon: "📝",
+            color: "text-blue-600/70 dark:text-blue-400/70",
+          }))
           .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-          .slice(0, 8); // Show max 8 items
+          .slice(0, 5);
+        syncRecentActivities();
+      },
+      (error) => logError("Dashboard:RecentExams", error),
+    );
 
-        setRecentActivity(combined);
-      }, (error) => logError("Dashboard:RecentScores", error));
+    const unsubScores = onSnapshot(
+      scoresQ,
+      (scoresSnapshot) => {
+        scoreActivities = scoresSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            type: "score",
+            title: `Oqish baholash: ${doc.data().student_name || "O'quvchi"}`,
+            timestamp: doc.data().submitted_at?.toDate?.() || new Date(),
+            icon: "⭐",
+            color: "text-amber-600/70 dark:text-amber-400/70",
+          }))
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+          .slice(0, 5);
+        syncRecentActivities();
+      },
+      (error) => logError("Dashboard:RecentScores", error),
+    );
 
-      return unsubScores;
-    }, (error) => logError("Dashboard:RecentExams", error));
-
-    return unsubExams;
+    return () => {
+      unsubExams();
+      unsubScores();
+    };
   }, [teacherId]);
 
   useEffect(() => {
