@@ -3,7 +3,7 @@
  * API kalit Vercel'da saqlanadi (xavfsiz)
  */
 
-const VERCEL_API_URL = import.meta.env.VITE_VERCEL_API_URL || "/api/ai";
+const VERCEL_API_URL = "https://teachpro.vercel.app/api/ai";
 
 export async function callGeminiDirect(prompt: string): Promise<string> {
   try {
