@@ -1489,24 +1489,33 @@ export async function runAiAnalysis(
   let tokensIn = 0;
   let tokensOut = 0;
 
-  try {
-    const prompt = buildPrompt(request, aggregated);
-    const llm = await callJsonModel<ModelOutput>(
-      prompt,
-      fallbackModel,
-      modelOutputResponseJsonSchema,
-    );
-    const parsed = modelOutputSchema.safeParse(llm.parsed);
-    if (parsed.success) {
-      responseCore = parsed.data;
-      providerName = llm.provider;
-      modelName = llm.model;
-      tokensIn = llm.tokensIn;
-      tokensOut = llm.tokensOut;
+  // Check if API key is available before trying to call LLM
+  const hasGeminiKey = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  const hasApiKey = selectedProvider === "gemini" ? hasGeminiKey : hasOpenAIKey;
+
+  if (hasApiKey) {
+    try {
+      const prompt = buildPrompt(request, aggregated);
+      const llm = await callJsonModel<ModelOutput>(
+        prompt,
+        fallbackModel,
+        modelOutputResponseJsonSchema,
+      );
+      const parsed = modelOutputSchema.safeParse(llm.parsed);
+      if (parsed.success) {
+        responseCore = parsed.data;
+        providerName = llm.provider;
+        modelName = llm.model;
+        tokensIn = llm.tokensIn;
+        tokensOut = llm.tokensOut;
+      }
+    } catch (error) {
+      // Log error but continue with heuristic fallback to keep user flow stable
+      console.error("[AI Analysis] LLM call failed, using heuristic fallback:", error instanceof Error ? error.message : String(error));
     }
-  } catch (error) {
-    // Log error but continue with heuristic fallback to keep user flow stable
-    console.error("[AI Analysis] LLM call failed, using heuristic fallback:", error instanceof Error ? error.message : String(error));
+  } else {
+    console.log("[AI Analysis] No API key found, using heuristic fallback");
   }
 
   let response = toRunSafeResponse(responseCore, runId, "ok", providerName, modelName, tokensIn, tokensOut);
@@ -1568,22 +1577,31 @@ export async function askAboutRun(
     throw new HttpsError("failed-precondition", "Run response mavjud emas");
   }
 
-  try {
-    const selectedProvider = getSelectedProvider();
-    const fallbackModel = getDefaultModelForProvider(selectedProvider);
-    const prompt = buildAskPrompt(request.question, response);
-    const llm = await callJsonModel<AskInsightsResponse>(
-      prompt,
-      fallbackModel,
-      askInsightsResponseJsonSchema,
-    );
-    const parsed = askInsightsResponseSchema.safeParse(llm.parsed);
-    if (parsed.success) {
-      return parsed.data;
+  // Check if API key is available before trying to call LLM
+  const selectedProvider = getSelectedProvider();
+  const hasGeminiKey = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  const hasApiKey = selectedProvider === "gemini" ? hasGeminiKey : hasOpenAIKey;
+
+  if (hasApiKey) {
+    try {
+      const fallbackModel = getDefaultModelForProvider(selectedProvider);
+      const prompt = buildAskPrompt(request.question, response);
+      const llm = await callJsonModel<AskInsightsResponse>(
+        prompt,
+        fallbackModel,
+        askInsightsResponseJsonSchema,
+      );
+      const parsed = askInsightsResponseSchema.safeParse(llm.parsed);
+      if (parsed.success) {
+        return parsed.data;
+      }
+    } catch (error) {
+      // Log error but continue with fallback
+      console.error("[AI Analysis] Ask about run LLM call failed, using fallback:", error instanceof Error ? error.message : String(error));
     }
-  } catch (error) {
-    // Log error but continue with fallback
-    console.error("[AI Analysis] Ask about run LLM call failed, using fallback:", error instanceof Error ? error.message : String(error));
+  } else {
+    console.log("[AI Analysis] No API key found, using fallback for askAboutRun");
   }
 
   return fallbackAskAnswer(request.question, response);

@@ -1092,6 +1092,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             student_id: student.id,
             date: selectedDate,
             status: "present",
+            created_at: serverTimestamp(),
             updated_at: serverTimestamp(),
           },
           { merge: true },
@@ -1106,9 +1107,19 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         });
         return next;
       });
+      toast({
+        title: "Muvaffaqiyatli",
+        description: "Barcha o'quvchilar kelgan deb belgilandi",
+      });
       void fetchAttendanceDates();
     } catch (error) {
       logError("GroupDetails:handleMarkAllPresent", error);
+      toast({
+        title: "Xatolik",
+        description: "Davomatni belgilashda xatolik yuz berdi. Internet aloqasini tekshiring.",
+        variant: "destructive",
+      });
+      void fetchAttendanceForDate(selectedDate);
     }
   };
 

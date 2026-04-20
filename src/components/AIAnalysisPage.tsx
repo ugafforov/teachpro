@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import { logError } from "@/lib/errorUtils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { chatWithProjectInsights } from "@/lib/aiAnalysis";
+import { chatWithProjectInsights, analyzeInsights } from "@/lib/aiAnalysis";
+import { callGeminiDirect } from "@/lib/geminiDirect";
 import { cn } from "@/lib/utils";
 import {
   Sparkles,
@@ -269,6 +270,8 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hasAnalysis, setHasAnalysis] = useState<boolean>(true);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const quickActions = [
@@ -303,19 +306,30 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
     setIsLoading(true);
 
     try {
-      // Simulate quick response for better UX
-      const response = await chatWithProjectInsights(currentUserId, role, {
-        prompt: text,
-        conversation: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      });
+      let answer: string;
+
+      // Try Firebase Functions first
+      try {
+        const response = await chatWithProjectInsights(currentUserId, role, {
+          prompt: text,
+          conversation: messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        });
+        answer = response.answer;
+      } catch (firebaseError) {
+        // Fallback to direct API call if Firebase Functions fail
+        console.log("Firebase Functions failed, using direct API fallback:", firebaseError);
+        const conversationHistory = messages.map(m => `${m.role === 'user' ? 'Foydalanuvchi' : 'AI'}: ${m.content}`).join('\n');
+        const prompt = `Suhbat tarixi:\n${conversationHistory}\n\nSavol: ${text}\n\nO'zbek tilida javob bering.`;
+        answer = await callGeminiDirect(prompt);
+      }
 
       const assistantMsg: ChatMessage = {
         id: createMessageId(),
         role: "assistant",
-        content: response.answer,
+        content: answer,
         timestamp: Date.now(),
       };
 
@@ -333,62 +347,82 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
     toast.success("Suhbat tarixi tozalandi");
   };
 
+  const runInitialAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Try Firebase Functions first
+      try {
+        await analyzeInsights(currentUserId, role, {
+          scope: "global",
+          dateFrom: thirtyDaysAgo.toISOString().split('T')[0],
+          dateTo: today.toISOString().split('T')[0],
+          modules: ["summary", "risk", "anomaly", "forecast", "what_if", "intervention"],
+          locale: "uz",
+        });
+      } catch (firebaseError) {
+        // Fallback to direct API call if Firebase Functions fail
+        console.log("Firebase Functions failed, using direct API fallback:", firebaseError);
+        const prompt = "O'quvchilar tahlili uchun qisqacha xulola bering. Davomat, imtihon natijalari va xavf belgilarini hisobga oling.";
+        await callGeminiDirect(prompt);
+      }
+
+      setHasAnalysis(true);
+      toast.success("Tahlil muvaffaqiyatli yakunlandi");
+    } catch (error) {
+      logError("AIAnalysisPage.runInitialAnalysis", error);
+      toast.error("Tahlilni bajarishda xatolik yuz berdi");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] bg-background/50 rounded-xl overflow-hidden border shadow-sm backdrop-blur-sm">
-      {/* Header - Modern & Clean */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-card/80 backdrop-blur-md sticky top-0 z-10">
+    <>
+      {/* Header - Minimalist */}
+      <div className="flex items-center justify-between px-5 py-3 border-b bg-background">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg shadow-sm">
-            <Bot className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center">
+            <Bot className="w-4 h-4 text-background" />
           </div>
-          <div>
-            <h2 className="font-semibold text-lg text-foreground/90">TeachPro AI</h2>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-              <span className="text-xs font-medium text-muted-foreground">Online Assistant</span>
-            </div>
-          </div>
+          <h2 className="font-semibold text-foreground">AI Yordamchi</h2>
         </div>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted/80 text-muted-foreground transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 p-1">
-            <DropdownMenuItem onClick={clearChat} className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer rounded-md">
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={clearChat} className="cursor-pointer">
               <Trash2 className="w-4 h-4 mr-2" />
-              Tarixni tozalash
+              Tozalash
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Chat Area - Modern Cards */}
-      <ScrollArea className="flex-1 px-4 sm:px-6 bg-slate-50/50 dark:bg-background/20">
-        <div className="max-w-3xl mx-auto py-8 space-y-8">
+      {/* Chat Area - Minimalist */}
+      <ScrollArea className="flex-1 px-4">
+        <div className="max-w-2xl mx-auto py-6 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center py-12 animate-in fade-in zoom-in-95 duration-500">
-              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/10 to-violet-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-inset ring-indigo-500/20">
-                <Sparkles className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-foreground/90 mb-3 tracking-tight">Qanday yordam bera olaman?</h3>
-              <p className="text-muted-foreground max-w-md mx-auto mb-10 text-sm leading-relaxed">
-                O'quvchilar tahlili, guruhlar statistikasi va davomat bo'yicha sun'iy intellekt yordamchisi.
+            <div className="text-center py-16">
+              <h3 className="text-lg font-medium text-foreground mb-2">Qanday yordam bera olaman?</h3>
+              <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
+                O'quvchilar tahlili, guruhlar statistikasi va davomat bo'yicha savollar bering.
               </p>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
                 {quickActions.map((action, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSend(action)}
-                    className="group flex items-center gap-3 p-4 text-sm text-left bg-card hover:bg-accent/50 border hover:border-indigo-500/30 rounded-xl transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
+                    className="text-sm text-left px-4 py-3 bg-muted/50 hover:bg-muted border rounded-lg transition-colors"
                   >
-                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/40 transition-colors text-indigo-600 dark:text-indigo-400">
-                      <Lightbulb className="w-4 h-4" />
-                    </div>
-                    <span className="font-medium text-foreground/80 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">{action}</span>
+                    {action}
                   </button>
                 ))}
               </div>
@@ -399,58 +433,48 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
             <div
               key={msg.id}
               className={cn(
-                "flex gap-4 max-w-3xl group animate-in slide-in-from-bottom-2 fade-in duration-300",
-                msg.role === "user" ? "justify-end pl-12" : "justify-start pr-12"
+                "flex gap-3 max-w-2xl",
+                msg.role === "user" ? "justify-end" : "justify-start"
               )}
             >
               {msg.role === "assistant" && (
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                  <Bot className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-4 h-4 text-background" />
                 </div>
               )}
 
               <div
                 className={cn(
-                  "flex flex-col gap-1.5 min-w-0",
-                  msg.role === "user" ? "items-end" : "items-start"
+                  "px-4 py-2.5 text-sm whitespace-pre-wrap break-words",
+                  msg.role === "user"
+                    ? "bg-foreground text-background rounded-2xl rounded-tr-sm"
+                    : "bg-muted text-foreground rounded-2xl rounded-tl-sm"
                 )}
               >
-                <div
-                  className={cn(
-                    "px-5 py-3.5 text-[15px] leading-relaxed whitespace-pre-wrap break-words shadow-sm",
-                    msg.role === "user"
-                      ? "bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-[20px] rounded-tr-sm"
-                      : "bg-card border rounded-[20px] rounded-tl-sm text-foreground"
-                  )}
-                >
-                  {msg.role === "assistant" ? (
-                     <StructuredAiResponse content={msg.content} />
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-                <span className="text-[11px] font-medium text-muted-foreground/50 px-2 select-none">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                {msg.role === "assistant" ? (
+                  <StructuredAiResponse content={msg.content} />
+                ) : (
+                  msg.content
+                )}
               </div>
 
               {msg.role === "user" && (
-                <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                  <User className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-4 h-4 text-foreground" />
                 </div>
               )}
             </div>
           ))}
           
           {isLoading && (
-            <div className="flex gap-4 max-w-3xl animate-in fade-in">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-sm opacity-80">
-                <Bot className="w-5 h-5 text-white" />
+            <div className="flex gap-3 max-w-2xl">
+              <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center shrink-0">
+                <Bot className="w-4 h-4 text-background" />
               </div>
-              <div className="flex items-center gap-1.5 bg-card border px-4 py-3 rounded-[20px] rounded-tl-sm shadow-sm h-[46px]">
-                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-2 h-2 bg-indigo-500/60 rounded-full animate-bounce" />
+              <div className="flex items-center gap-1 bg-muted px-4 py-2.5 rounded-2xl">
+                <span className="w-1.5 h-1.5 bg-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-foreground/60 rounded-full animate-bounce" />
               </div>
             </div>
           )}
@@ -458,9 +482,9 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
         </div>
       </ScrollArea>
 
-      {/* Input Area - Modern & Polished */}
-      <div className="p-4 bg-background/80 backdrop-blur-sm border-t sticky bottom-0 z-10">
-        <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-card p-2 rounded-2xl border shadow-sm ring-offset-background focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500/50 transition-all duration-300">
+      {/* Input Area - Minimalist */}
+      <div className="p-4 border-t bg-background">
+        <div className="max-w-2xl mx-auto flex items-end gap-2 bg-muted/50 p-2 rounded-xl border focus-within:border-foreground/50 transition-colors">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -470,8 +494,8 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
                 handleSend(input);
               }
             }}
-            placeholder="AI assistantga savol yozing..."
-            className="min-h-[44px] max-h-[150px] w-full resize-none border-0 bg-transparent focus-visible:ring-0 px-4 py-2.5 text-[15px] placeholder:text-muted-foreground/60 shadow-none"
+            placeholder="Savol yozing..."
+            className="min-h-[44px] max-h-[120px] w-full resize-none border-0 bg-transparent focus-visible:ring-0 px-3 py-2 text-sm placeholder:text-muted-foreground/60 shadow-none"
             rows={1}
           />
           <Button
@@ -479,10 +503,10 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
             disabled={!input.trim() || isLoading}
             size="icon"
             className={cn(
-              "h-9 w-9 mb-0.5 shrink-0 rounded-xl transition-all duration-300 shadow-sm",
+              "h-9 w-9 shrink-0 rounded-lg transition-all",
               input.trim() 
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105 active:scale-95 shadow-indigo-500/25" 
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-foreground text-background hover:opacity-90" 
+                : "bg-muted text-muted-foreground"
             )}
           >
             {isLoading ? (
@@ -492,11 +516,8 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
             )}
           </Button>
         </div>
-        <p className="text-[10px] text-center text-muted-foreground/50 mt-3 font-medium tracking-wide">
-          AI javoblari xato bo'lishi mumkin. Muhim ma'lumotlarni tekshiring.
-        </p>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -86,6 +86,74 @@ export const aiAskAboutInsights = onCall(
   },
 );
 
+// OpenRouter AI Proxy - Frontend'dan kelgan so'rovni OpenRouter API ga yuborish
+export const aiOpenRouterProxy = onCall(
+  {
+    region,
+    cors: true,
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Avval tizimga kiring");
+    }
+
+    const { prompt, model = "google/gemini-2.5-flash" } = request.data;
+    
+    if (!prompt || typeof prompt !== "string") {
+      throw new HttpsError("invalid-argument", "Prompt kiritilishi kerak");
+    }
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      logger.error("OPENROUTER_API_KEY is not set");
+      throw new HttpsError("internal", "API kalit sozlanmagan");
+    }
+
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://teachpro.uz",
+          "X-Title": "TeachPro CRM",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content: "Siz TeachPro CRM uchun qisqa, tushunarli javob beruvchi AI assistantsiz. Emoji va jadval formatida bering. O'zbek tilida.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("OpenRouter API error:", errorText);
+        throw new HttpsError("internal", "AI API xatolik: " + response.status);
+      }
+
+      const data = await response.json();
+      const answer = data.choices?.[0]?.message?.content || "Javob topilmadi";
+      
+      return { answer };
+    } catch (error) {
+      logger.error("aiOpenRouterProxy failed", error);
+      throw new HttpsError("internal", "AI so'rovida xatolik yuz berdi");
+    }
+  },
+);
+
 export const aiCleanupExpired = onSchedule(
   {
     region,

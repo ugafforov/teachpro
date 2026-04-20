@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -10,10 +11,10 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
-import { functionsClient, db } from "@/lib/firebase";
-import { httpsCallable } from "firebase/functions";
+import { db } from "@/lib/firebase";
 import { logError } from "./errorUtils";
 import { sanitizeError } from "./errorUtils";
+import { callGeminiDirect } from "./geminiDirect";
 import {
   AnalysisHistoryItem,
   AnalyzeInsightsRequest,
@@ -29,14 +30,117 @@ export const analyzeInsights = async (
   role: "teacher" | "admin",
   request: AnalyzeInsightsRequest,
 ): Promise<AnalyzeInsightsResponse> => {
-  if (!functionsClient) {
-    throw new Error("Firebase Functions is not initialized. Please check your configuration.");
-  }
-
   try {
-    const aiAnalyzeInsights = httpsCallable(functionsClient, 'aiAnalyzeInsights');
-    const result = await aiAnalyzeInsights(request);
-    return result.data as AnalyzeInsightsResponse;
+    // Fetch actual database data for context
+    let databaseContext = "";
+    let hasData = false;
+
+    if (request.scope === "global" || request.scope === "group") {
+      try {
+        // Fetch students data
+        const studentsQuery = query(
+          collection(db, "students"),
+          where("teacher_id", "==", currentUserId),
+          where("is_active", "==", true),
+        );
+        const studentsSnap = await getDocs(studentsQuery);
+        const students = studentsSnap.docs.map(doc => doc.data());
+        
+        if (students.length > 0) {
+          hasData = true;
+          databaseContext += `\n📊 O'quvchilar soni: ${students.length}\n`;
+          
+          // Add sample student names
+          databaseContext += `O'quvchilar: ${students.slice(0, 5).map(s => s.name).join(", ")}${students.length > 5 ? " va boshqalari" : ""}\n`;
+        }
+
+        // Fetch groups data
+        const groupsQuery = query(
+          collection(db, "groups"),
+          where("teacher_id", "==", currentUserId),
+          where("is_active", "==", true),
+        );
+        const groupsSnap = await getDocs(groupsQuery);
+        const groups = groupsSnap.docs.map(doc => doc.data());
+        
+        if (groups.length > 0) {
+          databaseContext += `📚 Guruhlar soni: ${groups.length}\n`;
+          databaseContext += `Guruhlar: ${groups.map(g => g.name).join(", ")}\n`;
+        }
+
+        // Fetch attendance data for date range
+        const attendanceQuery = query(
+          collection(db, "attendance_records"),
+          where("teacher_id", "==", currentUserId),
+          where("date", ">=", request.dateFrom),
+          where("date", "<=", request.dateTo),
+        );
+        const attendanceSnap = await getDocs(attendanceQuery);
+        const attendanceRecords = attendanceSnap.docs.map(doc => doc.data());
+        const presentCount = attendanceRecords.filter(r => r.status === "present").length;
+        const absentCount = attendanceRecords.filter(r => r.status === "absent" || r.status === "absent_without_reason").length;
+        
+        if (attendanceRecords.length > 0) {
+          databaseContext += `📅 Davomat: ${presentCount} keldi, ${absentCount} kelmadi (${request.dateFrom} - ${request.dateTo})\n`;
+        }
+
+        // Fetch exam data
+        const examsQuery = query(
+          collection(db, "exams"),
+          where("teacher_id", "==", currentUserId),
+        );
+        const examsSnap = await getDocs(examsQuery);
+        const exams = examsSnap.docs.map(doc => doc.data());
+        
+        if (exams.length > 0) {
+          databaseContext += `📝 Imtihonlar soni: ${exams.length}\n`;
+        }
+      } catch (error) {
+        console.log("Database fetch error:", error);
+        // Continue without database data
+      }
+    }
+
+    // Build prompt with actual database data
+    const prompt = `
+TAHLIL: ${request.modules.join(", ")} (${request.dateFrom} - ${request.dateTo})
+
+${hasData ? `HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):\n${databaseContext}` : "MA'LUMOTLAR YO'Q"}
+
+MUHIM QOIDALAR (qat'iy rioya qiling):
+- ${hasData ? "FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning" : "Ma'lumotlar yo'q deb ayt"}
+- YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
+- Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
+- Qisqa va aniq bo'ling
+- Emoji qo'llang
+- Jadval kerak bo'lsa markdown table formatida bering
+- O'zbek tilida
+`;
+
+    const aiResponse = await callGeminiDirect(prompt);
+
+    // Parse AI response (simplified - you may need to enhance this)
+    const response: AnalyzeInsightsResponse = {
+      runId: `run-${Date.now()}`,
+      status: "ok",
+      generatedAt: new Date().toISOString(),
+      language: "uz",
+      summary: aiResponse,
+      riskAlerts: [],
+      anomalies: [],
+      forecasts: [],
+      whatIf: [],
+      interventions: [],
+      weeklyPlan: [],
+      modelMeta: {
+        provider: "openrouter",
+        model: "google/gemini-2.5-flash",
+        tokensIn: 0,
+        tokensOut: 0,
+      },
+    };
+
+    return response;
   } catch (error) {
     logError('aiAnalysis.analyzeInsights', error);
     const { message } = sanitizeError(error, 'fetch');
@@ -49,14 +153,82 @@ export const askInsights = async (
   role: "teacher" | "admin",
   request: AskInsightsRequest,
 ): Promise<AskInsightsResponse> => {
-  if (!functionsClient) {
-    throw new Error("Firebase Functions is not initialized. Please check your configuration.");
-  }
-
   try {
-    const aiAskAboutInsights = httpsCallable(functionsClient, 'aiAskAboutInsights');
-    const result = await aiAskAboutInsights(request);
-    return result.data as AskInsightsResponse;
+    // Fetch actual database data for context
+    let databaseContext = "";
+    let hasData = false;
+
+    try {
+      // Fetch students data
+      const studentsQuery = query(
+        collection(db, "students"),
+        where("teacher_id", "==", currentUserId),
+        where("is_active", "==", true),
+      );
+      const studentsSnap = await getDocs(studentsQuery);
+      const students = studentsSnap.docs.map(doc => doc.data());
+      
+      if (students.length > 0) {
+        hasData = true;
+        databaseContext += `\n📊 O'quvchilar soni: ${students.length}\n`;
+        databaseContext += `O'quvchilar: ${students.map(s => s.name).join(", ")}\n`;
+      }
+
+      // Fetch groups data
+      const groupsQuery = query(
+        collection(db, "groups"),
+        where("teacher_id", "==", currentUserId),
+        where("is_active", "==", true),
+      );
+      const groupsSnap = await getDocs(groupsQuery);
+      const groups = groupsSnap.docs.map(doc => doc.data());
+      
+      if (groups.length > 0) {
+        databaseContext += `📚 Guruhlar: ${groups.map(g => g.name).join(", ")}\n`;
+      }
+
+      // Fetch recent attendance
+      const today = new Date().toISOString().split('T')[0];
+      const attendanceQuery = query(
+        collection(db, "attendance_records"),
+        where("teacher_id", "==", currentUserId),
+        where("date", "==", today),
+      );
+      const attendanceSnap = await getDocs(attendanceQuery);
+      const attendanceRecords = attendanceSnap.docs.map(doc => doc.data());
+      const presentCount = attendanceRecords.filter(r => r.status === "present").length;
+      
+      if (attendanceRecords.length > 0) {
+        databaseContext += `📅 Bugungi davomat: ${presentCount}/${attendanceRecords.length} keldi\n`;
+      }
+    } catch (error) {
+      console.log("Database fetch error:", error);
+      // Continue without database data
+    }
+
+    const prompt = `
+SAVOL: ${request.question}
+
+${hasData ? `HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):\n${databaseContext}` : "MA'LUMOTLAR YO'Q"}
+
+MUHIM QOIDALAR (qat'iy rioya qiling):
+- ${hasData ? "FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning" : "Ma'lumotlar yo'q deb ayt"}
+- YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
+- Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
+- Qisqa va aniq bo'ling
+- Emoji qo'llang
+- Jadval kerak bo'lsa markdown table formatida bering
+- O'zbek tilida
+`;
+
+    const answer = await callGeminiDirect(prompt);
+
+    const response: AskInsightsResponse = {
+      answer,
+      citations: [],
+    };
+
+    return response;
   } catch (error) {
     logError('aiAnalysis.askInsights', error);
     const { message } = sanitizeError(error, 'fetch');
