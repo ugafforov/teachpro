@@ -102,13 +102,37 @@ export const analyzeInsights = async (
     }
 
     // Build prompt with actual database data
+    // Agar ma'lumot yo'q bo'lsa, AI ni chaqirmaymiz - to'g'ridan-to'g'ri javob beramiz
+    if (!hasData) {
+      return {
+        runId: `run-${Date.now()}`,
+        status: "ok",
+        generatedAt: new Date().toISOString(),
+        language: "uz",
+        summary: "📊 Ma'lumotlar yo'q. O'quvchilar ma'lumotlarini tahlil qilish uchun ma'lumotlar kerak.",
+        riskAlerts: [],
+        anomalies: [],
+        forecasts: [],
+        whatIf: [],
+        interventions: [],
+        weeklyPlan: [],
+        modelMeta: {
+          provider: "openrouter",
+          model: "google/gemini-2.5-flash",
+          tokensIn: 0,
+          tokensOut: 0,
+        },
+      };
+    }
+
     const prompt = `
 TAHLIL: ${request.modules.join(", ")} (${request.dateFrom} - ${request.dateTo})
 
-${hasData ? `HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):\n${databaseContext}` : "MA'LUMOTLAR YO'Q"}
+HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):
+${databaseContext}
 
 MUHIM QOIDALAR (qat'iy rioya qiling):
-- ${hasData ? "FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning" : "Ma'lumotlar yo'q deb ayt"}
+- FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning
 - YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
 - Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
 - Qisqa va aniq bo'ling
@@ -206,13 +230,22 @@ export const askInsights = async (
       // Continue without database data
     }
 
+    // Agar ma'lumot yo'q bo'lsa, AI ni chaqirmaymiz - to'g'ridan-to'g'ri javob beramiz
+    if (!hasData) {
+      return {
+        answer: "📊 Ma'lumotlar yo'q. O'quvchilar ma'lumotlarini tahlil qilish uchun ma'lumotlar kerak.",
+        citations: [],
+      };
+    }
+
     const prompt = `
 SAVOL: ${request.question}
 
-${hasData ? `HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):\n${databaseContext}` : "MA'LUMOTLAR YO'Q"}
+HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):
+${databaseContext}
 
 MUHIM QOIDALAR (qat'iy rioya qiling):
-- ${hasData ? "FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning" : "Ma'lumotlar yo'q deb ayt"}
+- FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning
 - YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
 - Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
 - Qisqa va aniq bo'ling
