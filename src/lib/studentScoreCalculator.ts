@@ -271,6 +271,14 @@ export async function calculateAllStudentScores(
   const allAttendance = attendanceSnap.docs.map(d => d.data());
   const allRewards = rewardsSnap.docs.map(d => d.data());
 
+  console.log(`[ScoreCalc] students: ${students.length}, allAttendance: ${allAttendance.length}, allRewards: ${allRewards.length}`);
+  if (allAttendance.length > 0) {
+    console.log(`[ScoreCalc] Sample attendance:`, JSON.stringify(allAttendance[0]));
+  }
+  if (students.length > 0) {
+    console.log(`[ScoreCalc] Sample student:`, JSON.stringify({ id: students[0].id, name: students[0].name, group_name: students[0].group_name, created_at: students[0].created_at, join_date: students[0].join_date }));
+  }
+
   let startDate: string | null = null;
   if (period !== 'all') {
     const now = getTashkentDate();
@@ -286,6 +294,12 @@ export async function calculateAllStudentScores(
     startDate = format(now, 'yyyy-MM-dd');
   }
 
+  // student_id → group_name mapping (O(1) lookup)
+  const studentGroupMap = new Map<string, string>();
+  students.forEach(s => {
+    if (s.group_name) studentGroupMap.set(s.id, s.group_name);
+  });
+
   const groupClassDates = new Map<string, Set<string>>();
   students.forEach(s => {
     if (s.group_name && !groupClassDates.has(s.group_name)) {
@@ -294,11 +308,14 @@ export async function calculateAllStudentScores(
   });
 
   allAttendance.forEach(a => {
-    const student = students.find(s => s.id === a.student_id);
-    if (student && student.group_name) {
-      groupClassDates.get(student.group_name)?.add(a.date);
+    const groupName = studentGroupMap.get(a.student_id);
+    if (groupName) {
+      groupClassDates.get(groupName)?.add(a.date);
     }
   });
+
+  console.log(`[ScoreCalc] groupClassDates:`, JSON.stringify(Object.fromEntries([...groupClassDates.entries()].map(([k, v]) => [k, v.size]))));
+  console.log(`[ScoreCalc] studentGroupMap size: ${studentGroupMap.size}`);
 
   return students.map(student => {
     // Prioritize explicit join_date, fallback to created_at
@@ -306,8 +323,10 @@ export async function calculateAllStudentScores(
     if (!studentJoinDate) {
       if (student.created_at instanceof Timestamp) {
         studentJoinDate = student.created_at.toDate().toISOString().split('T')[0];
-      } else if (typeof student.created_at === 'string') {
+      } else if (typeof student.created_at === 'string' && student.created_at) {
         studentJoinDate = student.created_at.split('T')[0];
+      } else {
+        studentJoinDate = '2000-01-01'; // fallback - hamma ma'lumotlarni olish
       }
     }
 

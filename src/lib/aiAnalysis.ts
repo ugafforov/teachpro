@@ -3,7 +3,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   query,
   where,
@@ -15,6 +14,7 @@ import { db } from "@/lib/firebase";
 import { logError } from "./errorUtils";
 import { sanitizeError } from "./errorUtils";
 import { callGeminiDirect } from "./geminiDirect";
+import { calculateAllStudentScores } from "./studentScoreCalculator";
 import {
   AnalysisHistoryItem,
   AnalyzeInsightsRequest,
@@ -25,246 +25,188 @@ import {
   ProjectChatResponse,
 } from "@/types/aiAnalysis";
 
+/** Firestore dan barcha kerakli ma'lumotlarni olib, AI uchun context tayyorlaydi */
+async function buildDatabaseContext(teacherId: string): Promise<string> {
+  let ctx = "";
+
+  // 1. Hisoblangan ballar va davomat (calculateAllStudentScores ishlatiladi)
+  const studentsWithScores = await calculateAllStudentScores(teacherId, undefined, "all");
+
+  if (studentsWithScores.length === 0) {
+    return "";
+  }
+
+  const sorted = [...studentsWithScores].sort((a, b) => b.score.totalScore - a.score.totalScore);
+
+  ctx += `📊 Jami o'quvchilar: ${sorted.length}\n\n`;
+  ctx += `O'quvchilar reytingi (ball bo'yicha):\n`;
+  ctx += `| # | Ism | Guruh | Ball | Davomat | Keldi | Kelmadi |\n`;
+  ctx += `|---|-----|-------|------|---------|-------|--------|\n`;
+  sorted.forEach((s, i) => {
+    ctx += `| ${i + 1} | ${s.name} | ${s.group_name || "—"} | ${s.score.totalScore.toFixed(1)} | ${s.score.attendancePercentage}% | ${s.score.presentCount} | ${s.score.absentCount} |\n`;
+  });
+
+  // 2. Guruhlar statistikasi
+  const groupStats = new Map<string, { students: number; totalScore: number; totalAttendance: number }>();
+  sorted.forEach(s => {
+    const g = s.group_name || "Nomalum";
+    if (!groupStats.has(g)) groupStats.set(g, { students: 0, totalScore: 0, totalAttendance: 0 });
+    const gs = groupStats.get(g)!;
+    gs.students++;
+    gs.totalScore += s.score.totalScore;
+    gs.totalAttendance += s.score.attendancePercentage;
+  });
+
+  ctx += `\n📚 Guruhlar statistikasi:\n`;
+  ctx += `| Guruh | O'quvchilar | O'rtacha ball | O'rtacha davomat |\n`;
+  ctx += `|-------|-------------|---------------|------------------|\n`;
+  groupStats.forEach((gs, name) => {
+    ctx += `| ${name} | ${gs.students} | ${(gs.totalScore / gs.students).toFixed(1)} | ${Math.round(gs.totalAttendance / gs.students)}% |\n`;
+  });
+
+  // 3. Imtihonlar
+  const examsSnap = await getDocs(query(collection(db, "exams"), where("teacher_id", "==", teacherId)));
+  const exams = examsSnap.docs.map(d => d.data());
+  if (exams.length > 0) {
+    ctx += `\n� Imtihonlar (${exams.length} ta):\n`;
+    exams.slice(-10).forEach(e => {
+      ctx += `  - ${e.exam_name} | Sana: ${e.exam_date} | Guruh: ${e.group_name || "—"}\n`;
+    });
+
+    // Imtihon natijalari
+    const resultsSnap = await getDocs(query(collection(db, "exam_results"), where("teacher_id", "==", teacherId)));
+    const results = resultsSnap.docs.map(d => d.data());
+    if (results.length > 0) {
+      const scores = results.map(r => Number(r.score || 0)).filter(s => s > 0);
+      if (scores.length > 0) {
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        const max = Math.max(...scores);
+        const min = Math.min(...scores);
+        ctx += `\n📊 Imtihon natijalari: O'rtacha: ${avg.toFixed(1)}, Eng yuqori: ${max}, Eng past: ${min}\n`;
+      }
+    }
+  }
+
+  // 4. So'nggi 30 kun davomat
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const attSnap = await getDocs(query(
+    collection(db, "attendance_records"),
+    where("teacher_id", "==", teacherId),
+    where("date", ">=", thirtyDaysAgo),
+    where("date", "<=", today),
+  ));
+  const attRecords = attSnap.docs.map(d => d.data());
+  if (attRecords.length > 0) {
+    const present = attRecords.filter(r => r.status === "present").length;
+    const late = attRecords.filter(r => r.status === "late").length;
+    const absent = attRecords.filter(r => r.status === "absent_without_reason" || r.status === "absent").length;
+    ctx += `\n📅 So'nggi 30 kun davomat: ${present} keldi, ${late} kech keldi, ${absent} kelmadi\n`;
+  }
+
+  // 5. Mukofot/Jarima
+  const rewardsSnap = await getDocs(query(collection(db, "reward_penalty_history"), where("teacher_id", "==", teacherId)));
+  const rewards = rewardsSnap.docs.map(d => d.data());
+  if (rewards.length > 0) {
+    const mukofot = rewards.filter(r => r.type === "Mukofot").length;
+    const jarima = rewards.filter(r => r.type === "Jarima").length;
+    ctx += `\n🏆 Mukofot: ${mukofot} ta, Jarima: ${jarima} ta\n`;
+  }
+
+  return ctx;
+}
+
 export const analyzeInsights = async (
   currentUserId: string,
-  role: "teacher" | "admin",
+  _role: "teacher" | "admin",
   request: AnalyzeInsightsRequest,
 ): Promise<AnalyzeInsightsResponse> => {
   try {
-    // Fetch actual database data for context
-    let databaseContext = "";
-    let hasData = false;
+    const databaseContext = await buildDatabaseContext(currentUserId);
 
-    if (request.scope === "global" || request.scope === "group") {
-      try {
-        // Fetch students data
-        const studentsQuery = query(
-          collection(db, "students"),
-          where("teacher_id", "==", currentUserId),
-          where("is_active", "==", true),
-        );
-        const studentsSnap = await getDocs(studentsQuery);
-        const students = studentsSnap.docs.map(doc => doc.data());
-        
-        if (students.length > 0) {
-          hasData = true;
-          databaseContext += `\n📊 O'quvchilar soni: ${students.length}\n`;
-          
-          // Add sample student names
-          databaseContext += `O'quvchilar: ${students.slice(0, 5).map(s => s.name).join(", ")}${students.length > 5 ? " va boshqalari" : ""}\n`;
-        }
-
-        // Fetch groups data
-        const groupsQuery = query(
-          collection(db, "groups"),
-          where("teacher_id", "==", currentUserId),
-          where("is_active", "==", true),
-        );
-        const groupsSnap = await getDocs(groupsQuery);
-        const groups = groupsSnap.docs.map(doc => doc.data());
-        
-        if (groups.length > 0) {
-          databaseContext += `📚 Guruhlar soni: ${groups.length}\n`;
-          databaseContext += `Guruhlar: ${groups.map(g => g.name).join(", ")}\n`;
-        }
-
-        // Fetch attendance data for date range
-        const attendanceQuery = query(
-          collection(db, "attendance_records"),
-          where("teacher_id", "==", currentUserId),
-          where("date", ">=", request.dateFrom),
-          where("date", "<=", request.dateTo),
-        );
-        const attendanceSnap = await getDocs(attendanceQuery);
-        const attendanceRecords = attendanceSnap.docs.map(doc => doc.data());
-        const presentCount = attendanceRecords.filter(r => r.status === "present").length;
-        const absentCount = attendanceRecords.filter(r => r.status === "absent" || r.status === "absent_without_reason").length;
-        
-        if (attendanceRecords.length > 0) {
-          databaseContext += `📅 Davomat: ${presentCount} keldi, ${absentCount} kelmadi (${request.dateFrom} - ${request.dateTo})\n`;
-        }
-
-        // Fetch exam data
-        const examsQuery = query(
-          collection(db, "exams"),
-          where("teacher_id", "==", currentUserId),
-        );
-        const examsSnap = await getDocs(examsQuery);
-        const exams = examsSnap.docs.map(doc => doc.data());
-        
-        if (exams.length > 0) {
-          databaseContext += `📝 Imtihonlar soni: ${exams.length}\n`;
-        }
-      } catch (error) {
-        console.log("Database fetch error:", error);
-        // Continue without database data
-      }
-    }
-
-    // Build prompt with actual database data
-    // Agar ma'lumot yo'q bo'lsa, AI ni chaqirmaymiz - to'g'ridan-to'g'ri javob beramiz
-    if (!hasData) {
+    if (!databaseContext) {
       return {
         runId: `run-${Date.now()}`,
         status: "ok",
         generatedAt: new Date().toISOString(),
         language: "uz",
-        summary: "📊 Ma'lumotlar yo'q. O'quvchilar ma'lumotlarini tahlil qilish uchun ma'lumotlar kerak.",
-        riskAlerts: [],
-        anomalies: [],
-        forecasts: [],
-        whatIf: [],
-        interventions: [],
-        weeklyPlan: [],
-        modelMeta: {
-          provider: "openrouter",
-          model: "google/gemini-2.5-flash",
-          tokensIn: 0,
-          tokensOut: 0,
-        },
+        summary: "📊 Ma'lumotlar yo'q. Avval o'quvchilar qo'shing.",
+        riskAlerts: [], anomalies: [], forecasts: [], whatIf: [], interventions: [], weeklyPlan: [],
+        modelMeta: { provider: "openrouter", model: "google/gemini-2.5-flash", tokensIn: 0, tokensOut: 0 },
       };
     }
 
-    const prompt = `
-TAHLIL: ${request.modules.join(", ")} (${request.dateFrom} - ${request.dateTo})
+    const prompt = `Siz TeachPro CRM AI yordamchisisiz. Quyidagi haqiqiy ma'lumotlar asosida tahlil qiling.
 
-HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):
+TAHLIL TURI: ${request.modules.join(", ")}
+DAVR: ${request.dateFrom} — ${request.dateTo}
+
+MA'LUMOTLAR:
 ${databaseContext}
 
-MUHIM QOIDALAR (qat'iy rioya qiling):
-- FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning
-- YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
-- Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
-- Qisqa va aniq bo'ling
-- Emoji qo'llang
-- Jadval kerak bo'lsa markdown table formatida bering
-- O'zbek tilida
-`;
+JAVOB FORMATI (qat'iy):
+- Oddiy matn ishlat, ** * # ## kabi belgilar ISHLATMA
+- Emoji faqat ma'noli joylarda ishlat: 🏆 reyting/yutuq, 📊 statistika/tahlil, ✅ yaxshi natija, ⚠️ ogohlantirish, ❌ muammo, 📅 sana/davr, 👤 o'quvchi, 👥 guruh, 📝 imtihon
+- Har jumlaga emoji qo'yma, faqat kerakli joylarda
+- Jadval kerak bo'lsa | Ustun | Ustun | formatida ber
+- Ro'yxat uchun 1. 2. 3. yoki mos emoji ishlat
+- O'zbek tilida, qisqa va aniq
+- Ortiqcha so'z va iboralar ISHLATMA`;
 
     const aiResponse = await callGeminiDirect(prompt);
 
-    // Parse AI response (simplified - you may need to enhance this)
-    const response: AnalyzeInsightsResponse = {
+    return {
       runId: `run-${Date.now()}`,
       status: "ok",
       generatedAt: new Date().toISOString(),
       language: "uz",
       summary: aiResponse,
-      riskAlerts: [],
-      anomalies: [],
-      forecasts: [],
-      whatIf: [],
-      interventions: [],
-      weeklyPlan: [],
-      modelMeta: {
-        provider: "openrouter",
-        model: "google/gemini-2.5-flash",
-        tokensIn: 0,
-        tokensOut: 0,
-      },
+      riskAlerts: [], anomalies: [], forecasts: [], whatIf: [], interventions: [], weeklyPlan: [],
+      modelMeta: { provider: "openrouter", model: "google/gemini-2.5-flash", tokensIn: 0, tokensOut: 0 },
     };
-
-    return response;
   } catch (error) {
-    logError('aiAnalysis.analyzeInsights', error);
-    const { message } = sanitizeError(error, 'fetch');
+    logError("aiAnalysis.analyzeInsights", error);
+    const { message } = sanitizeError(error, "fetch");
     throw new Error(message);
   }
 };
 
 export const askInsights = async (
   currentUserId: string,
-  role: "teacher" | "admin",
+  _role: "teacher" | "admin",
   request: AskInsightsRequest,
 ): Promise<AskInsightsResponse> => {
   try {
-    // Fetch actual database data for context
-    let databaseContext = "";
-    let hasData = false;
+    const databaseContext = await buildDatabaseContext(currentUserId);
 
-    try {
-      // Fetch students data
-      const studentsQuery = query(
-        collection(db, "students"),
-        where("teacher_id", "==", currentUserId),
-        where("is_active", "==", true),
-      );
-      const studentsSnap = await getDocs(studentsQuery);
-      const students = studentsSnap.docs.map(doc => doc.data());
-      
-      if (students.length > 0) {
-        hasData = true;
-        databaseContext += `\n📊 O'quvchilar soni: ${students.length}\n`;
-        databaseContext += `O'quvchilar: ${students.map(s => s.name).join(", ")}\n`;
-      }
-
-      // Fetch groups data
-      const groupsQuery = query(
-        collection(db, "groups"),
-        where("teacher_id", "==", currentUserId),
-        where("is_active", "==", true),
-      );
-      const groupsSnap = await getDocs(groupsQuery);
-      const groups = groupsSnap.docs.map(doc => doc.data());
-      
-      if (groups.length > 0) {
-        databaseContext += `📚 Guruhlar: ${groups.map(g => g.name).join(", ")}\n`;
-      }
-
-      // Fetch recent attendance
-      const today = new Date().toISOString().split('T')[0];
-      const attendanceQuery = query(
-        collection(db, "attendance_records"),
-        where("teacher_id", "==", currentUserId),
-        where("date", "==", today),
-      );
-      const attendanceSnap = await getDocs(attendanceQuery);
-      const attendanceRecords = attendanceSnap.docs.map(doc => doc.data());
-      const presentCount = attendanceRecords.filter(r => r.status === "present").length;
-      
-      if (attendanceRecords.length > 0) {
-        databaseContext += `📅 Bugungi davomat: ${presentCount}/${attendanceRecords.length} keldi\n`;
-      }
-    } catch (error) {
-      console.log("Database fetch error:", error);
-      // Continue without database data
-    }
-
-    // Agar ma'lumot yo'q bo'lsa, AI ni chaqirmaymiz - to'g'ridan-to'g'ri javob beramiz
-    if (!hasData) {
+    if (!databaseContext) {
       return {
-        answer: "📊 Ma'lumotlar yo'q. O'quvchilar ma'lumotlarini tahlil qilish uchun ma'lumotlar kerak.",
+        answer: "📊 Hozircha ma'lumotlar yo'q. Avval o'quvchilar qo'shing.",
         citations: [],
       };
     }
 
-    const prompt = `
+    const prompt = `Siz TeachPro CRM AI yordamchisisiz. Quyidagi haqiqiy ma'lumotlar asosida savolga javob bering.
+
 SAVOL: ${request.question}
 
-HAQIQIY MA'LUMOTLAR (faqat quyidagilardan foydalaning):
+MA'LUMOTLAR:
 ${databaseContext}
 
-MUHIM QOIDALAR (qat'iy rioya qiling):
-- FAQAT yuqoridagi haqiqiy ma'lumotlardan foydalaning
-- YANGI ismlar yoki ma'lumotlar YO'Q - faqat berilganlardan foydalaning
-- Agar ma'lumot yetarli bo'lmasa: "Ma'lumot yetarli emas" deb ayt
-- Qisqa va aniq bo'ling
-- Emoji qo'llang
-- Jadval kerak bo'lsa markdown table formatida bering
-- O'zbek tilida
-`;
+JAVOB FORMATI (qat'iy):
+- Oddiy matn ishlat, ** * # ## kabi belgilar ISHLATMA
+- Emoji faqat ma'noli joylarda ishlat: 🏆 reyting/yutuq, 📊 statistika/tahlil, ✅ yaxshi natija, ⚠️ ogohlantirish, ❌ muammo, 📅 sana/davr, 👤 o'quvchi, 👥 guruh, 📝 imtihon
+- Har jumlaga emoji qo'yma, faqat kerakli joylarda
+- Jadval kerak bo'lsa | Ustun | Ustun | formatida ber
+- Ro'yxat uchun 1. 2. 3. yoki mos emoji ishlat
+- O'zbek tilida, qisqa va aniq
+- Ortiqcha so'z va iboralar ISHLATMA`;
 
     const answer = await callGeminiDirect(prompt);
-
-    const response: AskInsightsResponse = {
-      answer,
-      citations: [],
-    };
-
-    return response;
+    return { answer, citations: [] };
   } catch (error) {
-    logError('aiAnalysis.askInsights', error);
-    const { message } = sanitizeError(error, 'fetch');
+    logError("aiAnalysis.askInsights", error);
+    const { message } = sanitizeError(error, "fetch");
     throw new Error(message);
   }
 };
@@ -274,79 +216,21 @@ export const chatWithProjectInsights = async (
   role: "teacher" | "admin",
   request: ProjectChatRequest,
 ): Promise<ProjectChatResponse> => {
-  const getLatestRunDocs = async () => {
-    try {
-      // Preferred query (fast path when composite index exists).
-      const historyQuery = query(
-        collection(db, "ai_analysis_runs"),
-        where("createdBy", "==", currentUserId),
-        orderBy("created_at", "desc"),
-        limit(1),
-      );
-      const snapshot = await getDocs(historyQuery);
-      return snapshot.docs;
-    } catch (error) {
-      const message = String((error as { message?: string })?.message ?? "").toLowerCase();
-      const code = String((error as { code?: string })?.code ?? "");
-      const isIndexError =
-        code === "failed-precondition" ||
-        code === "permission-denied" ||
-        message.includes("requires an index") ||
-        message.includes("index");
+  const runId = `run-${Date.now()}`;
 
-      if (!isIndexError) {
-        throw error;
-      }
-
-      // Fallback query without orderBy to avoid blocking AI chat when index is missing.
-      // We sort in memory and take the latest run.
-      const fallbackQuery = query(
-        collection(db, "ai_analysis_runs"),
-        where("createdBy", "==", currentUserId),
-      );
-      const fallbackSnapshot = await getDocs(fallbackQuery);
-      return [...fallbackSnapshot.docs].sort((a, b) => {
-        const aDate = (a.data().created_at as { toDate?: () => Date } | undefined)?.toDate?.();
-        const bDate = (b.data().created_at as { toDate?: () => Date } | undefined)?.toDate?.();
-        return (bDate?.getTime() ?? 0) - (aDate?.getTime() ?? 0);
-      }).slice(0, 1);
-    }
-  };
-
-  const runDocs = await getLatestRunDocs();
-  
-  if (runDocs.length === 0) {
-    throw new Error(
-      "Avval ma'lumotlarni tahlil qiling. 'Tahlil' tugmasini bosib, keyin savol bering."
-    );
-  }
-
-  const latestRun = runDocs[0];
-  const runId = latestRun.id;
-
-  // Use askInsights to get the answer
   const askResponse = await askInsights(currentUserId, role, {
     runId,
     question: request.prompt,
   });
 
-  // Return response in the expected format
-  const runData = latestRun.data() as { created_at?: { toDate?: () => Date } };
-  const generatedAt = runData.created_at?.toDate?.().toISOString() || new Date().toISOString();
-
   return {
     runId,
     answer: askResponse.answer,
     citations: askResponse.citations,
-    generatedAt,
-    sourceStatus: "cached",
-    sourceSummary: latestRun.data().summary as string || "",
-    modelMeta: {
-      provider: "firebase-functions",
-      model: "gemini",
-      tokensIn: 0,
-      tokensOut: 0,
-    },
+    generatedAt: new Date().toISOString(),
+    sourceStatus: "ok",
+    sourceSummary: "",
+    modelMeta: { provider: "openrouter", model: "google/gemini-2.5-flash", tokensIn: 0, tokensOut: 0 },
   };
 };
 
@@ -383,8 +267,7 @@ export const fetchAnalysisHistory = async (
   });
 
   return items.sort(
-    (a, b) =>
-      new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime(),
+    (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime(),
   );
 };
 
@@ -408,43 +291,20 @@ export const submitAnalysisFeedback = async (
 
 export const fetchTeacherEntitiesForFilters = async (teacherId: string) => {
   const [groupsSnap, studentsSnap, examsSnap] = await Promise.all([
-    getDocs(
-      query(
-        collection(db, "groups"),
-        where("teacher_id", "==", teacherId),
-        where("is_active", "==", true),
-      ),
-    ),
-    getDocs(
-      query(
-        collection(db, "students"),
-        where("teacher_id", "==", teacherId),
-        where("is_active", "==", true),
-      ),
-    ),
+    getDocs(query(collection(db, "groups"), where("teacher_id", "==", teacherId), where("is_active", "==", true))),
+    getDocs(query(collection(db, "students"), where("teacher_id", "==", teacherId), where("is_active", "==", true))),
     getDocs(query(collection(db, "exams"), where("teacher_id", "==", teacherId))),
   ]);
 
   return {
     groups: groupsSnap.docs
-      .map((docSnap) => ({
-        id: docSnap.id,
-        name: (docSnap.data().name as string) ?? docSnap.id,
-      }))
+      .map(d => ({ id: d.id, name: (d.data().name as string) ?? d.id }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     students: studentsSnap.docs
-      .map((docSnap) => ({
-        id: docSnap.id,
-        name: (docSnap.data().name as string) ?? docSnap.id,
-        groupName: (docSnap.data().group_name as string | undefined) ?? "",
-      }))
+      .map(d => ({ id: d.id, name: (d.data().name as string) ?? d.id, groupName: (d.data().group_name as string) ?? "" }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     exams: examsSnap.docs
-      .map((docSnap) => ({
-        id: docSnap.id,
-        examName: (docSnap.data().exam_name as string) ?? docSnap.id,
-        examDate: (docSnap.data().exam_date as string | undefined) ?? "",
-      }))
+      .map(d => ({ id: d.id, examName: (d.data().exam_name as string) ?? d.id, examDate: (d.data().exam_date as string) ?? "" }))
       .sort((a, b) => a.examName.localeCompare(b.examName)),
   };
 };
