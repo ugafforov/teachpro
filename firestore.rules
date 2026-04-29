@@ -105,7 +105,10 @@ service cloud.firestore {
       allow read: if true; // Public read for rankings
       allow create: if isAuthenticated() && (isAdmin() || requestOwnedByCurrentUser()) &&
                        hasValidTeacherId() && hasValidTimestamp();
-      allow update: if isAuthenticated() && (isAdmin() || resourceOwnedByCurrentUser());
+      // Update: allow if admin, OR owner of existing doc, OR creating new doc with valid teacher_id
+      allow update: if isAuthenticated() && (isAdmin() ||
+                       (resource.data.keys().hasAny(['teacher_id']) && resource.data.teacher_id == request.auth.uid) ||
+                       (request.resource.data.keys().hasAny(['teacher_id']) && request.resource.data.teacher_id == request.auth.uid));
       allow delete: if isAdmin() || resourceOwnedByCurrentUser();
     }
 

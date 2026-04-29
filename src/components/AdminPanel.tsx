@@ -22,9 +22,13 @@ import {
   School,
   Calendar,
   LogOut,
+  DownloadCloud,
+  Send,
 } from "lucide-react";
 import { formatDateUz } from "@/lib/utils";
 import { sanitizeError, logError } from "@/lib/errorUtils";
+import { exportAllDataToJSON } from "@/lib/exportUtils";
+import { sendFullReportToTelegram } from "@/lib/xlsxExporter";
 import AIAnalysisPage from "./AIAnalysisPage";
 import {
   normalizeTeacherProfile,
@@ -43,6 +47,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ adminId, onLogout }) => {
   const [rejectionReason, setRejectionReason] = useState<{
     [key: string]: string;
   }>({});
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const { toast } = useToast();
 
   const fetchTeachers = useCallback(async () => {
@@ -178,12 +184,62 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ adminId, onLogout }) => {
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
           Admin Panel
         </h1>
-        {onLogout && (
-          <Button variant="outline" onClick={onLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Chiqish
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800"
+            onClick={async () => {
+              try {
+                setIsExporting(true);
+                await exportAllDataToJSON();
+                toast({ title: "Muvaffaqiyatli", description: "Zaxira nusxasi yuklab olindi" });
+              } catch (error: any) {
+                toast({ title: "Xatolik", description: error.message, variant: "destructive" });
+              } finally {
+                setIsExporting(false);
+              }
+            }}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <div className="w-4 h-4 mr-2 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <DownloadCloud className="w-4 h-4 mr-2" />
+            )}
+            Zaxiralash
           </Button>
-        )}
+
+          <Button 
+            variant="outline" 
+            className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800"
+            onClick={async () => {
+              try {
+                setIsSendingTelegram(true);
+                await sendFullReportToTelegram(adminId);
+                toast({ title: "Muvaffaqiyatli", description: "To'liq hisobot Telegramga yuborildi" });
+              } catch (error: any) {
+                toast({ title: "Xatolik", description: error.message, variant: "destructive" });
+              } finally {
+                setIsSendingTelegram(false);
+              }
+            }}
+            disabled={isSendingTelegram}
+          >
+            {isSendingTelegram ? (
+              <div className="w-4 h-4 mr-2 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Send className="w-4 h-4 mr-2" />
+            )}
+            Telegramga yuborish
+          </Button>
+          
+          {onLogout && (
+            <Button variant="outline" onClick={onLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Chiqish
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-sm text-muted-foreground mb-6 sm:mb-8">
         O'qituvchilarni tasdiqlash va boshqarish

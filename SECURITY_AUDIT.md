@@ -50,14 +50,14 @@
 ## 🔑 API Key Security
 
 ### Firebase Configuration
-- [x] API Key: `AIzaSyCxwUu_jzopDodG5dDYQ22gTiZFSmsJPpU`
+- [x] API Key: `[REDACTED - stored in .env.production]`
 - [x] Auth Domain: `teachproo.firebaseapp.com`
 - [x] Project ID: `teachproo` (publicly known, OK)
 - [x] Keys are project-specific, not secrets
 - [x] Cloud Functions enforce authorization
 
 ### Gemini API Key
-- [x] API Key: `AIzaSyArnNwaT0XhWeNW5eriHa-J92LzUkZcRYU`
+- [x] API Key: `[REDACTED - stored in Cloud Functions env]`
 - [x] API Endpoint: `https://generativelanguage.googleapis.com/v1beta`
 - [x] Model: `gemini-3.1-flash-lite-preview`
 - [x] Server-side API calls only (Cloud Functions)

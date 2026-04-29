@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { logError } from '@/lib/errorUtils';
 import { Button } from "@/components/ui/button";
 import { Progress } from '@/components/ui/progress';
-import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2, Shield, Database } from 'lucide-react';
+import { Download, Upload, FileJson, CheckCircle, AlertCircle, Loader2, Shield, Database, Send, DownloadCloud } from 'lucide-react';
 import { cn, getTashkentDate, getTashkentToday } from '@/lib/utils';
 import { format } from 'date-fns';
 import { db } from '@/lib/firebase';
@@ -31,13 +31,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { 
-  fetchAllRecordsForExport, 
-  calculateChecksum, 
-  validateImportData, 
-  logAuditEntry, 
   ValidationResult,
-  FirestoreRecord 
+  FirestoreRecord,
+  fetchAllRecordsForExport,
+  calculateChecksum,
+  logAuditEntry
 } from '@/lib/firebaseHelpers';
+import { sendFullReportToTelegram } from '@/lib/xlsxExporter';
 
 interface DataManagerProps {
   teacherId: string;
@@ -64,6 +64,7 @@ interface UniversalExportData {
     exam_results: Record<string, unknown>[];
     exam_types: Record<string, unknown>[];
     student_scores: Record<string, unknown>[];
+    group_notes: Record<string, unknown>[];
     archived_students: Record<string, unknown>[];
     archived_groups: Record<string, unknown>[];
     archived_exams: Record<string, unknown>[];
@@ -97,6 +98,7 @@ const IMPORT_ORDER = [
   'reward_penalty_history',
   'student_scores',
   'exam_results',
+  'group_notes',
   'archived_groups',
   'archived_students',
   'archived_exams',
@@ -120,6 +122,7 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
   const [importData, setImportData] = useState<ImportData | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [backupKey, setBackupKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -131,7 +134,8 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
       const tables = [
         'teachers', 'groups', 'exam_types', 'students', 'exams',
         'attendance_records', 'reward_penalty_history', 'exam_results',
-        'student_scores', 'archived_students', 'archived_groups', 'archived_exams',
+        'student_scores', 'group_notes',
+        'archived_students', 'archived_groups', 'archived_exams',
         'deleted_students', 'deleted_groups', 'deleted_exams',
         'deleted_attendance_records', 'deleted_reward_penalty_history',
         'deleted_student_scores', 'deleted_exam_results',
@@ -386,8 +390,34 @@ const DataManager: React.FC<DataManagerProps> = ({ teacherId }) => {
             <div className="flex-1 min-w-0">
               <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Ma'lumotlarni eksport qilish</h3>
               <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">Barcha o'quvchilar, guruhlar, davomat va boshqa ma'lumotlarni bitta JSON faylga yuklab oling</p>
-              {exporting && <div className="mb-4"><Progress value={progress} className="h-2" /><p className="text-xs text-muted-foreground mt-1">{progress}% - {progressMessage}</p></div>}
-              <Button onClick={exportData} disabled={exporting} className="w-full bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-sm">{exporting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eksport qilinmoqda...</> : <><Download className="w-4 h-4 mr-2" />Eksport qilish</>}</Button>
+              <div className="flex flex-col gap-2">
+                <Button onClick={exportData} disabled={exporting} className="w-full bg-green-600 hover:bg-green-700 h-9 sm:h-10 text-sm">
+                  {exporting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eksport qilinmoqda...</> : <><Download className="w-4 h-4 mr-2" />Eksport qilish</>}
+                </Button>
+                
+                <Button 
+                  onClick={async () => {
+                    try {
+                      setIsSendingTelegram(true);
+                      await sendFullReportToTelegram(teacherId);
+                      toast.success("To'liq hisobot Telegramga yuborildi!");
+                    } catch (error: any) {
+                      toast.error(error.message);
+                    } finally {
+                      setIsSendingTelegram(false);
+                    }
+                  }} 
+                  disabled={isSendingTelegram} 
+                  variant="outline"
+                  className="w-full border-blue-500 text-blue-600 hover:bg-blue-50 h-9 sm:h-10 text-sm"
+                >
+                  {isSendingTelegram ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Yuborilmoqda...</>
+                  ) : (
+                    <><Send className="w-4 h-4 mr-2" />Telegramga yuborish</>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>

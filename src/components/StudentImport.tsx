@@ -89,6 +89,15 @@ const StudentImport: React.FC<StudentImportProps> = ({
       return;
     }
 
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {

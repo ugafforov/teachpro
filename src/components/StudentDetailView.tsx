@@ -235,7 +235,7 @@ const StudentDetailView: React.FC<StudentDetailViewProps> = ({
     if (studentId) {
       fetchStudentDetails();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // fetchStudentDetails defined below, depends on studentId and teacherId which are in deps
   }, [studentId, teacherId]);
 

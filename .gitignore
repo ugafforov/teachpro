@@ -30,3 +30,6 @@ output/
 .env.local
 .env.production
 .env.*.local
+
+# Security audit files (may contain sensitive data)
+SECURITY_AUDIT.md

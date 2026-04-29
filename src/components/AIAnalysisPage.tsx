@@ -320,7 +320,6 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
         answer = response.answer;
       } catch (firebaseError) {
         // Fallback to direct API call if Firebase Functions fail
-        console.log("Firebase Functions failed, using direct API fallback:", firebaseError);
         const conversationHistory = messages.map(m => `${m.role === 'user' ? 'Foydalanuvchi' : 'AI'}: ${m.content}`).join('\n');
         const prompt = `Suhbat tarixi:\n${conversationHistory}\n\nSavol: ${text}\n\nO'zbek tilida javob bering.`;
         answer = await callGeminiDirect(prompt);
@@ -364,7 +363,6 @@ const AIAnalysisPage: React.FC<AIAnalysisPageProps> = ({
         });
       } catch (firebaseError) {
         // Fallback to direct API call if Firebase Functions fail
-        console.log("Firebase Functions failed, using direct API fallback:", firebaseError);
         const prompt = "O'quvchilar tahlili uchun qisqacha xulola bering. Davomat, imtihon natijalari va xavf belgilarini hisobga oling.";
         await callGeminiDirect(prompt);
       }

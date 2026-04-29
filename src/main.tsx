@@ -7,6 +7,10 @@ import { logEnvironmentInfo } from '@/lib/productionValidator'
 // Initialize environment validation
 logEnvironmentInfo();
 
+// PWA Service Worker registration
+import { registerSW } from 'virtual:pwa-register'
+registerSW({ immediate: true })
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

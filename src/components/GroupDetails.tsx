@@ -166,6 +166,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
   const [pendingAttendance, setPendingAttendance] = useState<
     Record<string, boolean>
   >({});
+  const pendingAttendanceRef = useRef(pendingAttendance);
+  useEffect(() => {
+    pendingAttendanceRef.current = pendingAttendance;
+  }, [pendingAttendance]);
+  const localAttendanceModsRef = useRef<Record<string, number>>({});
   const [savedAttendance, setSavedAttendance] = useState<
     Record<string, boolean>
   >({});
@@ -257,7 +262,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       hasInitializedRef.current = true;
     };
     loadGroupData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // loadGroupData defined inline, fetchStudents/fetchLessonNotes are stable functions
   }, [groupName, teacherId, selectedPeriod]);
 
@@ -403,7 +408,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
       pendingTasks.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // Complex cleanup with many dependencies, functions are stable
   }, [teacherId, groupName, selectedPeriod, selectedDate]);
 
@@ -418,7 +423,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       }
     };
     void loadDailyData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // loadDailyData defined inline, functions are stable
   }, [selectedDate, teacherId, students]);
 
@@ -427,7 +432,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     if (students.length > 0) {
       fetchAttendanceDates();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // fetchAttendanceDates is a stable function
   }, [students]);
 
@@ -864,16 +869,48 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       const snapshot = await getDocs(q);
       const attendanceMap: Record<string, AttendanceStatus> = {};
       const currentStudents = studentsRef.current;
+      
       snapshot.docs.forEach((d) => {
         const data = d.data();
-        const student = currentStudents.find((s) => s.id === data.student_id);
-        if (!student) return;
-        if (!isDateWithinStudentPeriod(student, date)) return;
+        // Bazada saqlangan davomat yozuvlarini to'g'ridan-to'g'ri ko'rsatamiz.
+        // isDateWithinStudentPeriod tekshiruvi faqat YANGI davomat yozish paytida qo'llaniladi,
+        // mavjud yozuvlarni o'qishda emas.
         attendanceMap[data.student_id] = (
           data.status === "absent" ? "absent_without_reason" : data.status
         ) as AttendanceStatus;
       });
-      setAttendance(attendanceMap);
+
+      setAttendance((prev) => {
+        const next = { ...prev };
+        
+        // Bazadan kelgan barcha davomatlarni yangilaymiz
+        const currentPending = pendingAttendanceRef.current;
+        const now = Date.now();
+        const mods = localAttendanceModsRef.current;
+        
+        Object.entries(attendanceMap).forEach(([id, status]) => {
+          const lastMod = mods[id] || 0;
+          const isRecentlyModified = now - lastMod < 5000;
+          
+          // Agar local pending bo'lsa yoki yaqinda o'zgartirilgan bo'lsa, bazadagi eski ma'lumot bilan ustiga yozmaymiz
+          if (!currentPending[id] && !isRecentlyModified) {
+            next[id] = status;
+          }
+        });
+
+        // Agar o'quvchi bazada yo'q bo'lsa (o'chirilgan bo'lsa) va local pending bo'lmasa, o'chirib tashlaymiz
+        // Lekin faqat joriy guruh o'quvchilari uchun bu tekshiruvni bajaramiz
+        currentStudents.forEach(s => {
+          const lastMod = mods[s.id] || 0;
+          const isRecentlyModified = now - lastMod < 5000; // 5 soniya davomida local o'zgarishni ustun qo'yamiz
+          
+          if (!attendanceMap[s.id] && !currentPending[s.id] && !isRecentlyModified) {
+            delete next[s.id];
+          }
+        });
+        
+        return next;
+      });
     } catch (error) {
       logError("GroupDetails:fetchAttendance", error);
     }
@@ -999,6 +1036,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       });
       return;
     }
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const student = students.find((s) => s.id === studentId);
       if (!student) return;
@@ -1051,6 +1096,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
             { merge: true },
           );
           setAttendance((prev) => ({ ...prev, [studentId]: status }));
+          localAttendanceModsRef.current[studentId] = Date.now();
         }
       } else {
         await setDoc(docRef, {
@@ -1063,10 +1109,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
           updated_at: serverTimestamp(),
         });
         setAttendance((prev) => ({ ...prev, [studentId]: status }));
+        localAttendanceModsRef.current[studentId] = Date.now();
       }
       void fetchAttendanceDates();
     } catch (error) {
-      logError("GroupDetails:handleQuickAttendance", error);
+      logError("GroupDetails:markAttendance", error);
+      toast({
+        title: "Xatolik",
+        description: "Davomatni saqlashda xatolik yuz berdi. Ruxsatlar tekshiring.",
+        variant: "destructive",
+      });
       void fetchAttendanceForDate(selectedDate);
     }
   };
@@ -1076,6 +1128,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       toast({
         title: "Xatolik",
         description: "Kelajakdagi sana uchun davomat belgilab bo'lmaydi.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
         variant: "destructive",
       });
       return;
@@ -1104,6 +1164,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
         students.forEach((student) => {
           if (!isDateWithinStudentPeriod(student, selectedDate)) return;
           next[student.id] = "present";
+          localAttendanceModsRef.current[student.id] = Date.now();
         });
         return next;
       });
@@ -1144,6 +1205,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
       await batch.commit();
 
       setAttendance({});
+      students.forEach((student) => {
+        localAttendanceModsRef.current[student.id] = Date.now();
+      });
       setPendingAttendance({});
       setSavedAttendance({});
       void fetchAttendanceDates();
@@ -1583,21 +1647,42 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
     notes: string | null,
     seq: number,
   ) => {
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const docId = `${studentId}_${selectedDate}`;
       const docRef = doc(db, "attendance_records", docId);
-      await setDoc(
-        docRef,
-        {
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        // Hujjat mavjud → faqat status va notes ni yangilaymiz (update)
+        await setDoc(
+          docRef,
+          {
+            status,
+            notes: notes ?? null,
+            updated_at: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      } else {
+        // Hujjat yo'q → to'liq ma'lumot bilan yangi hujjat yaratamiz (create)
+        await setDoc(docRef, {
           teacher_id: teacherId,
           student_id: studentId,
           date: selectedDate,
           status,
           notes: notes ?? null,
+          created_at: serverTimestamp(),
           updated_at: serverTimestamp(),
-        },
-        { merge: true },
-      );
+        });
+      }
 
       if (attendanceWriteSeqRef.current[studentId] !== seq) return;
 
@@ -1657,6 +1742,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({
 
     const nextSeq = (attendanceWriteSeqRef.current[studentId] || 0) + 1;
     attendanceWriteSeqRef.current[studentId] = nextSeq;
+    localAttendanceModsRef.current[studentId] = Date.now();
 
     setAttendance((prev) => ({ ...prev, [studentId]: next }));
     setPendingAttendance((prev) => ({ ...prev, [studentId]: true }));

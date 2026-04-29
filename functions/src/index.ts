@@ -12,6 +12,8 @@ import {
   cleanupExpiredAnalysis,
   runAiAnalysis,
 } from "./analysisEngine";
+import { runGCPBackup } from "./backupEngine";
+import { sendWeeklyReport } from "./reportEngine";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -143,7 +145,7 @@ export const aiOpenRouterProxy = onCall(
         throw new HttpsError("internal", "AI API xatolik: " + response.status);
       }
 
-      const data = await response.json();
+      const data: any = await response.json();
       const answer = data.choices?.[0]?.message?.content || "Javob topilmadi";
       
       return { answer };
@@ -169,4 +171,28 @@ export const aiCleanupExpired = onSchedule(
       logger.error("AI cleanup failed", error);
     }
   },
+);
+
+export const automatedGCPBackup = onSchedule(
+  {
+    region,
+    schedule: "every day 03:00",
+    timeZone: "Asia/Tashkent",
+    memory: "256MiB",
+  },
+  async () => {
+    await runGCPBackup();
+  }
+);
+
+export const weeklyReportJob = onSchedule(
+  {
+    region,
+    schedule: "every sunday 09:00",
+    timeZone: "Asia/Tashkent",
+    memory: "256MiB",
+  },
+  async () => {
+    await sendWeeklyReport();
+  }
 );

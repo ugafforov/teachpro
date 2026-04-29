@@ -185,6 +185,14 @@ const AttendanceJournal: React.FC<AttendanceJournalProps> = ({
       });
       return;
     }
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
     const student = students.find((s) => s.id === studentId);
     const effectiveJoinDate = student ? getEffectiveJoinDate(student) : null;
     const effectiveArchiveDate = student

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -16,6 +17,21 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === 'development' && componentTagger(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
+      },
+      manifest: {
+        name: 'TeachPro CRM',
+        short_name: 'TeachPro',
+        description: 'O\'quv markazlari uchun zamonaviy CRM tizimi',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
+        display: 'standalone',
+      }
+    }),
   ].filter(Boolean),
   resolve: {
     alias: {

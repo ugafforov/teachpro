@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { logError } from "@/lib/errorUtils";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -167,6 +167,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
     status: "present" | "absent_with_reason" | "absent_without_reason" | "late",
     notes?: string,
   ) => {
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const docId = `${studentId}_${selectedDate}`;
       await setDoc(
@@ -237,6 +245,14 @@ const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
   };
 
   const markAllPresent = async () => {
+    if (!teacherId) {
+      toast({
+        title: "Xatolik",
+        description: "O'qituvchi ma'lumotlari yuklanmagan. Iltimos, sahifani yangilang.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       const batch = writeBatch(db);
       filteredStudents.forEach((student) => {

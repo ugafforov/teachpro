@@ -271,14 +271,6 @@ export async function calculateAllStudentScores(
   const allAttendance = attendanceSnap.docs.map(d => d.data());
   const allRewards = rewardsSnap.docs.map(d => d.data());
 
-  console.log(`[ScoreCalc] students: ${students.length}, allAttendance: ${allAttendance.length}, allRewards: ${allRewards.length}`);
-  if (allAttendance.length > 0) {
-    console.log(`[ScoreCalc] Sample attendance:`, JSON.stringify(allAttendance[0]));
-  }
-  if (students.length > 0) {
-    console.log(`[ScoreCalc] Sample student:`, JSON.stringify({ id: students[0].id, name: students[0].name, group_name: students[0].group_name, created_at: students[0].created_at, join_date: students[0].join_date }));
-  }
-
   let startDate: string | null = null;
   if (period !== 'all') {
     const now = getTashkentDate();
@@ -313,9 +305,6 @@ export async function calculateAllStudentScores(
       groupClassDates.get(groupName)?.add(a.date);
     }
   });
-
-  console.log(`[ScoreCalc] groupClassDates:`, JSON.stringify(Object.fromEntries([...groupClassDates.entries()].map(([k, v]) => [k, v.size]))));
-  console.log(`[ScoreCalc] studentGroupMap size: ${studentGroupMap.size}`);
 
   return students.map(student => {
     // Prioritize explicit join_date, fallback to created_at
